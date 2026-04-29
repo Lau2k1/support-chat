@@ -13,7 +13,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Раздача статики фронтенда
 const frontendPath = path.join(__dirname, '../../frontend');
 app.use(express.static(frontendPath));
 
@@ -28,219 +27,171 @@ const pool = new Pool({
   port: 5432,
 });
 
-// Хранилища сессий
 const operators = new Set<any>();
 const rooms = new Map<number, Set<any>>();
 
-/**
- * Безопасная отправка данных клиенту
- */
 function safeSend(ws: any, data: object) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(data));
   }
 }
 
-/**
- * Управление комнатами (чатами)
- */
 function joinRoom(chatId: number, ws: any) {
   if (!rooms.has(chatId)) {
     rooms.set(chatId, new Set());
   }
   rooms.get(chatId)!.add(ws);
-  console.log(`[Room] Пользователь вошел в чат #${chatId}. В комнате: ${rooms.get(chatId)!.size}`);
 }
 
-/**
- * Интервал автоматического закрытия чатов (7 минут неактивности)
- */
+// АВТО-ЗАКРЫТИЕ (7 минут)
 setInterval(async () => {
   try {
-    const timeoutMinutes = 7;
     const expired = await pool.query(
-      `UPDATE chats 
-       SET status = 'closed' 
-       WHERE status = 'open' 
-       AND updated_at < NOW() - INTERVAL '${timeoutMinutes} minutes'
+      `UPDATE chats SET status = 'closed' 
+       WHERE status = 'open' AND updated_at < NOW() - INTERVAL '7 minutes'
        RETURNING id`
     );
 
-    expired.rows.forEach(chat => {
-      console.log(`[Auto-Close] Чат #${chat.id} закрыт по таймауту.`);
+    for (const chat of expired.rows) {
       const notice = { type: "chat_closed", chatId: chat.id, reason: "timeout" };
       
+      // Уведомляем операторов
       operators.forEach(op => safeSend(op, notice));
       
+      // Уведомляем клиентов в комнате
       const room = rooms.get(chat.id);
       if (room) {
         room.forEach(ws => safeSend(ws, notice));
         rooms.delete(chat.id);
       }
-    });
-  } catch (err) {
-    console.error("[Cleanup Error]", err);
-  }
+
+      // Дополнительная проверка: ищем по всем подключениям WSS, если клиент не в комнате
+      wss.clients.forEach((client: any) => {
+        if (client.chatId === chat.id) {
+          safeSend(client, notice);
+        }
+      });
+    }
+  } catch (err) { console.error("Auto-close error:", err); }
 }, 30000);
 
-/**
- * REST API Маршруты
- */
-
-// Авторизация оператора
+// API
 app.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const result = await pool.query('SELECT * FROM operators WHERE email = $1', [email]);
     const user = result.rows[0];
-
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ error: "Неверные данные" });
+    if (user && await bcrypt.compare(password, user.password)) {
+      const token = jwt.sign({ id: user.id, name: user.name }, SECRET);
+      res.json({ token });
+    } else {
+      res.status(401).json({ error: "Unauthorized" });
     }
-
-    const token = jwt.sign({ id: user.id, name: user.name }, SECRET);
-    res.json({ token });
-  } catch (e) {
-    res.status(500).json({ error: "Ошибка БД" });
-  }
+  } catch (e) { res.status(500).json({ error: "DB Error" }); }
 });
 
-// Получение архива закрытых чатов
 app.get('/archive', async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT id, updated_at FROM chats WHERE status = 'closed' ORDER BY updated_at DESC LIMIT 50"
-    );
-    res.json(result.rows);
-  } catch (e) {
-    res.status(500).send("Ошибка загрузки архива");
-  }
+  const result = await pool.query(
+    "SELECT id, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE status = 'closed' ORDER BY updated_at DESC LIMIT 50"
+  );
+  res.json(result.rows);
 });
 
-// История сообщений чата
 app.get('/messages/:chatId', async (req, res) => {
-  try {
-    const { chatId } = req.params;
-    const result = await pool.query(
-      "SELECT * FROM messages WHERE chat_id = $1 ORDER BY created_at ASC",
-      [chatId]
-    );
-    res.json(result.rows);
-  } catch (e) {
-    res.status(500).send("Ошибка загрузки истории");
-  }
+  const result = await pool.query(
+    "SELECT id, chat_id, sender_id, content, extract(epoch from created_at) * 1000 as created_at FROM messages WHERE chat_id = $1 ORDER BY created_at ASC", 
+    [req.params.chatId]
+  );
+  res.json(result.rows);
 });
 
-/**
- * WebSocket логика
- */
-wss.on('connection', (ws: any) => {
-  console.log("[WS] Новое соединение");
+// Проверка статуса чата (нужна клиенту при обновлении страницы)
+app.get('/chat-status/:id', async (req, res) => {
+  const result = await pool.query("SELECT status FROM chats WHERE id = $1", [req.params.id]);
+  res.json(result.rows[0] || { status: 'not_found' });
+});
 
+// WS
+wss.on('connection', (ws: any) => {
   ws.on('message', async (rawData: string) => {
     try {
       const msg = JSON.parse(rawData);
 
-      // 1. Авторизация (только для операторов)
       if (msg.type === "auth") {
-        const decoded: any = jwt.verify(msg.token, SECRET);
-        ws.operator = decoded;
+        ws.operator = jwt.verify(msg.token, SECRET);
         ws.role = "operator";
-        console.log(`[WS] Оператор ${decoded.name} в сети`);
         return;
       }
 
-      // 2. Оператор запрашивает список активных чатов
       if (msg.type === "operator_join") {
         operators.add(ws);
         const active = await pool.query(
-          "SELECT id, updated_at FROM chats WHERE status = 'open' ORDER BY updated_at DESC"
+          "SELECT id, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE status = 'open' ORDER BY updated_at DESC"
         );
         safeSend(ws, { type: "init_operator", chats: active.rows });
         return;
       }
 
-      // 3. Клиент начинает новый чат
       if (msg.type === "init_chat") {
         const res = await pool.query(
-          "INSERT INTO chats (client_id, status, updated_at) VALUES (1, 'open', CURRENT_TIMESTAMP) RETURNING id"
+          "INSERT INTO chats (client_id, status, updated_at) VALUES (1, 'open', CURRENT_TIMESTAMP) RETURNING id, extract(epoch from updated_at) * 1000 as updated_at"
         );
-        const newId = res.rows[0].id;
-        ws.chatId = newId;
+        const chat = res.rows[0];
+        ws.chatId = chat.id;
         ws.role = "client";
-        
-        joinRoom(newId, ws);
-        safeSend(ws, { type: "chat_created", chatId: newId });
-
-        // Оповещаем операторов
-        operators.forEach(op => safeSend(op, { type: "new_chat", chatId: newId }));
+        joinRoom(chat.id, ws);
+        safeSend(ws, { type: "chat_created", chatId: chat.id });
+        operators.forEach(op => safeSend(op, { type: "new_chat", chatId: chat.id, updated_at: chat.updated_at }));
         return;
       }
 
-      // 4. Подключение к существующему чату (при перезагрузке или новой вкладке)
       if (msg.type === "join_chat") {
-        joinRoom(Number(msg.chatId), ws);
+        ws.chatId = Number(msg.chatId);
+        joinRoom(ws.chatId, ws);
         return;
       }
 
-      // 5. Пересылка сообщения
       if (msg.type === "message") {
         const cId = Number(msg.chatId);
-        const sId = ws.role === "operator" ? ws.operator.id : 0;
         const sName = ws.role === "operator" ? ws.operator.name : "Клиент";
+        const sId = ws.role === "operator" ? ws.operator.id : 0;
 
-        // Обновляем метку времени чата
-        await pool.query("UPDATE chats SET updated_at = CURRENT_TIMESTAMP WHERE id = $1", [cId]);
+        const timeUpdate = await pool.query(
+          "UPDATE chats SET updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING extract(epoch from updated_at) * 1000 as updated_at", 
+          [cId]
+        );
+        const serverTime = Number(timeUpdate.rows[0].updated_at);
 
-        // Сохраняем сообщение в БД
         const res = await pool.query(
-          "INSERT INTO messages (chat_id, sender_id, content) VALUES ($1, $2, $3) RETURNING *",
+          "INSERT INTO messages (chat_id, sender_id, content) VALUES ($1, $2, $3) RETURNING *, extract(epoch from created_at) * 1000 as created_at", 
           [cId, sId, msg.content]
         );
 
-        const outData = {
-          type: "message",
-          message: { ...res.rows[0], chat_id: cId, sender_name: sName }
+        const out = { 
+          type: "message", 
+          message: { ...res.rows[0], sender_name: sName }, 
+          updated_at: serverTime 
         };
-
-        // Отправка всем в комнате
-        rooms.get(cId)?.forEach(member => safeSend(member, outData));
+        rooms.get(cId)?.forEach(m => safeSend(m, out));
         return;
       }
 
-      // 6. Завершение диалога (ручное)
       if (msg.type === "close_chat") {
         const cId = Number(msg.chatId);
         await pool.query("UPDATE chats SET status = 'closed' WHERE id = $1", [cId]);
-        
-        const closeMsg = { type: "chat_closed", chatId: cId, reason: "manual" };
-        
-        // Уведомляем операторов и клиентов
+        const closeMsg = { type: "chat_closed", chatId: cId };
         operators.forEach(op => safeSend(op, closeMsg));
-        const room = rooms.get(cId);
-        if (room) {
-          room.forEach(member => safeSend(member, closeMsg));
-          rooms.delete(cId);
-        }
+        rooms.get(cId)?.forEach(m => safeSend(m, closeMsg));
+        rooms.delete(cId);
         return;
       }
-
-    } catch (err) {
-      console.error("[WS Processing Error]", err);
-    }
+    } catch (e) { console.error("WS Error:", e); }
   });
 
   ws.on('close', () => {
     operators.delete(ws);
-    rooms.forEach((members, id) => {
-      if (members.has(ws)) {
-        members.delete(ws);
-        console.log(`[WS] Пользователь покинул чат #${id}`);
-      }
-    });
+    if (ws.chatId) rooms.get(ws.chatId)?.delete(ws);
   });
 });
 
-server.listen(3000, () => {
-  console.log("🚀 Server running on http://localhost:3000");
-});
+server.listen(3000, () => console.log("🚀 Server started on :3000"));
