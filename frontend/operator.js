@@ -1,174 +1,102 @@
 const ws = new WebSocket("ws://localhost:3000");
+let currentChatId = null;
 
-const chatBox = document.getElementById("chat");
-const input = document.getElementById("input");
+const chatListEl = document.getElementById("chat-list");
+const messagesEl = document.getElementById("messages");
+const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("send");
-const chatList = document.getElementById("chatList");
-const token = localStorage.getItem("token");
-
-let currentChat = null;
-let chats = {};
-let chatMeta = {};
-let chatElements = {};
-
-
 
 ws.onopen = () => {
-  ws.send(JSON.stringify({
-    type: "auth",
-    token
-  }));
+    const token = localStorage.getItem("token");
+    if (!token) {
+        window.location.href = "login.html";
+        return;
+    }
+    ws.send(JSON.stringify({ type: "auth", token }));
 };
 
-/**
- * CONNECT
- */
-ws.onopen = () => {
-  ws.send(JSON.stringify({ type: "operator_join" }));
-};
-
-/**
- * WS EVENTS
- */
 ws.onmessage = (event) => {
-  const msg = JSON.parse(event.data);
+    const data = JSON.parse(event.data);
+    console.log("Получено от сервера:", data);
 
-  if (msg.type === "new_chat") {
-    createChat(msg.chatId);
-  }
-
-  if (msg.type === "message") {
-    const m = msg.message;
-
-    if (!chats[m.chat_id]) chats[m.chat_id] = [];
-    chats[m.chat_id].push(m);
-
-    updatePreview(m);
-
-    if (m.chat_id !== currentChat) {
-      chatMeta[m.chat_id].unread++;
-      updateChatItem(m.chat_id);
+    if (data.type === "init_operator") {
+        if (chatListEl) {
+            chatListEl.innerHTML = "";
+            data.chats.forEach(id => addChatToList(id));
+        }
     }
 
-    if (m.chat_id === currentChat) {
-      renderMessages();
+    if (data.type === "new_chat") {
+        addChatToList(data.chatId);
     }
-  }
+
+    if (data.type === "message") {
+        if (data.message.chat_id === currentChatId) {
+            renderMessage(data.message);
+        }
+    }
 };
 
-/**
- * CREATE CHAT
- */
-function createChat(chatId) {
-  chats[chatId] = [];
-  chatMeta[chatId] = { unread: 0, last: "" };
+function addChatToList(chatId) {
+    if (!chatListEl || document.getElementById(`chat-btn-${chatId}`)) return;
 
-  const div = document.createElement("div");
-  div.className = "chat-item";
-
-  div.onclick = () => openChat(chatId);
-
-  chatList.appendChild(div);
-  chatElements[chatId] = div;
-
-  updateChatItem(chatId);
+    const btn = document.createElement("div");
+    btn.id = `chat-btn-${chatId}`;
+    btn.className = "chat-item";
+    btn.innerText = `Чат #${chatId}`;
+    
+    btn.onclick = () => selectChat(chatId);
+    chatListEl.appendChild(btn);
 }
 
-/**
- * UPDATE CHAT ITEM
- */
-function updateChatItem(chatId) {
-  const meta = chatMeta[chatId];
-  const el = chatElements[chatId];
+async function selectChat(chatId) {
+    currentChatId = chatId;
+    if (messagesEl) messagesEl.innerHTML = "Загрузка сообщений...";
 
-  el.innerHTML = `
-    <div class="chat-meta">
-      <span class="chat-title">Chat #${chatId}</span>
-      ${meta.unread ? `<span class="unread">${meta.unread}</span>` : ""}
-    </div>
-    <div class="chat-preview">${meta.last || "..."}</div>
-  `;
+    // Визуальное выделение
+    document.querySelectorAll('.chat-item').forEach(el => el.style.background = 'transparent');
+    const activeBtn = document.getElementById(`chat-btn-${chatId}`);
+    if (activeBtn) activeBtn.style.background = '#e9ecef';
+
+    ws.send(JSON.stringify({ type: "join_chat", chatId }));
+
+    try {
+        const res = await fetch(`http://localhost:3000/messages/${chatId}`);
+        const history = await res.json();
+        if (messagesEl) {
+            messagesEl.innerHTML = "";
+            history.forEach(msg => renderMessage(msg));
+        }
+    } catch (err) {
+        console.error("Ошибка загрузки истории:", err);
+    }
 }
 
-/**
- * UPDATE PREVIEW
- */
-function updatePreview(m) {
-  chatMeta[m.chat_id].last = m.content.slice(0, 30);
-  updateChatItem(m.chat_id);
-}
-
-/**
- * OPEN CHAT
- */
-async function openChat(chatId) {
-  currentChat = chatId;
-
-  ws.send(JSON.stringify({
-    type: "join_chat",
-    chatId
-  }));
-
-  Object.values(chatElements).forEach(el => el.classList.remove("active"));
-  chatElements[chatId].classList.add("active");
-
-  chatMeta[chatId].unread = 0;
-  updateChatItem(chatId);
-
-  const res = await fetch(`http://localhost:3000/messages/${chatId}`);
-  chats[chatId] = await res.json();
-
-  renderMessages();
-}
-
-/**
- * RENDER
- */
-function renderMessages() {
-  chatBox.innerHTML = "";
-
-  const msgs = chats[currentChat] || [];
-
-  msgs.forEach(m => {
-    const div = document.createElement("div");
-
-    const isOperator = m.sender_id === 1;
-
-    div.className = "msg " + (isOperator ? "operator" : "client");
-
-    const time = new Date(m.created_at).toLocaleTimeString();
-
-    div.innerHTML = `
-      <div>${m.content}</div>
-      <div class="msg-time">${time}</div>
-    `;
-
-    chatBox.appendChild(div);
-  });
-
-  chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-/**
- * SEND
- */
 function sendMessage() {
-  if (!currentChat) return;
+    const content = inputEl.value.trim();
+    if (!content || !currentChatId) return;
 
-  const text = input.value.trim();
-  if (!text) return;
-
-  ws.send(JSON.stringify({
-    type: "message",
-    chatId: currentChat,
-    content: text
-  }));
-
-  input.value = "";
+    ws.send(JSON.stringify({
+        type: "message",
+        chatId: currentChatId,
+        content: content
+    }));
+    inputEl.value = "";
 }
 
-sendBtn.onclick = sendMessage;
+if (sendBtn) sendBtn.onclick = sendMessage;
+if (inputEl) {
+    inputEl.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
+}
 
-input.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") sendMessage();
-});
+function renderMessage(msg) {
+    if (!messagesEl) return;
+    const div = document.createElement("div");
+    div.className = msg.sender_id === 0 ? "msg-client" : "msg-operator";
+    
+    const sender = msg.sender_id === 0 ? "Клиент" : (msg.sender_name || "Оператор");
+    div.innerHTML = `<strong>${sender}:</strong> <span>${msg.content}</span>`;
+    
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+}
