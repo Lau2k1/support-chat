@@ -10,7 +10,6 @@ services:
       POSTGRES_USER: support_user
       POSTGRES_PASSWORD: support_pass
       POSTGRES_DB: support_chat
-
     ports:
       - "5432:5432"
 

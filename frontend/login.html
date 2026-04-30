@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Вход в Support System</title>
     <style>
         body {
@@ -61,7 +62,7 @@ async function login() {
 
     try {
         // Проверь, что здесь нет лишних двоеточий вне строк
-        const res = await fetch("http://localhost:3000/login", { 
+        const res = await fetch("/login", { 
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
