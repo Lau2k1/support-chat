@@ -23,6 +23,25 @@
         .chat-name { font-weight: 600; font-size: 14px; }
         .chat-timer { font-size: 11px; margin-top: 4px; color: #94a3b8; }
         .has-new-msg::after { content: ''; position: absolute; right: 15px; width: 8px; height: 8px; background: var(--primary); border-radius: 50%; }
+        
+        /* Typing indicator styles */
+        .typing-indicator { display: flex; gap: 2px; margin-top: 2px; }
+        .typing-indicator span { 
+            width: 6px; 
+            height: 6px; 
+            background: #94a3b8; 
+            border-radius: 50%; 
+            display: block;
+            animation: typingBounce 1.4s infinite ease-in-out;
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: 0s; }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typingBounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
 
         #chat-area { flex: 1; display: flex; flex-direction: column; }
         #chatHeader { height: 60px; background: #fff; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); font-weight: 600; }
@@ -32,7 +51,10 @@
         .message-bubble.cl { align-self: flex-start; background: #fff; border: 1px solid var(--border); }
         .message-bubble.op { align-self: flex-end; background: var(--primary); color: #fff; }
         .time { font-size: 10px; opacity: 0.7; margin-top: 4px; text-align: right; }
-
+        
+        /* Read receipt styles */
+        .message-read { opacity: 0.7; }
+        
         .input-container { padding: 20px; background: #fff; border-top: 1px solid var(--border); display: flex; gap: 10px; }
         #input { flex: 1; padding: 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; }
         #send { background: var(--primary); color: white; border: none; padding: 0 20px; border-radius: 8px; cursor: pointer; font-weight: 600; }

@@ -176,6 +176,48 @@ wss.on('connection', (ws: any) => {
         return;
       }
 
+      if (msg.type === "typingStart" || msg.type === "typingStop") {
+        const cId = Number(msg.chatId);
+        // Broadcast typing event to others in the room
+        const room = rooms.get(cId);
+        if (room) {
+          room.forEach(client => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+              safeSend(client, { type: msg.type, chatId: cId, senderId: ws.role === "operator" ? ws.operator.id : 0 });
+            }
+          });
+        }
+        return;
+      }
+
+      if (msg.type === "messageRead") {
+        const cId = Number(msg.chatId);
+        const messageId = Number(msg.messageId);
+        const readerId = ws.role === "operator" ? ws.operator.id : 0;
+        
+        // Update the read status in database
+        await pool.query(
+          "UPDATE messages SET read_at = CURRENT_TIMESTAMP WHERE id = $1 AND chat_id = $2 AND sender_id != $3",
+          [messageId, cId, readerId]
+        );
+        
+        // Broadcast read receipt to others in the room
+        const room = rooms.get(cId);
+        if (room) {
+          room.forEach(client => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+              safeSend(client, { 
+                type: "messageRead", 
+                chatId: cId, 
+                messageId: messageId,
+                readerId: readerId
+              });
+            }
+          });
+        }
+        return;
+      }
+
       if (msg.type === "close_chat") {
         const cId = Number(msg.chatId);
         await pool.query("UPDATE chats SET status = 'closed' WHERE id = $1", [cId]);
