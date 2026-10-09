@@ -29,8 +29,38 @@ export function removeConnection(ws: ClientWs) {
   }
 }
 
+export function getOnlineOperators(): { id: number; name: string }[] {
+  const result: { id: number; name: string }[] = [];
+  operators.forEach(op => {
+    if (op.operator && op.operatorStatus !== 'offline') {
+      result.push({ id: op.operator.id, name: op.operator.name });
+    }
+  });
+  return result;
+}
+
+export function broadcastOperatorsStatus() {
+  const list = getOnlineOperators();
+  operators.forEach(op => safeSend(op, { type: 'operators_status', operators: list }));
+}
+
+export function findOperatorById(id: number): ClientWs | undefined {
+  for (const op of operators) {
+    if (op.operator?.id === id) return op;
+  }
+  return undefined;
+}
+
 export function broadcastToOperators(data: OutgoingMessage) {
   operators.forEach(op => safeSend(op, data));
+}
+
+export function broadcastToOnlineOperators(data: OutgoingMessage) {
+  operators.forEach(op => {
+    if (op.operatorStatus === 'online') {
+      safeSend(op, data);
+    }
+  });
 }
 
 export function broadcastToRoom(chatId: number, data: OutgoingMessage, excludeWs?: ClientWs) {
@@ -38,6 +68,17 @@ export function broadcastToRoom(chatId: number, data: OutgoingMessage, excludeWs
   if (room) {
     room.forEach(client => {
       if (client !== excludeWs) {
+        safeSend(client, data);
+      }
+    });
+  }
+}
+
+export function broadcastToRoomOperators(chatId: number, data: OutgoingMessage) {
+  const room = rooms.get(chatId);
+  if (room) {
+    room.forEach(client => {
+      if (client.role === 'operator') {
         safeSend(client, data);
       }
     });

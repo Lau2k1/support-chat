@@ -8,9 +8,14 @@ import {
   joinRoom,
   removeConnection,
   broadcastToOperators,
+  broadcastToOnlineOperators,
   broadcastToRoom,
+  broadcastToRoomOperators,
   deleteRoom,
   addOperator,
+  getOnlineOperators,
+  broadcastOperatorsStatus,
+  findOperatorById,
 } from '../services/chat';
 
 function isAuth(ws: ClientWs): boolean {
@@ -25,8 +30,15 @@ export function handleConnection(ws: ClientWs) {
       switch (msg.type) {
         case 'auth': {
           try {
-            ws.operator = jwt.verify(msg.token, SECRET) as ClientWs['operator'];
+            const payload = jwt.verify(msg.token, SECRET) as ClientWs['operator'];
+            const opResult = await pool.query('SELECT is_enabled FROM operators WHERE id = $1', [payload!.id]);
+            if (!opResult.rows.length || !opResult.rows[0].is_enabled) {
+              safeSend(ws, { type: 'auth_error' });
+              break;
+            }
+            ws.operator = payload;
             ws.role = 'operator';
+            safeSend(ws, { type: 'auth_ok' });
           } catch {
             safeSend(ws, { type: 'auth_error' });
           }
@@ -39,14 +51,22 @@ export function handleConnection(ws: ClientWs) {
             break;
           }
           addOperator(ws);
-          const active = await pool.query(
-            "SELECT id, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE status = 'open' ORDER BY updated_at DESC"
-          );
-          safeSend(ws, { type: 'init_operator', chats: active.rows });
+          broadcastOperatorsStatus();
+          if (ws.operatorStatus === 'online') {
+            const active = await pool.query(
+              "SELECT id, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE status = 'open' ORDER BY updated_at DESC"
+            );
+            safeSend(ws, { type: 'init_operator', chats: active.rows });
+          }
           break;
         }
 
         case 'init_chat': {
+          const onlineOps = getOnlineOperators();
+          if (onlineOps.length === 0) {
+            safeSend(ws, { type: 'operators_offline' });
+            break;
+          }
           const nextId = await pool.query('SELECT COALESCE(MAX(client_id), 0) + 1 AS next_id FROM chats');
           const clientId = nextId.rows[0].next_id;
           const res = await pool.query(
@@ -58,7 +78,7 @@ export function handleConnection(ws: ClientWs) {
           ws.role = 'client';
           joinRoom(chat.id, ws);
           safeSend(ws, { type: 'chat_created', chatId: chat.id });
-          broadcastToOperators({ type: 'new_chat', chatId: chat.id, updated_at: chat.updated_at });
+          broadcastToOnlineOperators({ type: 'new_chat', chatId: chat.id, updated_at: chat.updated_at });
           break;
         }
 
@@ -80,6 +100,7 @@ export function handleConnection(ws: ClientWs) {
           const cId = Number(msg.chatId);
           const sName = ws.role === 'operator' ? ws.operator!.name : 'Клиент';
           const sId = ws.role === 'operator' ? ws.operator!.id : 0;
+          const mType = (msg as any).message_type || 'text';
 
           const timeUpdate = await pool.query(
             'UPDATE chats SET updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING extract(epoch from updated_at) * 1000 as updated_at',
@@ -88,8 +109,8 @@ export function handleConnection(ws: ClientWs) {
           const serverTime = Number(timeUpdate.rows[0].updated_at);
 
           const res = await pool.query(
-            'INSERT INTO messages (chat_id, sender_id, content) VALUES ($1, $2, $3) RETURNING *, extract(epoch from created_at) * 1000 as created_at',
-            [cId, sId, msg.content]
+            'INSERT INTO messages (chat_id, sender_id, content, message_type) VALUES ($1, $2, $3, $4) RETURNING *, extract(epoch from created_at) * 1000 as created_at',
+            [cId, sId, msg.content, mType]
           );
 
           const out: OutgoingMessage = {
@@ -97,7 +118,12 @@ export function handleConnection(ws: ClientWs) {
             message: { ...res.rows[0], sender_name: sName, message_type: res.rows[0].message_type || 'text', file_url: res.rows[0].file_url || null },
             updated_at: serverTime,
           };
-          broadcastToRoom(cId, out);
+
+          if (mType === 'note') {
+            broadcastToRoomOperators(cId, out);
+          } else {
+            broadcastToRoom(cId, out);
+          }
           break;
         }
 
@@ -122,6 +148,52 @@ export function handleConnection(ws: ClientWs) {
           );
 
           broadcastToRoom(cId, { type: 'messageRead', chatId: cId, messageId, readerId }, ws);
+          break;
+        }
+
+        case 'operator_status': {
+          if (ws.role !== 'operator') break;
+          const prevStatus = ws.operatorStatus;
+          ws.operatorStatus = msg.status;
+          broadcastOperatorsStatus();
+          if (prevStatus === 'offline' && msg.status === 'online') {
+            const active = await pool.query(
+              "SELECT id, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE status = 'open' ORDER BY updated_at DESC"
+            );
+            safeSend(ws, { type: 'init_operator', chats: active.rows });
+          }
+          break;
+        }
+
+        case 'transfer_chat': {
+          if (ws.role !== 'operator') break;
+          const tChatId = Number(msg.chatId);
+          const targetOp = findOperatorById(Number((msg as any).targetOperatorId));
+          if (!targetOp) break;
+
+          removeConnection(ws);
+          joinRoom(tChatId, targetOp);
+          targetOp.chatId = tChatId;
+
+          const sysRes = await pool.query(
+            "INSERT INTO messages (chat_id, sender_id, content, message_type) VALUES ($1, 0, $2, 'note') RETURNING *, extract(epoch from created_at) * 1000 as created_at",
+            [tChatId, `Чат передан оператору ${targetOp.operator!.name}`]
+          );
+          const sysOut: OutgoingMessage = {
+            type: 'message',
+            message: { ...sysRes.rows[0], sender_name: 'Система', message_type: 'note' },
+            updated_at: Date.now(),
+          };
+          broadcastToRoom(tChatId, sysOut);
+          safeSend(targetOp, { type: 'chat_transferred', chatId: tChatId });
+
+          const chatInfo = await pool.query(
+            "SELECT id, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE id = $1",
+            [tChatId]
+          );
+          if (chatInfo.rows.length) {
+            safeSend(targetOp, { type: 'new_chat', chatId: tChatId, updated_at: chatInfo.rows[0].updated_at });
+          }
           break;
         }
 

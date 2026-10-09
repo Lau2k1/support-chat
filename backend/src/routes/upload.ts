@@ -94,5 +94,17 @@ router.get('/stats', authMiddleware, async (_req, res) => {
   });
 });
 
+router.get('/stats/daily', authMiddleware, async (_req, res) => {
+  const result = await pool.query(`
+    SELECT TO_CHAR(date, 'DD.MM') AS day, COALESCE(count, 0) AS count
+    FROM generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, '1 day') AS date
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*)::int AS count FROM chats WHERE DATE(created_at) = date
+    ) c ON true
+    ORDER BY date
+  `);
+  res.json(result.rows);
+});
+
 export { upload };
 export default router;

@@ -9,6 +9,7 @@ import authRoutes from './routes/auth';
 import chatRoutes from './routes/chat';
 import cannedRoutes from './routes/canned';
 import uploadRoutes from './routes/upload';
+import adminRoutes from './routes/admin';
 import { handleConnection } from './ws/handler';
 import { startAutoCloseTimer } from './services/chat';
 
@@ -23,7 +24,7 @@ app.use(cors({
 }));
 app.use(express.json());
 
-const frontendPath = path.join(__dirname, '../../frontend');
+const frontendPath = path.join(__dirname, '../../frontend-react/dist');
 app.use(express.static(frontendPath));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
@@ -31,6 +32,11 @@ app.use(authRoutes);
 app.use(chatRoutes);
 app.use(cannedRoutes);
 app.use(uploadRoutes);
+app.use(adminRoutes);
+
+app.get('{*path}', (_req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
