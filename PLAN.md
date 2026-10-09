@@ -5,12 +5,14 @@
 
 ---
 
-## 0. Гигиена Git (сделать первым — защита от потери работы)
+## 0. Гигиена Git (сделать первым — защита от потери работы) ✅
 
-- [ ] Закоммитить untracked: `frontend-react/` целиком, `backend/src/routes/admin.ts`, `docker-compose.yml`, `.gitignore`
-- [ ] Проверить `.gitignore`: `backend/dist/`, `backend/uploads/`, `.env`, `node_modules/`, `frontend-react/dist/`
-- [ ] Разобраться с корнем: `package.json` = `{}`, а `package-lock.json` рассинхронизирован → либо удалить корневой lock, либо сделать нормальные npm workspaces
-- [ ] Решить судьбу легаси-файлов: `backend/create-db.js` (дублёр compose), `backend/dist/` (устарел)
+- [x] Закоммитить untracked: `frontend-react/` целиком, `backend/src/routes/admin.ts`, `docker-compose.yml`, `.gitignore` (4 коммита: chore / backend / frontend / docs)
+- [x] Проверить `.gitignore`: `dist/`, `uploads/`, `.env`, `**/.env`, `node_modules/` игнорируются (подтверждено `git check-ignore`)
+- [x] Корень: удалён рассинхронизированный `package-lock.json` + корневой `node_modules` (package.json остаётся `{}`); npm workspaces — опционально позже
+- [ ] Решить судьбу легаси: `backend/create-db.js` (закоммичен как есть, дублирует compose — кандидат на удаление), `backend/dist/` (в .gitignore, но устарел — пересобрать)
+- [ ] (опц.) Добавить `.gitattributes` (`* text=auto eol=lf`) — убрать CRLF-шум в предупреждениях git
+- [ ] Запушить локальные коммиты в `origin/main` (сейчас 4 коммита впереди)
 
 ---
 
