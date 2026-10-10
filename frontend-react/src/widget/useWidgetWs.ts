@@ -273,10 +273,9 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
         body: formData,
       });
       if (!res.ok) return;
-      const msg: WidgetMessage = await res.json();
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: 'file_message', chatId, msg }));
-      }
+      // The server broadcasts the stored message into the chat room itself
+      // (see routes/upload.ts), so everyone sees the file here without an
+      // extra WS round-trip (and clients can't forge file_url).
     } catch (e) {
       console.error(e);
     }

@@ -11,6 +11,9 @@ class WsManager {
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) return;
+    // A previous disconnect() must not latch: logging in again (without a
+    // page reload) has to be able to (re)connect and auto-reconnect.
+    this.intentionalClose = false;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     this.ws = new WebSocket(`${protocol}//${window.location.host}`);

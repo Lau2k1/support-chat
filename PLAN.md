@@ -44,15 +44,15 @@
 
 ---
 
-## 2. Баги интеграции фронт ↔ бэк
+## 2. Баги интеграции фронт ↔ бэк ✅
 
-- [ ] **`file_message`**: виджет (`src/widget/useWidgetWs.ts:258`) шлёт событие, которого нет в `backend/src/ws/types.ts` → добавить обработку на сервере + broadcast (и в REST `routes/upload.ts` после сохранения файла)
-- [ ] **Фильтр тегов архива**: фронт шлёт `tagId[]=1&tagId[]=2`, Express 5 (`query parser: 'simple'`) не парсит массивы → читать сырой query или передавать `tagId=1,2` (`routes/chat.ts:36`, `OperatorDashboard.tsx:220`)
-- [ ] **`init_operator` после F5**: `operator_join` не триггерит список чатов (гонка `ws.operatorStatus === 'online'` vs переход `offline→online`, `handler.ts:55,159`) → при первом `operator_join` всегда слать `init_operator`
-- [ ] **Вставка шаблона**: `OperatorDashboard.tsx:120-122` пишет через `document.querySelector` в контролируемый `TextField` → передавать контент в `ChatInput` через state/callback
-- [ ] **Даты инвайтов «—»**: `utils/format.ts:7` — `new Date(Number(ts))` на ISO-строке → поддержать ISO-строки
-- [ ] **Реконнект WS**: `services/ws.ts` — `intentionalClose` не сбрасывается в `connect()` → сбрасывать при новом подключении (login без F5)
-- [ ] **`chat_timeout_minutes` из админки**: `services/chat.ts:93` читает только env → читать из таблицы `settings` (или убрать настройку из UI)
+- [x] **`file_message`**: решено иначе и лучше — бродкаст делает сам сервер в `routes/upload.ts` после INSERT в БД (строка из БД, а не от клиента → `file_url` нельзя подделать). Виджет больше не шлёт `file_message` (`useWidgetWs.ts`). Заодно починен загрузка файлов оператором — теперь сообщение доходит до клиента (раньше не доходила вообще)
+- [x] **Фильтр тегов архива**: `routes/chat.ts:34` — принимает `tagId`, `tagId[]` (формат axios с Express 5 'simple') и `tagId=1,2` (comma-список); проверено вживую 7/7 (все 3 формы + промах)
+- [x] **`init_operator` после F5**: уже исправлен в 1.1 (`operator_join` всегда шлёт список). Доп. чистка: убран дубль-отправка списка из `operator_status` (`handler.ts`)
+- [x] **Вставка шаблона**: `OperatorDashboard.tsx` больше не пишет в DOM — `ChatInput` получил imperative handle `apiRef.insertTemplate(content)` (append + focus); передаётся через `ChatsView`
+- [x] **Даты инвайтов «—»**: `utils/format.ts` — общий парсер `toDate` (число-эпоха | ISO-строка | Date | null/undefined)
+- [x] **Реконнект WS**: `services/ws.ts` — `intentionalClose` сбрасывается в начале `connect()` (повторный login без F5)
+- [x] **`chat_timeout_minutes` из админки**: `services/chat.ts` — таймер читает `settings.chat_timeout_minutes` каждый цикл, env-переменная — fallback
 
 ---
 

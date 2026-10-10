@@ -198,15 +198,10 @@ export function handleConnection(ws: ClientWs) {
 
         case 'operator_status': {
           if (ws.role !== 'operator') break;
-          const prevStatus = ws.operatorStatus;
           ws.operatorStatus = msg.status;
           broadcastOperatorsStatus();
-          if (prevStatus === 'offline' && msg.status === 'online') {
-            const active = await pool.query(
-              "SELECT id, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE status = 'open' ORDER BY updated_at DESC"
-            );
-            safeSend(ws, { type: 'init_operator', chats: active.rows });
-          }
+          // No need to re-send init_operator here: operator_join already
+          // hands the operator the full open-chat list on every login (F5-safe).
           break;
         }
 

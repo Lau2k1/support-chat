@@ -13,7 +13,7 @@ router.get('/archive', authMiddleware, async (_req, res) => {
 
 router.get('/chats', authMiddleware, async (req, res) => {
   try {
-    const { tagId, status, from, to, limit = '50', offset = '0' } = req.query;
+    const { status, from, to, limit = '50', offset = '0' } = req.query;
     let sql = `
       SELECT c.id, c.client_id, c.client_name, c.client_device, c.client_region, c.status, c.rating, c.assigned_operator_id,
              o.name AS operator_name,
@@ -31,13 +31,27 @@ router.get('/chats', authMiddleware, async (req, res) => {
     let idx = 1;
 
     if (status) { sql += ` AND c.status = $${idx++}`; params.push(status); }
-    if (tagId) {
-      if (Array.isArray(tagId)) {
+    // Accept every shape the frontends send: a single id, an id[] array, or a
+    // comma-separated string. (With Express 5's 'simple' query parser, axios's
+    // default `tagId[]=1&tagId[]=2` keeps the literal key `tagId[]`.)
+    const rawTagId = req.query.tagId ?? (req.query as any)['tagId[]'];
+    if (rawTagId !== undefined) {
+      const parts = Array.isArray(rawTagId) ? rawTagId : [rawTagId];
+      const tagIds: number[] = [];
+      for (const part of parts) {
+        if (typeof part === 'string' && part.length > 0) {
+          tagIds.push(...part.split(',').map(Number));
+        } else if (typeof part === 'number' && Number.isInteger(part)) {
+          tagIds.push(part);
+        }
+      }
+      const clean = tagIds.filter((n) => Number.isInteger(n) && n > 0);
+      if (clean.length > 1) {
         sql += ` AND c.id IN (SELECT chat_id FROM chat_tags WHERE tag_id = ANY($${idx++}::int[]))`;
-        params.push(tagId.map(Number));
-      } else {
+        params.push(clean);
+      } else if (clean.length === 1) {
         sql += ` AND c.id IN (SELECT chat_id FROM chat_tags WHERE tag_id = $${idx++})`;
-        params.push(Number(tagId));
+        params.push(clean[0]);
       }
     }
     if (from) { sql += ` AND c.created_at >= $${idx++}`; params.push(from); }

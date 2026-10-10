@@ -90,15 +90,22 @@ export function deleteRoom(chatId: number) {
 }
 
 export function startAutoCloseTimer(wss: WebSocketServer) {
-  const CHAT_TIMEOUT_MINUTES = Number(process.env.CHAT_TIMEOUT_MINUTES) || 7;
+  const envTimeoutMinutes = Number(process.env.CHAT_TIMEOUT_MINUTES) || 7;
 
   setInterval(async () => {
     try {
+      // Prefer the admin-configurable value stored in `settings`, fall back
+      // to the env var (and finally to the 7-minute default).
+      const settingsRes = await pool.query(
+        "SELECT value FROM settings WHERE key = 'chat_timeout_minutes'"
+      );
+      const minutes = Number(settingsRes.rows[0]?.value) || envTimeoutMinutes;
+
       const expired = await pool.query(
         `UPDATE chats SET status = 'closed' 
          WHERE status = 'open' AND updated_at < NOW() - ($1 || ' minutes')::interval
          RETURNING id`,
-        [String(CHAT_TIMEOUT_MINUTES)]
+        [String(minutes)]
       );
 
       for (const chat of expired.rows) {

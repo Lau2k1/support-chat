@@ -4,6 +4,8 @@ import path from 'path';
 import crypto from 'crypto';
 import { pool } from '../db';
 import { authMiddleware, resolveOperator, AuthenticatedRequest } from '../middleware/auth';
+import { broadcastToRoom } from '../services/chat';
+import type { OutgoingMessage } from '../ws/types';
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -73,6 +75,27 @@ router.post('/upload/:chatId', upload.single('file'), async (req, res) => {
     "INSERT INTO messages (chat_id, sender_id, content, message_type, file_url) VALUES ($1, $2, $3, $4, $5) RETURNING *, extract(epoch from created_at) * 1000 as created_at",
     [chatId, senderId, content, message_type, fileUrl]
   );
+
+  // Push the stored message into the chat room (widget client + operators) so
+  // everyone sees the upload without a separate WS round-trip. The message is
+  // re-read from the DB row (server-side), so clients can't forge file_url.
+  const timeUpdate = await pool.query(
+    'UPDATE chats SET updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING extract(epoch from updated_at) * 1000 as updated_at',
+    [chatId]
+  );
+  const serverTime = Number(timeUpdate.rows[0].updated_at);
+
+  const out: OutgoingMessage = {
+    type: 'message',
+    message: {
+      ...result.rows[0],
+      sender_name: operator?.name || 'Клиент',
+      message_type: result.rows[0].message_type || 'file',
+      file_url: result.rows[0].file_url || null,
+    },
+    updated_at: serverTime,
+  };
+  broadcastToRoom(chatId, out);
 
   res.json(result.rows[0]);
 });

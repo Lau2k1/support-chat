@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -15,7 +15,7 @@ import TopBar from '@/components/layout/TopBar';
 import SideNav from '@/components/layout/SideNav';
 import ChatSidebar from '@/components/chat/ChatSidebar';
 import MessageList from '@/components/chat/MessageList';
-import ChatInput from '@/components/chat/ChatInput';
+import ChatInput, { type ChatInputApi } from '@/components/chat/ChatInput';
 import RightPanel from '@/components/chat/RightPanel';
 import TemplateModal from '@/components/chat/TemplateModal';
 import TransferModal from '@/components/chat/TransferModal';
@@ -38,6 +38,7 @@ export default function OperatorDashboard() {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [tagSelectorOpen, setTagSelectorOpen] = useState(false);
+  const chatInputRef = useRef<ChatInputApi | null>(null);
 
   const { currentChatId, messages, setCurrentChat, addTab, setMessages, setAllTags, setCannedResponses, setUnread } = useChatStore();
   const showConfirm = useUIStore((s) => s.showConfirm);
@@ -106,6 +107,7 @@ export default function OperatorDashboard() {
               onOpenTemplates={() => setTemplateOpen(true)}
               onOpenTransfer={() => setTransferOpen(true)}
               onOpenTagSelector={() => setTagSelectorOpen(true)}
+              chatInputRef={chatInputRef}
             />
           )}
           {currentView === 'archive' && <ArchiveView />}
@@ -117,8 +119,7 @@ export default function OperatorDashboard() {
         open={templateOpen}
         onClose={() => setTemplateOpen(false)}
         onInsert={(content) => {
-          const input = document.querySelector<HTMLInputElement>('input[placeholder*="Сообщение"]');
-          if (input) input.value += content;
+          chatInputRef.current?.insertTemplate(content);
         }}
       />
       <TransferModal open={transferOpen} onClose={() => setTransferOpen(false)} chatId={currentChatId} />
@@ -137,6 +138,7 @@ function ChatsView({
   onOpenTemplates,
   onOpenTransfer,
   onOpenTagSelector,
+  chatInputRef,
 }: {
   currentChatId: number | null;
   messages: import('@/types').Message[];
@@ -147,6 +149,7 @@ function ChatsView({
   onOpenTemplates: () => void;
   onOpenTransfer: () => void;
   onOpenTagSelector: () => void;
+  chatInputRef: React.Ref<ChatInputApi> | undefined;
 }) {
   return (
     <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -189,7 +192,7 @@ function ChatsView({
         {currentChatId ? (
           <>
             <MessageList messages={messages} chatId={currentChatId} />
-            <ChatInput chatId={currentChatId} onOpenTemplates={onOpenTemplates} onOpenTagSelector={onOpenTagSelector} />
+            <ChatInput chatId={currentChatId} onOpenTemplates={onOpenTemplates} onOpenTagSelector={onOpenTagSelector} apiRef={chatInputRef} />
           </>
         ) : (
           <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary' }}>

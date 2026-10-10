@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useImperativeHandle } from 'react';
 import {
   Box,
   TextField,
@@ -18,18 +18,34 @@ import { chatApi } from '@/services/endpoints';
 import { useTyping } from '@/hooks/useTyping';
 import { useUIStore } from '@/stores/uiStore';
 
+export interface ChatInputApi {
+  /** Append a canned-response template to the input and focus it. */
+  insertTemplate: (content: string) => void;
+}
+
 interface ChatInputProps {
   chatId: number | null;
   onOpenTemplates: () => void;
   onOpenTagSelector: () => void;
+  /** Imperative handle used to insert templates without touching the DOM. */
+  apiRef?: React.Ref<ChatInputApi> | null;
 }
 
-export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector }: ChatInputProps) {
+export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, apiRef }: ChatInputProps) {
   const [text, setText] = useState('');
   const { noteMode, setNoteMode, cannedResponses } = useChatStore();
   const { handleTyping, stopTyping } = useTyping();
   const showToast = useUIStore((s) => s.showToast);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
+
+  useImperativeHandle(apiRef, () => ({
+    insertTemplate: (content: string) => {
+      setText((prev) => (prev ? `${prev}\n${content}` : content));
+      // Focus once the update is applied (input is controlled by `text`).
+      window.setTimeout(() => textInputRef.current?.focus(), 0);
+    },
+  }));
 
   const handleSend = () => {
     if (!text.trim() || !chatId) return;
@@ -122,6 +138,7 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector }
           if (chatId) handleTyping(chatId);
         }}
         onKeyDown={handleKeyDown}
+        inputRef={textInputRef}
         disabled={disabled}
         sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
       />

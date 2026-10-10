@@ -112,6 +112,13 @@ function check(name, ok, extra = '') {
   });
   check('upload with client token OK', upOk.status === 200, `status=${upOk.status}`);
 
+  // 10b. the REST upload must broadcast the stored message into the room
+  await sleep(300);
+  const gotFile = opMessages.some(
+    (d) => d.type === 'message' && d.message.chat_id === chatId && !!d.message.file_url
+  );
+  check('operator got uploaded file broadcast', gotFile);
+
   // 11. operator received message + new_chat
   await sleep(500);
   const gotMsg = opMessages.some((d) => d.type === 'message' && d.message.chat_id === chatId);
