@@ -10,6 +10,7 @@ import {
   Typography,
   Badge,
 } from '@mui/material';
+import SendIcon from '@mui/icons-material/Send';
 import { useChatStore } from '@/stores/chatStore';
 import { formatElapsedTime } from '@/utils/format';
 
@@ -19,7 +20,7 @@ interface ChatSidebarProps {
 }
 
 export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebarProps) {
-  const { chatTimers, chatUnread, chatPreviews } = useChatStore();
+  const { chatTimers, chatUnread, chatPreviews, chatSources } = useChatStore();
   const [search, setSearch] = useState('');
   const [chatIds, setChatIds] = useState<number[]>([]);
   const [now, setNow] = useState(Date.now());
@@ -85,6 +86,7 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
             isWaiting
             timer={chatTimers[String(id)]}
             preview={chatPreviews[String(id)]}
+            source={chatSources[String(id)]}
             unread={chatUnread[String(id)] || 0}
             now={now}
             onClick={() => onSelectChat(id)}
@@ -102,6 +104,7 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
             isWaiting={false}
             timer={chatTimers[String(id)]}
             preview={chatPreviews[String(id)]}
+            source={chatSources[String(id)]}
             unread={chatUnread[String(id)] || 0}
             now={now}
             onClick={() => onSelectChat(id)}
@@ -124,6 +127,7 @@ function ChatItem({
   isWaiting,
   timer,
   preview,
+  source,
   unread,
   now,
   onClick,
@@ -133,11 +137,13 @@ function ChatItem({
   isWaiting: boolean;
   timer?: number;
   preview?: string;
+  source?: string;
   unread: number;
   now: number;
   onClick: () => void;
 }) {
   const elapsed = timer ? formatElapsedTime(timer) : '...';
+  const isTelegram = source === 'telegram';
 
   return (
     <ListItemButton
@@ -150,14 +156,16 @@ function ChatItem({
       }}
     >
       <ListItemAvatar>
-        <Avatar sx={{ width: 34, height: 34, bgcolor: '#e2e8f0', color: '#64748b', fontSize: 13, fontWeight: 600 }}>
-          К
+        <Avatar sx={{ width: 34, height: 34, bgcolor: isTelegram ? '#e0f2fe' : '#e2e8f0', color: isTelegram ? '#0284c7' : '#64748b', fontSize: 13, fontWeight: 600 }}>
+          {isTelegram ? <SendIcon sx={{ fontSize: 18 }} /> : 'К'}
         </Avatar>
       </ListItemAvatar>
       <ListItemText
         primary={
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>Клиент #{chatId}</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {isTelegram ? 'Telegram' : 'Клиент'} #{chatId}
+            </Typography>
             {unread > 0 && (
               <Badge badgeContent={unread > 99 ? '99+' : unread} color="primary" sx={{ ml: 1 }} />
             )}

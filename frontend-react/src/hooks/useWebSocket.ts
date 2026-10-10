@@ -12,11 +12,11 @@ export function useWebSocket() {
     setChatTimer,
     incrementUnread,
     setPreview,
+    setChatSource,
     setTyping,
     setOnlineOperators,
     currentChatId,
-  } = useChatStore();
-  const { logout } = useAuthStore();
+  } = useChatStore();  const { logout } = useAuthStore();
 
   const handleMessage = useCallback(
     (data: WsIncomingMessage) => {
@@ -36,11 +36,13 @@ export function useWebSocket() {
         case 'init_operator':
           data.chats.forEach((chat) => {
             setChatTimer(String(chat.id), chat.updated_at);
+            if (chat.source) setChatSource(String(chat.id), chat.source);
           });
           break;
 
         case 'new_chat':
           setChatTimer(String(data.chatId), data.updated_at);
+          if (data.source) setChatSource(String(data.chatId), data.source);
           playNewChatSound();
           break;
 
@@ -84,7 +86,7 @@ export function useWebSocket() {
           break;
       }
     },
-    [addMessage, setChatTimer, incrementUnread, setPreview, setTyping, setOnlineOperators, currentChatId, setCurrentChat, logout]
+    [addMessage, setChatTimer, incrementUnread, setPreview, setChatSource, setTyping, setOnlineOperators, currentChatId, setCurrentChat, logout]
   );
 
   useEffect(() => {

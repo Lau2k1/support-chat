@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { pool } from '../db';
 import { authMiddleware, resolveOperator, AuthenticatedRequest } from '../middleware/auth';
 import { broadcastToRoom } from '../services/chat';
+import { forwardMessageToTelegram } from '../services/telegram';
 import type { OutgoingMessage } from '../ws/types';
 
 const upload = multer({
@@ -99,6 +100,11 @@ router.post('/upload/:chatId', upload.single('file'), async (req, res) => {
     updated_at: serverTime,
   };
   broadcastToRoom(chatId, out);
+
+  // Mirror operator uploads into a Telegram-sourced chat.
+  if (senderId !== 0) {
+    forwardMessageToTelegram(chatId, result.rows[0]).catch((e) => console.error('TG forward failed', e));
+  }
 
   res.json(result.rows[0]);
 });

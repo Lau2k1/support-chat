@@ -6,11 +6,13 @@ import {
   Button,
   Card,
   Grid,
+  Chip,
 } from '@mui/material';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import InfoIcon from '@mui/icons-material/Info';
 import CloseIcon from '@mui/icons-material/Close';
 import LabelIcon from '@mui/icons-material/Label';
+import SendIcon from '@mui/icons-material/Send';
 import TopBar from '@/components/layout/TopBar';
 import SideNav from '@/components/layout/SideNav';
 import ChatSidebar from '@/components/chat/ChatSidebar';
@@ -151,6 +153,10 @@ function ChatsView({
   onOpenTagSelector: () => void;
   chatInputRef: React.Ref<ChatInputApi> | undefined;
 }) {
+  const chatSources = useChatStore((s) => s.chatSources);
+  const source = currentChatId ? chatSources[String(currentChatId)] : undefined;
+  const isTelegram = source === 'telegram';
+
   return (
     <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
       <ChatSidebar onSelectChat={onSelectChat} currentChatId={currentChatId} />
@@ -171,8 +177,16 @@ function ChatsView({
             flexShrink: 0,
           }}
         >
-           <Typography sx={{ fontWeight: 600 }}>
-            {currentChatId ? `Клиент #${currentChatId}` : 'Выберите чат'}
+           <Typography sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+            {currentChatId ? `${isTelegram ? 'Telegram' : 'Клиент'} #${currentChatId}` : 'Выберите чат'}
+            {currentChatId && isTelegram && (
+              <Chip
+                icon={<SendIcon sx={{ fontSize: 14 }} />}
+                label="Telegram"
+                size="small"
+                sx={{ height: 20, fontSize: 11, bgcolor: '#e0f2fe', color: '#0284c7', '& .MuiChip-icon': { color: '#0284c7' } }}
+              />
+            )}
           </Typography>
           {currentChatId && (
             <Box sx={{ display: 'flex', gap: 0.5 }}>

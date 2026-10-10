@@ -7,6 +7,7 @@ import {
   superAdminMiddleware,
   AuthenticatedRequest,
 } from '../middleware/auth';
+import { encryptToken, decryptToken, getMe, setWebhook, deleteWebhook } from '../services/telegram';
 
 const router = Router();
 router.use(authMiddleware, tenantAdminMiddleware);
@@ -397,6 +398,137 @@ router.delete('/tags/:id', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Telegram bot (per tenant, PLAN section 9)
+// ---------------------------------------------------------------------------
+
+/** Public webhook URL for a bot, or null when PUBLIC_BASE_URL is not configured. */
+function webhookUrlFor(botId: number): string | null {
+  const base = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
+  return base ? `${base}/api/tg/${botId}` : null;
+}
+
+function botPublicRow(row: any) {
+  return row ? { id: row.id, bot_username: row.bot_username, is_active: row.is_active, created_at: row.created_at } : null;
+}
+
+router.get('/telegram-bot', async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    if (!user.tenantId) return res.status(400).json({ error: 'Superadmin has no tenant bot' });
+    const result = await pool.query(
+      'SELECT id, bot_username, is_active, created_at FROM telegram_bots WHERE tenant_id = $1',
+      [user.tenantId]
+    );
+    const bot = botPublicRow(result.rows[0]);
+    res.json({ bot, webhook_url: bot ? webhookUrlFor(bot.id) : null });
+  } catch {
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+router.put('/telegram-bot', async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    if (!user.tenantId) return res.status(400).json({ error: 'Superadmin has no tenant bot' });
+    const token = String(req.body.bot_token || '').trim();
+    if (!/^\d+:[A-Za-z0-9_-]{20,}$/.test(token)) {
+      return res.status(400).json({ error: 'Неверный формат токена (нужен токен от @BotFather)' });
+    }
+
+    let me;
+    try {
+      me = await getMe(token);
+    } catch (e) {
+      return res.status(400).json({ error: 'Telegram отклонил токен: ' + (e instanceof Error ? e.message : String(e)) });
+    }
+    if (!me.is_bot) return res.status(400).json({ error: 'Токен не принадлежит боту' });
+
+    const secret = crypto.randomBytes(24).toString('hex');
+    const enc = encryptToken(token);
+    const existing = await pool.query('SELECT id FROM telegram_bots WHERE tenant_id = $1', [user.tenantId]);
+    let botId: number;
+    if (existing.rows.length) {
+      botId = existing.rows[0].id;
+      await pool.query(
+        'UPDATE telegram_bots SET bot_token = $1, bot_username = $2, webhook_secret = $3, is_active = true WHERE id = $4',
+        [enc, me.username || null, secret, botId]
+      );
+    } else {
+      const ins = await pool.query(
+        'INSERT INTO telegram_bots (tenant_id, bot_token, bot_username, webhook_secret, is_active) VALUES ($1, $2, $3, $4, true) RETURNING id',
+        [user.tenantId, enc, me.username || null, secret]
+      );
+      botId = ins.rows[0].id;
+    }
+
+    let webhookRegistered = false;
+    let webhookError: string | null = null;
+    const url = webhookUrlFor(botId);
+    if (url) {
+      try {
+        await setWebhook(token, url, secret);
+        webhookRegistered = true;
+      } catch (e) {
+        webhookError = e instanceof Error ? e.message : String(e);
+      }
+    }
+
+    const result = await pool.query('SELECT id, bot_username, is_active, created_at FROM telegram_bots WHERE id = $1', [botId]);
+    res.json({ bot: botPublicRow(result.rows[0]), webhook_url: url, webhook_registered: webhookRegistered, webhook_error: webhookError });
+  } catch {
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+router.put('/telegram-bot/toggle', async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    if (!user.tenantId) return res.status(400).json({ error: 'Superadmin has no tenant bot' });
+    const isActive = !!req.body.is_active;
+    const r = await pool.query('SELECT id, bot_token, webhook_secret FROM telegram_bots WHERE tenant_id = $1', [user.tenantId]);
+    const bot = r.rows[0];
+    if (!bot) return res.status(404).json({ error: 'Бот не подключён' });
+
+    await pool.query('UPDATE telegram_bots SET is_active = $1 WHERE id = $2', [isActive, bot.id]);
+    try {
+      const token = decryptToken(bot.bot_token);
+      if (isActive) {
+        const url = webhookUrlFor(bot.id);
+        if (url) await setWebhook(token, url, bot.webhook_secret);
+      } else {
+        await deleteWebhook(token);
+      }
+    } catch {
+      // Best effort: the local state is what matters for the panel.
+    }
+
+    const result = await pool.query('SELECT id, bot_username, is_active, created_at FROM telegram_bots WHERE id = $1', [bot.id]);
+    res.json({ bot: botPublicRow(result.rows[0]) });
+  } catch {
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+router.delete('/telegram-bot', async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    if (!user.tenantId) return res.status(400).json({ error: 'Superadmin has no tenant bot' });
+    const r = await pool.query('SELECT id, bot_token FROM telegram_bots WHERE tenant_id = $1', [user.tenantId]);
+    const bot = r.rows[0];
+    if (!bot) return res.status(404).json({ error: 'Бот не подключён' });
+    try {
+      await deleteWebhook(decryptToken(bot.bot_token));
+    } catch {
+      // Best effort.
+    }
+    await pool.query('DELETE FROM telegram_bots WHERE id = $1', [bot.id]);
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Superadmin: tenant management
 // ---------------------------------------------------------------------------
 
@@ -516,6 +648,22 @@ superRouter.get('/dashboard', async (_req, res) => {
       avg_rating: Math.round(Number(totals.rows[0].avg_rating) * 10) / 10,
       daily: daily.rows,
     });
+  } catch {
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+/** All connected Telegram bots across tenants (owner overview). */
+superRouter.get('/telegram-bots', async (_req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT tb.id, tb.tenant_id, t.name AS tenant_name, t.slug AS tenant_slug,
+             tb.bot_username, tb.is_active, tb.created_at
+      FROM telegram_bots tb
+      JOIN tenants t ON t.id = tb.tenant_id
+      ORDER BY tb.created_at DESC
+    `);
+    res.json(result.rows);
   } catch {
     res.status(500).json({ error: 'DB Error' });
   }

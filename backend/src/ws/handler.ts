@@ -17,6 +17,7 @@ import {
   broadcastOperatorsStatus,
   findOperatorById,
 } from '../services/chat';
+import { forwardMessageToTelegram } from '../services/telegram';
 
 function isAuth(ws: ClientWs): boolean {
   return ws.role === 'operator' || ws.role === 'client';
@@ -87,7 +88,7 @@ export function handleConnection(ws: ClientWs) {
           // Always hand the operator the current open chats on first join,
           // regardless of the order in which operator_status arrives.
           const active = await pool.query(
-            "SELECT id, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE status = 'open' AND ($1::int IS NULL OR tenant_id = $1) ORDER BY updated_at DESC",
+            "SELECT id, extract(epoch from updated_at) * 1000 as updated_at, COALESCE(source, 'widget') AS source FROM chats WHERE status = 'open' AND ($1::int IS NULL OR tenant_id = $1) ORDER BY updated_at DESC",
             [ws.operator!.tenantId]
           );
           safeSend(ws, { type: 'init_operator', chats: active.rows });
@@ -118,7 +119,7 @@ export function handleConnection(ws: ClientWs) {
           }
           const clientToken = crypto.randomUUID();
           const res = await pool.query(
-            "INSERT INTO chats (client_id, status, client_token, tenant_id, updated_at) VALUES ((SELECT COALESCE(MAX(client_id), 0) + 1 FROM chats), 'open', $1, $2, CURRENT_TIMESTAMP) RETURNING id, extract(epoch from updated_at) * 1000 as updated_at",
+            "INSERT INTO chats (client_id, status, client_token, tenant_id, source, updated_at) VALUES ((SELECT COALESCE(MAX(client_id), 0) + 1 FROM chats), 'open', $1, $2, 'widget', CURRENT_TIMESTAMP) RETURNING id, extract(epoch from updated_at) * 1000 as updated_at",
             [clientToken, tenant.id]
           );
           const chat = res.rows[0];
@@ -126,7 +127,7 @@ export function handleConnection(ws: ClientWs) {
           ws.role = 'client';
           joinRoom(chat.id, ws);
           safeSend(ws, { type: 'chat_created', chatId: chat.id, token: clientToken });
-          broadcastToOnlineOperators({ type: 'new_chat', chatId: chat.id, updated_at: chat.updated_at }, tenant.id);
+          broadcastToOnlineOperators({ type: 'new_chat', chatId: chat.id, updated_at: chat.updated_at, source: 'widget' }, tenant.id);
           break;
         }
 
@@ -210,6 +211,10 @@ export function handleConnection(ws: ClientWs) {
             broadcastToRoomOperators(cId, out);
           } else {
             broadcastToRoom(cId, out);
+            // A reply in a Telegram-sourced chat is mirrored back to the contact.
+            if (ws.role === 'operator' && mType !== 'note') {
+              forwardMessageToTelegram(cId, res.rows[0]).catch((e) => console.error('TG forward failed', e));
+            }
           }
           break;
         }

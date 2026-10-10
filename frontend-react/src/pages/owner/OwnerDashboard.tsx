@@ -4,20 +4,21 @@ import { Box } from '@mui/material';
 import OwnerSideNav from '@/components/owner/OwnerSideNav';
 import CrmOverviewPage from '@/components/owner/CrmOverviewPage';
 import CrmTenantsPage from '@/components/owner/CrmTenantsPage';
+import CrmBotsPage from '@/components/owner/CrmBotsPage';
 
-type OwnerPage = 'overview' | 'tenants';
+type OwnerPage = 'overview' | 'tenants' | 'bots';
 
 export default function OwnerDashboard() {
   const [params, setParams] = useSearchParams();
-  const [page, setPage] = useState<OwnerPage>(params.get('view') === 'tenants' ? 'tenants' : 'overview');
+  const [page, setPage] = useState<OwnerPage>(parseView(params.get('view')));
 
   useEffect(() => {
-    setPage(params.get('view') === 'tenants' ? 'tenants' : 'overview');
+    setPage(parseView(params.get('view')));
   }, [params]);
 
   const handleChange = (next: OwnerPage) => {
     setPage(next);
-    setParams(next === 'tenants' ? { view: 'tenants' } : {}, { replace: true });
+    setParams(next === 'overview' ? {} : { view: next }, { replace: true });
   };
 
   return (
@@ -38,12 +39,19 @@ export default function OwnerDashboard() {
             flexShrink: 0,
           }}
         >
-          {page === 'overview' ? 'Кабинет владельца' : 'Управление клиентами'}
+          {page === 'overview' ? 'Кабинет владельца' : page === 'tenants' ? 'Управление клиентами' : 'Telegram-боты'}
         </Box>
         <Box sx={{ flex: 1, overflowY: 'auto', p: 3 }}>
-          {page === 'overview' ? <CrmOverviewPage /> : <CrmTenantsPage />}
+          {page === 'overview' && <CrmOverviewPage />}
+          {page === 'tenants' && <CrmTenantsPage />}
+          {page === 'bots' && <CrmBotsPage />}
         </Box>
       </Box>
     </Box>
   );
+}
+
+function parseView(view: string | null): OwnerPage {
+  if (view === 'tenants' || view === 'bots') return view;
+  return 'overview';
 }

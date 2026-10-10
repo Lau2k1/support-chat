@@ -1,8 +1,8 @@
 export type WsIncomingMessage =
   | { type: 'auth_ok' }
   | { type: 'auth_error' }
-  | { type: 'init_operator'; chats: { id: number; updated_at: number }[] }
-  | { type: 'new_chat'; chatId: number; updated_at: number }
+  | { type: 'init_operator'; chats: { id: number; updated_at: number; source?: string }[] }
+  | { type: 'new_chat'; chatId: number; updated_at: number; source?: string }
   | { type: 'chat_created'; chatId: number }
   | { type: 'message'; message: import('.').Message; updated_at: number }
   | { type: 'typingStart'; chatId: number; senderId: number }

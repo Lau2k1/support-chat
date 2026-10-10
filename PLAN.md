@@ -173,26 +173,26 @@
 > Модель: **отдельный @bot на каждого тенанта** (white-label + однозначная привязка входящих сообщений).
 
 ### 9.1 Схема БД
-- [ ] Таблица `telegram_bots`: id, tenant_id (FK), bot_token (шифрованный AES, ключ из env), bot_username, is_active, created_at
-- [ ] `chats`: колонки `source ('widget'|'telegram')` и `external_id` (tg user/chat id) + индекс `(source, external_id)`
-- [ ] (по желанию) `telegram_users`: tg_user_id, tenant_id, имя/username — для отображения клиента
+- [x] Таблица `telegram_bots`: id, tenant_id (FK), bot_token (шифрованный AES, ключ из env), bot_username, is_active, created_at
+- [x] `chats`: колонки `source ('widget'|'telegram')` и `external_id` (tg user/chat id) + индекс `(source, external_id)`
+- [x] (по желанию) `telegram_users`: tg_user_id, tenant_id, имя/username — для отображения клиента
 
 ### 9.2 Бэкенд — входящий поток
-- [ ] Webhook-роут `POST /api/tg/:botId` (или `/api/telegram/webhook/:botId`) — валидация `X-Telegram-Bot-Api-Secret-Token`, 404 для неактивных ботов
-- [ ] Адаптер входящих апдейтов: text, photo, document, sticker (базовый набор) → нормализация в наш `messages`
-- [ ] Логика чата: найти/создать `chats` по `(tenant_id, external_id, source='telegram')`, статус open → транслировать `new_chat` операторам тенанта
-- [ ] Затем — обычное WS-событие `message` с chatId (панель показывает без изменений)
+- [x] Webhook-роут `POST /api/tg/:botId` (или `/api/telegram/webhook/:botId`) — валидация `X-Telegram-Bot-Api-Secret-Token`, 404 для неактивных ботов
+- [x] Адаптер входящих апдейтов: text, photo, document, sticker (базовый набор) → нормализация в наш `messages`
+- [x] Логика чата: найти/создать `chats` по `(tenant_id, external_id, source='telegram')`, статус open → транслировать `new_chat` операторам тенанта
+- [x] Затем — обычное WS-событие `message` с chatId (панель показывает без изменений)
 
 ### 9.3 Бэкенд — исходящий поток
-- [ ] При WS-ответе оператора на чат `source='telegram'` → Bot API `sendMessage`/`sendPhoto`/`sendDocument`
-- [ ] Файлы от оператора: загрузка в `uploads/` (уже есть) → отправка в TG multipart'ом
-- [ ] Файлы из TG: `getFile` → скачивание → сохранение в `uploads/`, `file_url` как обычно
-- [ ] Ошибки TG (бот заблокирован, таймаут) → статус чата/уведомление оператору, retry-политика простая
+- [x] При WS-ответе оператора на чат `source='telegram'` → Bot API `sendMessage`/`sendPhoto`/`sendDocument`
+- [x] Файлы от оператора: загрузка в `uploads/` (уже есть) → отправка в TG multipart'ом
+- [x] Файлы из TG: `getFile` → скачивание → сохранение в `uploads/`, `file_url` как обычно
+- [x] Ошибки TG (бот заблокирован, таймаут) → статус чата/уведомление оператору, retry-политика простая
 
 ### 9.4 Фронтенд
-- [ ] Админка тенанта: страница «Telegram-бот» — ввод токена (BotFather), отображение @username, инструкция «как добавить бота клиенту», вкл/выкл
-- [ ] Бейдж источника «Telegram» в списке чатов и шапке переписки
-- [ ] superadmin: обзор всех подключённых ботов
+- [x] Админка тенанта: страница «Telegram-бот» — ввод токена (BotFather), отображение @username, инструкция «как добавить бота клиенту», вкл/выкл
+- [x] Бейдж источника «Telegram» в списке чатов и шапке переписки
+- [x] superadmin: обзор всех подключённых ботов
 
 ### 9.5 Выбор транспорта
 - [x] **Webhook** (решено: нужен публичный HTTPS — он всё равно будет по разделу 8)

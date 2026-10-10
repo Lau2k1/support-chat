@@ -5,16 +5,18 @@ import LabelIcon from '@mui/icons-material/Label';
 import SettingsIcon from '@mui/icons-material/Settings';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import SendIcon from '@mui/icons-material/Send';
 import ChatIcon from '@mui/icons-material/Chat';
 import { useNavigate } from 'react-router-dom';
 
-type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats';
+type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram';
 
 const items: { page: Page; icon: React.ReactNode; label: string }[] = [
   { page: 'operators', icon: <PeopleIcon fontSize="small" />, label: 'Операторы' },
   { page: 'invites', icon: <ConfirmationNumberIcon fontSize="small" />, label: 'Инвайты' },
   { page: 'stats', icon: <BarChartIcon fontSize="small" />, label: 'Статистика' },
   { page: 'audit', icon: <FactCheckIcon fontSize="small" />, label: 'Аудит' },
+  { page: 'telegram', icon: <SendIcon fontSize="small" />, label: 'Telegram-бот' },
   { page: 'settings', icon: <SettingsIcon fontSize="small" />, label: 'Настройки' },
   { page: 'tags', icon: <LabelIcon fontSize="small" />, label: 'Теги' },
 ];

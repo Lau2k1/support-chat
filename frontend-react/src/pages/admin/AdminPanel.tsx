@@ -7,8 +7,9 @@ import TagsPage from '@/components/admin/TagsPage';
 import SettingsPage from '@/components/admin/SettingsPage';
 import AuditPage from '@/components/admin/AuditPage';
 import AdminStatsPage from '@/components/admin/AdminStatsPage';
+import TelegramBotPage from '@/components/admin/TelegramBotPage';
 
-type AdminPage = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats';
+type AdminPage = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram';
 
 export default function AdminPanel() {
   const [page, setPage] = useState<AdminPage>('operators');
@@ -40,6 +41,7 @@ export default function AdminPanel() {
           {page === 'settings' && <SettingsPage />}
           {page === 'audit' && <AuditPage />}
           {page === 'stats' && <AdminStatsPage />}
+          {page === 'telegram' && <TelegramBotPage />}
         </Box>
       </Box>
     </Box>
@@ -53,4 +55,5 @@ const pageTitles: Record<AdminPage, string> = {
   settings: 'Настройки системы',
   audit: 'Аудит чатов',
   stats: 'Статистика по операторам',
+  telegram: 'Telegram-бот',
 };

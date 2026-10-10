@@ -32,7 +32,7 @@ export type OutgoingMessage =
   | { type: 'auth_error' }
   | { type: 'auth_ok' }
   | { type: 'init_operator'; chats: ChatRow[] }
-  | { type: 'new_chat'; chatId: number; updated_at: number }
+  | { type: 'new_chat'; chatId: number; updated_at: number; source?: string }
   | { type: 'chat_created'; chatId: number; token: string }
   | { type: 'chat_error'; chatId?: number; error: string }
   | { type: 'message'; message: MessageRow & { sender_name: string }; updated_at: number }
@@ -47,6 +47,7 @@ export type OutgoingMessage =
 export interface ChatRow {
   id: number;
   updated_at: number;
+  source?: string;
 }
 
 export interface MessageRow {

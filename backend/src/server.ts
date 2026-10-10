@@ -12,6 +12,7 @@ import chatRoutes from './routes/chat';
 import cannedRoutes from './routes/canned';
 import uploadRoutes from './routes/upload';
 import adminRoutes, { superRouter } from './routes/admin';
+import telegramRoutes from './routes/telegram';
 import { handleConnection } from './ws/handler';
 import { startAutoCloseTimer } from './services/chat';
 
@@ -59,6 +60,7 @@ app.get(['/login', '/register', '/operator', '/admin', '/crm'], (_req, res) => {
 
 app.use('/admin', adminRoutes);
 app.use('/superadmin', superRouter);
+app.use('/api/tg', telegramRoutes);
 
 app.get('{*path}', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));

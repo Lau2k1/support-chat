@@ -41,6 +41,16 @@ export interface CrmDashboard {
   daily: { day: string; count: number }[];
 }
 
+export interface TelegramBot {
+  id: number;
+  tenant_id?: number;
+  tenant_name?: string;
+  tenant_slug?: string;
+  bot_username?: string | null;
+  is_active: boolean;
+  created_at?: string;
+}
+
 export interface Operator {
   id: number;
   name: string;
@@ -64,6 +74,8 @@ export interface Chat {
   created_at: number;
   updated_at: number;
   messages_count?: number;
+  source?: 'widget' | 'telegram';
+  external_id?: string | null;
   tags: Tag[];
 }
 

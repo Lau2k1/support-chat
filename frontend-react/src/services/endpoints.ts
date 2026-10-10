@@ -14,6 +14,7 @@ import type {
   Settings,
   Tenant,
   CrmDashboard,
+  TelegramBot,
 } from '@/types';
 
 export const authApi = {
@@ -82,6 +83,13 @@ export const adminApi = {
   getSettings: () => api.get<Settings>('/admin/settings'),
   saveSettings: (data: Partial<Settings>) =>
     api.put<Settings>('/admin/settings', data),
+  getTelegramBot: () => api.get<{ bot: TelegramBot | null; webhook_url: string | null }>('/admin/telegram-bot'),
+  connectTelegramBot: (bot_token: string) =>
+    api.put<{ bot: TelegramBot; webhook_url: string | null; webhook_registered: boolean; webhook_error: string | null }>('/admin/telegram-bot', { bot_token }),
+  toggleTelegramBot: (is_active: boolean) =>
+    api.put<{ bot: TelegramBot }>('/admin/telegram-bot/toggle', { is_active }),
+  disconnectTelegramBot: () =>
+    api.delete('/admin/telegram-bot'),
 };
 
 export const superadminApi = {
@@ -95,4 +103,5 @@ export const superadminApi = {
   issueInvites: (id: number, data: { count: number; expiresInHours?: number }) =>
     api.post<InviteBatch>(`/superadmin/tenants/${id}/invites`, data),
   getDashboard: () => api.get<CrmDashboard>('/superadmin/dashboard'),
+  getTelegramBots: () => api.get<TelegramBot[]>('/superadmin/telegram-bots'),
 };

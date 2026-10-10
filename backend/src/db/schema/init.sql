@@ -125,3 +125,38 @@ CREATE TABLE IF NOT EXISTS chat_tags (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (chat_id, tag_id)
 );
+
+-- ---------------------------------------------------------------------------
+-- Telegram integration (section 9). One white-label @bot per tenant.
+-- bot_token is AES-256-GCM encrypted (see services/telegram.ts); the key comes
+-- from TELEGRAM_TOKEN_KEY (falls back to JWT_SECRET in dev).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS telegram_bots (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    bot_token TEXT NOT NULL,
+    bot_username VARCHAR(255),
+    webhook_secret VARCHAR(64) NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_telegram_bots_tenant ON telegram_bots(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_telegram_bots_active ON telegram_bots(is_active);
+
+-- Chat origin: 'widget' (default, embedded widget) or 'telegram'.
+-- external_id holds the Telegram chat id for telegram-sourced chats.
+ALTER TABLE chats ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'widget';
+ALTER TABLE chats ADD COLUMN IF NOT EXISTS external_id VARCHAR(255);
+CREATE INDEX IF NOT EXISTS idx_chats_source_external ON chats(source, external_id);
+
+-- Display info for people who write to a tenant's bot.
+CREATE TABLE IF NOT EXISTS telegram_users (
+    id SERIAL PRIMARY KEY,
+    tg_user_id BIGINT NOT NULL,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    first_name VARCHAR(255),
+    last_name VARCHAR(255),
+    username VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_telegram_users_unique ON telegram_users(tenant_id, tg_user_id);

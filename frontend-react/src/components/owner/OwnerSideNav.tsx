@@ -1,17 +1,19 @@
 import { Box, IconButton, Typography } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import DomainIcon from '@mui/icons-material/Domain';
+import SendIcon from '@mui/icons-material/Send';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ChatIcon from '@mui/icons-material/Chat';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { wsManager } from '@/services/ws';
 
-type Page = 'overview' | 'tenants';
+type Page = 'overview' | 'tenants' | 'bots';
 
 const items: { page: Page; icon: React.ReactNode; label: string }[] = [
   { page: 'overview', icon: <DashboardIcon fontSize="small" />, label: 'Обзор' },
   { page: 'tenants', icon: <DomainIcon fontSize="small" />, label: 'Тенанты & инвайты' },
+  { page: 'bots', icon: <SendIcon fontSize="small" />, label: 'Telegram-боты' },
 ];
 
 interface Props {
