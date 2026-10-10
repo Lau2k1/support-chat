@@ -125,6 +125,14 @@ const lease = async (saToken, slug) => {
   const peekTags = await api(adminA.token, `/admin/tags?tenantId=${B}`);
   check('tenant A admin tags ignore tenantId', peekTags.status === 200 && peekTags.data.every((t) => t.tenant_id === A));
 
+  // 7. cleanup: delete both test tenants (also exercises cascade deletion)
+  const delA = await api(sa.token, `/superadmin/tenants/${A}`, { method: 'DELETE' });
+  check('delete tenant A', delA.status === 200 && delA.data.ok === true, `status=${delA.status}`);
+  const delB = await api(sa.token, `/superadmin/tenants/${B}`, { method: 'DELETE' });
+  check('delete tenant B', delB.status === 200 && delB.data.ok === true, `status=${delB.status}`);
+  const tagsGone = await api(sa.token, `/admin/tags?tenantId=${A}`);
+  check('tenant A tags removed with it', tagsGone.status === 200 && tagsGone.data.length === 0, `n=${tagsGone.data.length}`);
+
   const failed = process.exitCode ? 1 : 0;
   console.log(`\n=== done (${failed ? 'FAILURES' : 'all passed'}) ===`);
   process.exit(failed);

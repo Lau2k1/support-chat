@@ -13,6 +13,7 @@ export function useWebSocket() {
     incrementUnread,
     setPreview,
     setChatSource,
+    setChatName,
     setTyping,
     setOnlineOperators,
     currentChatId,
@@ -37,18 +38,28 @@ export function useWebSocket() {
           data.chats.forEach((chat) => {
             setChatTimer(String(chat.id), chat.updated_at);
             if (chat.source) setChatSource(String(chat.id), chat.source);
+            if (chat.client_name) setChatName(String(chat.id), chat.client_name);
           });
           break;
 
         case 'new_chat':
           setChatTimer(String(data.chatId), data.updated_at);
           if (data.source) setChatSource(String(data.chatId), data.source);
+          if (data.client_name) setChatName(String(data.chatId), data.client_name);
           playNewChatSound();
           break;
 
         case 'message': {
           const chatId = String(data.message.chat_id);
           addMessage(chatId, data.message);
+          // Keep the Telegram client's display name fresh (they may rename in TG).
+          if (
+            data.message.sender_id === 0 &&
+            data.message.sender_name &&
+            useChatStore.getState().chatSources[chatId] === 'telegram'
+          ) {
+            setChatName(chatId, data.message.sender_name);
+          }
           if (data.updated_at) {
             setChatTimer(chatId, data.updated_at);
           }
@@ -86,7 +97,7 @@ export function useWebSocket() {
           break;
       }
     },
-    [addMessage, setChatTimer, incrementUnread, setPreview, setChatSource, setTyping, setOnlineOperators, currentChatId, setCurrentChat, logout]
+    [addMessage, setChatTimer, incrementUnread, setPreview, setChatSource, setChatName, setTyping, setOnlineOperators, currentChatId, setCurrentChat, logout]
   );
 
   useEffect(() => {

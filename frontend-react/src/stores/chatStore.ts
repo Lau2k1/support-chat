@@ -9,6 +9,7 @@ interface ChatState {
   chatUnread: Record<string, number>;
   chatPreviews: Record<string, string>;
   chatSources: Record<string, string>;
+  chatNames: Record<string, string>;
   typingChatIds: Set<number>;
   onlineOperators: OnlineOperator[];
   allTags: Tag[];
@@ -26,6 +27,7 @@ interface ChatState {
   incrementUnread: (chatId: string) => void;
   setPreview: (chatId: string, preview: string) => void;
   setChatSource: (chatId: string, source: string) => void;
+  setChatName: (chatId: string, name: string) => void;
   setTyping: (chatId: number, isTyping: boolean) => void;
   setOnlineOperators: (operators: OnlineOperator[]) => void;
   setAllTags: (tags: Tag[]) => void;
@@ -43,6 +45,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   chatUnread: {},
   chatPreviews: {},
   chatSources: {},
+  chatNames: {},
   typingChatIds: new Set<number>(),
   onlineOperators: [],
   allTags: [],
@@ -97,6 +100,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setChatSource: (chatId, source) =>
     set((s) => ({ chatSources: { ...s.chatSources, [chatId]: source } })),
 
+  setChatName: (chatId, name) =>
+    set((s) => ({ chatNames: { ...s.chatNames, [chatId]: name } })),
+
   setTyping: (chatId, isTyping) =>
     set((s) => {
       const next = new Set(s.typingChatIds);
@@ -121,12 +127,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const { [String(chatId)]: ___, ...restUnread } = s.chatUnread;
       const { [String(chatId)]: ____, ...restPreviews } = s.chatPreviews;
       const { [String(chatId)]: _____, ...restSources } = s.chatSources;
+      const { [String(chatId)]: ______, ...restNames } = s.chatNames;
       return {
         messages: restMessages,
         chatTimers: restTimers,
         chatUnread: restUnread,
         chatPreviews: restPreviews,
         chatSources: restSources,
+        chatNames: restNames,
       };
     }),
 }));

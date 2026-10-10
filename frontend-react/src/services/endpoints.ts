@@ -106,6 +106,8 @@ export const superadminApi = {
     api.put<Tenant>(`/superadmin/tenants/${id}`, data),
   setTenantStatus: (id: number, status: 'active' | 'suspended') =>
     api.put<Tenant>(`/superadmin/tenants/${id}/status`, { status }),
+  deleteTenant: (id: number) =>
+    api.delete<{ ok: boolean; id: number; name: string; slug: string }>(`/superadmin/tenants/${id}`),
   issueInvites: (id: number, data: { count: number; expiresInHours?: number }) =>
     api.post<InviteBatch>(`/superadmin/tenants/${id}/invites`, data),
   getDashboard: () => api.get<CrmDashboard>('/superadmin/dashboard'),

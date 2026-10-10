@@ -112,6 +112,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('suspend tenant', susp.status === 200 && susp.data.status === 'suspended');
   const act = await api(sa.token, `/superadmin/tenants/${tenantId}/status`, { method: 'PUT', body: { status: 'active' } });
   check('reactivate tenant', act.status === 200 && act.data.status === 'active');
+  const restored = await api(taToken, '/admin/invite-codes');
+  check('operator access restored after reactivation', restored.status === 200, `status=${restored.status}`);
 
   // 8. tenant list has the new metrics columns
   const list = await api(sa.token, '/superadmin/tenants');
@@ -122,9 +124,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     `operators=${mine?.operators_count} invites_used=${mine?.invites_used}`
   );
 
-  // cleanup: remove the test tenant entirely (direct SQL not available via REST; suspend is acceptable)
-  const finalSusp = await api(sa.token, `/superadmin/tenants/${tenantId}/status`, { method: 'PUT', body: { status: 'suspended' } });
-  check('cleanup test tenant suspended', finalSusp.status === 200);
+  // 7. delete tenant: only superadmin may, and it removes the tenant + its rows
+  const delForbidden = await api(taToken, `/superadmin/tenants/${tenantId}`, { method: 'DELETE' });
+  check('tenant admin blocked from deleting tenant', delForbidden.status === 403, `status=${delForbidden.status}`);
+  const del = await api(sa.token, `/superadmin/tenants/${tenantId}`, { method: 'DELETE' });
+  check('superadmin deletes tenant', del.status === 200 && del.data.ok === true, `status=${del.status}`);
+  const delAgain = await api(sa.token, `/superadmin/tenants/${tenantId}`, { method: 'DELETE' });
+  check('deleting a missing tenant -> 404', delAgain.status === 404, `status=${delAgain.status}`);
+  const listAfter = await api(sa.token, '/superadmin/tenants');
+  check('deleted tenant gone from list', !listAfter.data.some((t) => t.id === tenantId));
+  const opsAfter = await api(sa.token, '/admin/operators');
+  check('deleted tenant operators removed', !opsAfter.data.some((o) => o.email === email));
 
   const failed = process.exitCode ? 1 : 0;
   console.log(`\n=== done (${failed ? 'FAILURES' : 'all passed'}) ===`);

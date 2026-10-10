@@ -1,4 +1,5 @@
 import { Box, Typography, List, ListItemButton, ListItemAvatar, ListItemText, Avatar, Chip } from '@mui/material';
+import SendIcon from '@mui/icons-material/Send';
 import type { Chat } from '@/types';
 import { formatDateTime } from '@/utils/format';
 
@@ -34,14 +35,14 @@ export default function ArchiveList({ chats, selectedId, onSelect }: ArchiveList
             sx={{ borderBottom: '1px solid #f1f5f9' }}
           >
             <ListItemAvatar>
-              <Avatar sx={{ width: 36, height: 36, bgcolor: '#e2e8f0', color: '#64748b', fontSize: 14, fontWeight: 600 }}>
-                К
+              <Avatar sx={{ width: 36, height: 36, bgcolor: chat.source === 'telegram' ? '#e0f2fe' : '#e2e8f0', color: chat.source === 'telegram' ? '#0284c7' : '#64748b', fontSize: 14, fontWeight: 600 }}>
+                {chat.source === 'telegram' ? <SendIcon sx={{ fontSize: 18 }} /> : 'К'}
               </Avatar>
             </ListItemAvatar>
             <ListItemText
               primary={
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  Клиент #{chat.id}
+                <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
+                  {chat.client_name || `Клиент #${chat.id}`}
                 </Typography>
               }
               secondary={

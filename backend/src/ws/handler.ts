@@ -88,7 +88,7 @@ export function handleConnection(ws: ClientWs) {
           // Always hand the operator the current open chats on first join,
           // regardless of the order in which operator_status arrives.
           const active = await pool.query(
-            "SELECT id, extract(epoch from updated_at) * 1000 as updated_at, COALESCE(source, 'widget') AS source FROM chats WHERE status = 'open' AND ($1::int IS NULL OR tenant_id = $1) ORDER BY updated_at DESC",
+            "SELECT id, client_name, extract(epoch from updated_at) * 1000 as updated_at, COALESCE(source, 'widget') AS source FROM chats WHERE status = 'open' AND ($1::int IS NULL OR tenant_id = $1) ORDER BY updated_at DESC",
             [ws.operator!.tenantId]
           );
           safeSend(ws, { type: 'init_operator', chats: active.rows });
@@ -127,7 +127,7 @@ export function handleConnection(ws: ClientWs) {
           ws.role = 'client';
           joinRoom(chat.id, ws);
           safeSend(ws, { type: 'chat_created', chatId: chat.id, token: clientToken });
-          broadcastToOnlineOperators({ type: 'new_chat', chatId: chat.id, updated_at: chat.updated_at, source: 'widget' }, tenant.id);
+          broadcastToOnlineOperators({ type: 'new_chat', chatId: chat.id, client_name: null, updated_at: chat.updated_at, source: 'widget' }, tenant.id);
           break;
         }
 
@@ -284,11 +284,11 @@ export function handleConnection(ws: ClientWs) {
           safeSend(targetOp, { type: 'chat_transferred', chatId: tChatId });
 
           const chatInfo = await pool.query(
-            "SELECT id, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE id = $1",
+            "SELECT id, client_name, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE id = $1",
             [tChatId]
           );
           if (chatInfo.rows.length) {
-            safeSend(targetOp, { type: 'new_chat', chatId: tChatId, updated_at: chatInfo.rows[0].updated_at });
+            safeSend(targetOp, { type: 'new_chat', chatId: tChatId, client_name: chatInfo.rows[0].client_name ?? null, updated_at: chatInfo.rows[0].updated_at });
           }
           break;
         }

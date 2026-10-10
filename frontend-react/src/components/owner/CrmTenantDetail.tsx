@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Box, Typography, Button, Tabs, Tab, Chip } from '@mui/material';
+import { Box, Typography, Button, Tabs, Tab, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import { superadminApi } from '@/services/endpoints';
+import { useUIStore } from '@/stores/uiStore';
 import OperatorsPage from '@/components/admin/OperatorsPage';
 import InvitesPage from '@/components/admin/InvitesPage';
 import TagsPage from '@/components/admin/TagsPage';
@@ -32,6 +34,10 @@ export default function CrmTenantDetail({ tenantId, onBack }: Props) {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [tab, setTab] = useState<TabKey>('operators');
   const [loading, setLoading] = useState(true);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const showToast = useUIStore((s) => s.showToast);
 
   const load = useCallback(async () => {
     try {
@@ -49,6 +55,21 @@ export default function CrmTenantDetail({ tenantId, onBack }: Props) {
     load();
   }, [load]);
 
+  const handleDelete = async () => {
+    if (!tenant || deleteConfirm.trim() !== tenant.slug) return;
+    setBusy(true);
+    try {
+      await superadminApi.deleteTenant(tenant.id);
+      showToast('Тенант удалён');
+      setDeleteOpen(false);
+      onBack();
+    } catch (e: any) {
+      showToast(e?.response?.data?.error || 'Ошибка удаления', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Box>
       <Button startIcon={<ArrowBackIcon />} onClick={onBack} size="small" sx={{ mb: 1.5 }}>
@@ -65,6 +86,18 @@ export default function CrmTenantDetail({ tenantId, onBack }: Props) {
             label={tenant.status === 'active' ? 'Активен' : 'Приостановлен'}
             color={tenant.status === 'active' ? 'success' : 'error'}
           />
+        )}
+        {tenant && (
+          <Button
+            size="small"
+            variant="outlined"
+            color="error"
+            startIcon={<DeleteOutlineIcon />}
+            sx={{ ml: 'auto' }}
+            onClick={() => { setDeleteConfirm(''); setDeleteOpen(true); }}
+          >
+            Удалить тенант
+          </Button>
         )}
       </Box>
       {tenant && (
@@ -92,6 +125,36 @@ export default function CrmTenantDetail({ tenantId, onBack }: Props) {
       {tab === 'audit' && <AuditPage tenantId={tenantId} />}
       {tab === 'stats' && <AdminStatsPage tenantId={tenantId} />}
       {tab === 'telegram' && <TelegramBotPage tenantId={tenantId} />}
+
+      <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle color="error.main">Удалить тенант — {tenant?.name}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Действие <b>необратимо</b>. Будут удалены все операторы, чаты, сообщения, теги, инвайты и Telegram-бот
+            этого тенанта.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Введите slug для подтверждения"
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            placeholder={tenant?.slug}
+            helperText={`Введите «${tenant?.slug ?? ''}»`}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteOpen(false)}>Отмена</Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={busy || deleteConfirm.trim() !== tenant?.slug}
+            onClick={handleDelete}
+          >
+            Удалить навсегда
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

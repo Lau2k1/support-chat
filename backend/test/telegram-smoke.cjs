@@ -243,6 +243,7 @@ async function main() {
 
   const newChat = await chatPromise;
   check('operator got new_chat (source=telegram)', newChat.source === 'telegram');
+  check('new_chat carries the TG profile name', newChat.client_name === 'Иван');
   const chatId = newChat.chatId;
 
   const msg = await waitEvent((d) => d.type === 'message' && String(d.message?.content) === 'Привет из Telegram');

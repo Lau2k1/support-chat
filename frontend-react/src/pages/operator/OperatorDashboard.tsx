@@ -154,7 +154,9 @@ function ChatsView({
   chatInputRef: React.Ref<ChatInputApi> | undefined;
 }) {
   const chatSources = useChatStore((s) => s.chatSources);
+  const chatNames = useChatStore((s) => s.chatNames);
   const source = currentChatId ? chatSources[String(currentChatId)] : undefined;
+  const chatName = currentChatId ? chatNames[String(currentChatId)] : undefined;
   const isTelegram = source === 'telegram';
 
   return (
@@ -178,7 +180,7 @@ function ChatsView({
           }}
         >
            <Typography sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-            {currentChatId ? `${isTelegram ? 'Telegram' : 'Клиент'} #${currentChatId}` : 'Выберите чат'}
+            {currentChatId ? (chatName || `${isTelegram ? 'Telegram' : 'Клиент'} #${currentChatId}`) : 'Выберите чат'}
             {currentChatId && isTelegram && (
               <Chip
                 icon={<SendIcon sx={{ fontSize: 14 }} />}
@@ -270,7 +272,9 @@ function ArchiveView() {
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <Box sx={{ height: 50, bgcolor: '#fff', px: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', fontWeight: 600, fontSize: 14, flexShrink: 0 }}>
               <Typography sx={{ fontWeight: 600 }}>
-                {selectedId ? `Клиент #${selectedId} (архив)` : 'Выберите чат из архива'}
+                {selectedId
+                  ? `${chats.find((c) => c.id === selectedId)?.client_name || `Клиент #${selectedId}`} (архив)`
+                  : 'Выберите чат из архива'}
               </Typography>
               {selectedId && (
                 <Button size="small" variant="outlined" startIcon={<LabelIcon />} onClick={() => setArchiveTagOpen(true)}>

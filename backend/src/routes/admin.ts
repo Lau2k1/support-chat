@@ -719,13 +719,68 @@ superRouter.put('/tenants/:id/status', async (req, res) => {
       [status, req.params.id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Tenant not found' });
-    // Suspending a tenant should also take its operators offline.
+    // Suspending takes the tenant's operators offline; reactivating brings them back.
     if (status === 'suspended') {
       await pool.query('UPDATE operators SET is_enabled = false WHERE tenant_id = $1 AND role != $2', [req.params.id, 'superadmin']);
+    } else if (status === 'active') {
+      await pool.query('UPDATE operators SET is_enabled = true WHERE tenant_id = $1 AND role != $2', [req.params.id, 'superadmin']);
     }
     res.json(result.rows[0]);
   } catch {
     res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+/**
+ * Owner permanently deletes a tenant and every row that belongs to it.
+ * The related foreign keys are not all ON DELETE CASCADE, so we remove the
+ * dependent rows explicitly inside a single transaction. The tenant's Telegram
+ * bot (if any) is detached from Telegram first (best effort).
+ */
+superRouter.delete('/tenants/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid tenant id' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const found = await client.query('SELECT id, name, slug FROM tenants WHERE id = $1', [id]);
+    if (!found.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Tenant not found' });
+    }
+
+    // Best effort: stop Telegram from forwarding updates to a dead endpoint.
+    const bots = await client.query('SELECT bot_token FROM telegram_bots WHERE tenant_id = $1', [id]);
+    for (const b of bots.rows) {
+      try {
+        await deleteWebhook(decryptToken(b.bot_token));
+      } catch {
+        /* token may be stale/undecryptable — ignore */
+      }
+    }
+
+    await client.query('DELETE FROM messages WHERE chat_id IN (SELECT id FROM chats WHERE tenant_id = $1)', [id]);
+    await client.query('DELETE FROM chat_tags WHERE chat_id IN (SELECT id FROM chats WHERE tenant_id = $1)', [id]);
+    await client.query('DELETE FROM chats WHERE tenant_id = $1', [id]);
+    await client.query('DELETE FROM canned_responses WHERE tenant_id = $1', [id]);
+    await client.query('DELETE FROM invite_codes WHERE tenant_id = $1', [id]);
+    await client.query('DELETE FROM tags WHERE tenant_id = $1', [id]);
+    await client.query('DELETE FROM settings WHERE tenant_id = $1', [id]);
+    await client.query('DELETE FROM telegram_users WHERE tenant_id = $1', [id]);
+    await client.query('DELETE FROM telegram_bots WHERE tenant_id = $1', [id]);
+    // Operators last: chats/canned/invites (which reference them) are gone.
+    await client.query('DELETE FROM operators WHERE tenant_id = $1', [id]);
+    await client.query('DELETE FROM tenants WHERE id = $1', [id]);
+    await client.query('COMMIT');
+
+    res.json({ ok: true, id, name: found.rows[0].name, slug: found.rows[0].slug });
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+    console.error('delete tenant error:', e);
+    res.status(500).json({ error: 'DB Error' });
+  } finally {
+    client.release();
   }
 });
 

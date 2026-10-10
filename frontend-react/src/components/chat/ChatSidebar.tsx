@@ -20,7 +20,7 @@ interface ChatSidebarProps {
 }
 
 export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebarProps) {
-  const { chatTimers, chatUnread, chatPreviews, chatSources } = useChatStore();
+  const { chatTimers, chatUnread, chatPreviews, chatSources, chatNames } = useChatStore();
   const [search, setSearch] = useState('');
   const [chatIds, setChatIds] = useState<number[]>([]);
   const [now, setNow] = useState(Date.now());
@@ -87,6 +87,7 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
             timer={chatTimers[String(id)]}
             preview={chatPreviews[String(id)]}
             source={chatSources[String(id)]}
+            name={chatNames[String(id)]}
             unread={chatUnread[String(id)] || 0}
             now={now}
             onClick={() => onSelectChat(id)}
@@ -105,6 +106,7 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
             timer={chatTimers[String(id)]}
             preview={chatPreviews[String(id)]}
             source={chatSources[String(id)]}
+            name={chatNames[String(id)]}
             unread={chatUnread[String(id)] || 0}
             now={now}
             onClick={() => onSelectChat(id)}
@@ -128,6 +130,7 @@ function ChatItem({
   timer,
   preview,
   source,
+  name,
   unread,
   now,
   onClick,
@@ -138,12 +141,14 @@ function ChatItem({
   timer?: number;
   preview?: string;
   source?: string;
+  name?: string;
   unread: number;
   now: number;
   onClick: () => void;
 }) {
   const elapsed = timer ? formatElapsedTime(timer) : '...';
   const isTelegram = source === 'telegram';
+  const label = name || `${isTelegram ? 'Telegram' : 'Клиент'} #${chatId}`;
 
   return (
     <ListItemButton
@@ -163,8 +168,8 @@ function ChatItem({
       <ListItemText
         primary={
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {isTelegram ? 'Telegram' : 'Клиент'} #{chatId}
+            <Typography variant="body2" noWrap sx={{ fontWeight: 600, minWidth: 0 }}>
+              {label}
             </Typography>
             {unread > 0 && (
               <Badge badgeContent={unread > 99 ? '99+' : unread} color="primary" sx={{ ml: 1 }} />

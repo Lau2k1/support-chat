@@ -238,14 +238,14 @@ export async function handleTelegramUpdate(botId: number, update: unknown): Prom
     );
     chatId = ins.rows[0].id;
     broadcastToOnlineOperators(
-      { type: 'new_chat', chatId, updated_at: Number(ins.rows[0].updated_at), source: 'telegram' },
+      { type: 'new_chat', chatId, client_name: name, updated_at: Number(ins.rows[0].updated_at), source: 'telegram' },
       bot.tenant_id
     );
   }
 
   const timeUpdate = await pool.query(
-    'UPDATE chats SET updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING extract(epoch from updated_at) * 1000 as updated_at',
-    [chatId]
+    'UPDATE chats SET updated_at = CURRENT_TIMESTAMP, client_name = $2 WHERE id = $1 RETURNING extract(epoch from updated_at) * 1000 as updated_at',
+    [chatId, name]
   );
   const serverTime = Number(timeUpdate.rows[0].updated_at);
 

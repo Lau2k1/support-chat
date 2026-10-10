@@ -41,6 +41,10 @@ export default function CrmTenantsPage() {
   const [limitTenant, setLimitTenant] = useState<Tenant | null>(null);
   const [limitValue, setLimitValue] = useState('');
 
+  // Delete tenant dialog
+  const [deleteTenant, setDeleteTenant] = useState<Tenant | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+
   const load = useCallback(async () => {
     try {
       const res = await superadminApi.getTenants();
@@ -120,6 +124,26 @@ export default function CrmTenantsPage() {
       load();
     } catch (e: any) {
       showToast(e?.response?.data?.error || 'Ошибка', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleOpenDelete = (t: Tenant) => {
+    setDeleteConfirm('');
+    setDeleteTenant(t);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTenant || deleteConfirm.trim() !== deleteTenant.slug) return;
+    setBusy(true);
+    try {
+      await superadminApi.deleteTenant(deleteTenant.id);
+      showToast('Тенант удалён');
+      setDeleteTenant(null);
+      load();
+    } catch (e: any) {
+      showToast(e?.response?.data?.error || 'Ошибка удаления', 'error');
     } finally {
       setBusy(false);
     }
@@ -222,6 +246,9 @@ export default function CrmTenantsPage() {
                     >
                       {t.status === 'active' ? 'Приостановить' : 'Активировать'}
                     </Button>
+                    <Button size="small" variant="outlined" color="error" onClick={() => handleOpenDelete(t)}>
+                      Удалить
+                    </Button>
                   </Box>
                 </TableCell>
               </TableRow>
@@ -307,6 +334,37 @@ export default function CrmTenantsPage() {
         <DialogActions>
           <Button onClick={() => setLimitTenant(null)}>Отмена</Button>
           <Button variant="contained" onClick={handleSaveLimit} disabled={busy}>Сохранить</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete tenant */}
+      <Dialog open={!!deleteTenant} onClose={() => setDeleteTenant(null)} maxWidth="sm" fullWidth>
+        <DialogTitle color="error.main">Удалить тенант — {deleteTenant?.name}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Действие <b>необратимо</b>. Будут удалены все операторы, чаты, сообщения, теги, инвайты и Telegram-бот
+            этого тенанта.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Введите slug для подтверждения"
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            placeholder={deleteTenant?.slug}
+            helperText={`Введите «${deleteTenant?.slug ?? ''}»`}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTenant(null)}>Отмена</Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={busy || deleteConfirm.trim() !== deleteTenant?.slug}
+            onClick={handleDelete}
+          >
+            Удалить навсегда
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

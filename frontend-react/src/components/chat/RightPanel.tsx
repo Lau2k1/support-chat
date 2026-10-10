@@ -2,7 +2,8 @@ import { Box, Typography, Divider } from '@mui/material';
 import { useChatStore } from '@/stores/chatStore';
 
 export default function RightPanel() {
-  const { cannedResponses } = useChatStore();
+  const { cannedResponses, currentChatId, chatNames } = useChatStore();
+  const clientName = currentChatId ? chatNames[String(currentChatId)] : undefined;
 
   return (
     <Box
@@ -22,7 +23,7 @@ export default function RightPanel() {
           Информация
         </Typography>
         <Box sx={{ mt: 1 }}>
-          <Typography variant="body2" color="text.secondary">Клиент: —</Typography>
+          <Typography variant="body2" color="text.secondary">Клиент: {clientName || '—'}</Typography>
           <Typography variant="body2" color="text.secondary">Устройство: —</Typography>
           <Typography variant="body2" color="text.secondary">Регион: —</Typography>
         </Box>
