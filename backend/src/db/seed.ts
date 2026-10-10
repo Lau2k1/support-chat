@@ -3,9 +3,13 @@ import bcrypt from 'bcrypt';
 import { pool } from './index';
 
 async function seed() {
-  const email = 'admin@test.com';
-  const password = 'admin123';
+  const email = process.env.ADMIN_EMAIL || 'admin@test.com';
+  const password = process.env.ADMIN_PASSWORD || 'admin123';
   const name = 'Администратор';
+
+  if (!process.env.ADMIN_PASSWORD) {
+    console.warn('ADMIN_PASSWORD not set — using default password. Set it before the first production seed!');
+  }
 
   try {
     const existing = await pool.query('SELECT id FROM operators WHERE email = $1', [email]);

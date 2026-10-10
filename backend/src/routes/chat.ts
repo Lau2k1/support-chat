@@ -1,8 +1,6 @@
-import jwt from 'jsonwebtoken';
 import { Router } from 'express';
 import { pool } from '../db';
-import { authMiddleware } from '../middleware/auth';
-import { SECRET } from '../middleware/auth';
+import { authMiddleware, resolveOperator } from '../middleware/auth';
 
 const router = Router();
 
@@ -65,21 +63,24 @@ router.get('/chats', authMiddleware, async (req, res) => {
 router.get('/messages/:chatId', async (req, res) => {
   const chatId = req.params.chatId;
 
-  const chatRes = await pool.query('SELECT status FROM chats WHERE id = $1', [chatId]);
+  const chatRes = await pool.query('SELECT status, client_token FROM chats WHERE id = $1', [chatId]);
   if (!chatRes.rows.length) {
     return res.status(404).json({ error: 'Chat not found' });
   }
 
-  if (chatRes.rows[0].status === 'closed') {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Auth required for archived chats' });
-    }
-    try {
-      jwt.verify(authHeader.split(' ')[1], SECRET);
-    } catch {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
+  // Two ways in: a valid operator token, or the opaque client token issued
+  // when the chat was created (proves the caller owns this chat).
+  const authHeader = req.headers.authorization;
+  const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
+  const operator = bearer ? await resolveOperator(bearer) : null;
+
+  const clientToken =
+    (typeof req.query.token === 'string' ? req.query.token : undefined) ||
+    (typeof req.headers['x-client-token'] === 'string' ? req.headers['x-client-token'] : undefined);
+  const isOwner = !!clientToken && chatRes.rows[0].client_token === clientToken;
+
+  if (!operator && !isOwner) {
+    return res.status(401).json({ error: 'Auth required' });
   }
 
   const result = await pool.query(
@@ -87,8 +88,7 @@ router.get('/messages/:chatId', async (req, res) => {
     [chatId]
   );
 
-  const isOperator = !!req.headers.authorization;
-  if (isOperator) {
+  if (operator) {
     res.json(result.rows);
   } else {
     res.json(result.rows.filter((m: any) => m.message_type !== 'note'));

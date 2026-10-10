@@ -12,11 +12,12 @@ interface WidgetMessage {
 }
 
 type WsInMsg =
-  | { type: 'chat_created'; chatId: number }
+  | { type: 'chat_created'; chatId: number; token: string }
   | { type: 'message'; message: WidgetMessage; updated_at: number }
   | { type: 'typingStart'; chatId: number }
   | { type: 'typingStop'; chatId: number }
   | { type: 'chat_closed'; chatId: number }
+  | { type: 'chat_error'; chatId?: number; error: string }
   | { type: 'operators_offline' };
 
 interface WidgetWsState {
@@ -39,6 +40,7 @@ interface WidgetWsActions {
 }
 
 const STORAGE_KEY = 'activeChatId';
+const STORAGE_TOKEN_KEY = 'activeChatToken';
 let optimisticIdCounter = -1;
 
 export function useWidgetWs(): WidgetWsState & WidgetWsActions {
@@ -65,10 +67,12 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
 
   const fetchMessages = useCallback(async (chatId: number) => {
     try {
-      const res = await fetch(`/messages/${chatId}`);
+      const token = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
+      const res = await fetch(`/messages/${chatId}?token=${encodeURIComponent(token)}`);
       if (!res.ok) {
-        if (res.status === 404) {
+        if (res.status === 401 || res.status === 404) {
           localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(STORAGE_TOKEN_KEY);
           setState((s) => ({ ...s, chatId: null, chatClosed: false }));
         }
         return;
@@ -93,7 +97,8 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
 
       const chatId = localStorage.getItem(STORAGE_KEY);
       if (chatId) {
-        ws.send(JSON.stringify({ type: 'join_chat', chatId: Number(chatId) }));
+        const token = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
+        ws.send(JSON.stringify({ type: 'join_chat', chatId: Number(chatId), token }));
         fetchMessages(Number(chatId));
       } else if (pendingInitRef.current) {
         pendingInitRef.current = false;
@@ -126,6 +131,7 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
     switch (data.type) {
       case 'chat_created':
         localStorage.setItem(STORAGE_KEY, String(data.chatId));
+        localStorage.setItem(STORAGE_TOKEN_KEY, data.token);
         setState((s) => ({
           ...s,
           chatId: data.chatId,
@@ -164,11 +170,18 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
 
       case 'chat_closed':
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(STORAGE_TOKEN_KEY);
         setState((s) => ({
           ...s,
           chatClosed: true,
           chatId: s.chatId,
         }));
+        break;
+
+      case 'chat_error':
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(STORAGE_TOKEN_KEY);
+        setState((s) => ({ ...s, chatId: null, chatClosed: true, messages: [] }));
         break;
 
       case 'operators_offline':
@@ -183,6 +196,7 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
       const data = await res.json();
       if (data.status === 'closed' || data.status === 'not_found') {
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(STORAGE_TOKEN_KEY);
         setState((s) => ({ ...s, chatId: null, chatClosed: true }));
       }
     } catch (e) {
@@ -205,7 +219,8 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
     if (!chatId) {
       wsRef.current.send(JSON.stringify({ type: 'init_chat' }));
     } else {
-      wsRef.current.send(JSON.stringify({ type: 'join_chat', chatId: Number(chatId) }));
+      const token = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
+      wsRef.current.send(JSON.stringify({ type: 'join_chat', chatId: Number(chatId), token }));
       fetchMessages(Number(chatId));
     }
   }, [connect, checkChatStatus, fetchMessages]);
@@ -251,7 +266,12 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = await fetch(`/upload/${chatId}`, { method: 'POST', body: formData });
+      const token = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
+      const res = await fetch(`/upload/${chatId}`, {
+        method: 'POST',
+        headers: token ? { 'X-Client-Token': token } : {},
+        body: formData,
+      });
       if (!res.ok) return;
       const msg: WidgetMessage = await res.json();
       if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -296,7 +316,8 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
         const newId = e.newValue ? Number(e.newValue) : null;
         setState((s) => ({ ...s, chatId: newId }));
         if (newId && wsRef.current?.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({ type: 'join_chat', chatId: newId }));
+          const token = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
+          wsRef.current.send(JSON.stringify({ type: 'join_chat', chatId: newId, token }));
           fetchMessages(newId);
         }
       }

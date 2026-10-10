@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import { pool } from '../db';
-import { SECRET } from '../middleware/auth';
+import { signToken } from '../middleware/auth';
 
 const router = Router();
 
@@ -17,7 +16,7 @@ router.post('/login', async (req, res) => {
     if (!user.is_enabled) {
       return res.status(403).json({ error: 'Account disabled' });
     }
-    const token = jwt.sign({ id: user.id, name: user.name, role: user.role || 'operator' }, SECRET);
+    const token = signToken(user);
     res.json({ token });
   } catch {
     res.status(500).json({ error: 'DB Error' });
@@ -59,7 +58,7 @@ router.post('/register', async (req, res) => {
 
     const hash = await bcrypt.hash(password, 10);
     const opResult = await client.query(
-      'INSERT INTO operators (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, role',
+      'INSERT INTO operators (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, role, token_version',
       [name, email, hash, 'operator']
     );
     const newOp = opResult.rows[0];
@@ -71,7 +70,7 @@ router.post('/register', async (req, res) => {
 
     await client.query('COMMIT');
 
-    const token = jwt.sign({ id: newOp.id, name: newOp.name, role: newOp.role }, SECRET);
+    const token = signToken(newOp);
     res.status(201).json({ token });
   } catch (err) {
     await client.query('ROLLBACK');

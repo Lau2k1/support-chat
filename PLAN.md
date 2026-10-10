@@ -16,28 +16,31 @@
 
 ---
 
-## 1. Безопасность (критично)
+## 1. Безопасность (критично) ✅
 
-### 1.1 WebSocket — привязать chatId к соединению
-- [ ] `backend/src/ws/handler.ts`: при `join_chat`/`init_chat` сохранять `ws.chatId`
-- [ ] `message`, `close_chat`, `messageRead`, `typingStart/Stop` — брать chatId из `ws.chatId`, а не из payload (строки ~98–109, 200–209)
-- [ ] Для оператора проверять, что чат назначен/доступен ему
+### 1.1 WebSocket — привязать chatId к соединению ✅
+- [x] `backend/src/ws/handler.ts`: при `join_chat`/`init_chat` сохранять `ws.chatId`
+- [x] `message`, `close_chat`, `messageRead`, `typingStart/Stop` — клиенты используют только `ws.chatId`; операторы — payload id (валидируется), строки ~98–109, 200–209
+- [x] Для повторного `join_chat` клиентом введён **client_token** (UUID, выдаётся при `chat_created`) — без него переподключение/чтение чужих чатов невозможны (колонка `chats.client_token` + уникальный индекс)
+- [x] `removeConnection` чистит сокет из всех комнат (не только `ws.chatId`)
+- [x] Sмоук-тест `backend/test/ws-smoke.cjs` (12/12): сценарии токенов, рассылки, файлов
 
-### 1.2 REST — `/messages/:chatId`
-- [ ] `backend/src/routes/chat.ts:90-95`: для открытых чатов тоже требовать валидный JWT (сейчас достаточно любой строки `Authorization`)
-- [ ] Скрыт внутренний тип `note` от клиентов без роли оператора
+### 1.2 REST — `/messages/:chatId` ✅
+- [x] `backend/src/routes/chat.ts`: валидный JWT оператора **или** `client_token` (query/header `X-Client-Token`) — иначе 401
+- [x] Заметки `note` видны только оператору (проверка по факту роли, а не «есть header»)
 
-### 1.3 JWT
-- [ ] `backend/src/middleware/auth.ts`: добавить `expiresIn` (напр. `12h`) при выдаче в `routes/auth.ts`
-- [ ] Убрать fallback-секрет `'dev_fallback_secret'` — при отсутствии `JWT_SECRET` падать с понятной ошибкой
-- [ ] При смене роли/отключении оператора — инвалидация (подписывать `role`+`is_enabled` версию или проверять в БД на каждый запрос; минимум — деодноразовый `tokenVersion`)
+### 1.3 JWT ✅
+- [x] `backend/src/middleware/auth.ts`: `expiresIn` (env `JWT_EXPIRES_IN`, по умолчанию 12h)
+- [x] Убран fallback-секрет `'dev_fallback_secret'` — без `JWT_SECRET` сервер не стартует (явная ошибка)
+- [x] `token_version` (колонка `operators.token_version`): смена роли/отключение в админке инвалидирует выданные токены; `resolveOperator` сверяет с БД при каждом запросе/WS-auth
 
-### 1.4 Прочее
-- [ ] `/upload/:chatId`, `/rate/:chatId` — требовать хотя бы `chatId` из cookie/локального токена клиента (сейчас полностью без auth)
-- [ ] Добавить `helmet` и `express-rate-limit` (на login/upload)
-- [ ] Вынести креды из `docker-compose.yml` в переменные/`.env` (secrets)
-- [ ] `seed.ts`: убрать дефолтный пароль админа в лог/код — генерировать или брать из env
-- [ ] CORS: вместо `*` по умолчанию — явный список из `CORS_ORIGINS`
+### 1.4 Прочее ✅
+- [x] `/upload/:chatId`, `/rate/:chatId` — операторский JWT или client_token (`routes/upload.ts` → `resolveCaller`)
+- [x] Установлены и включены `helmet` + `express-rate-limit` (login/register/upload лимиты в `server.ts`)
+- [x] Креды вынесены из `docker-compose.yml` в root `.env` (gitignored) + закоммичен `.env.example`
+- [x] `seed.ts`: пароль админа из `ADMIN_PASSWORD`, предупреждение при дефолте
+- [x] CORS: в production без `CORS_ORIGINS` — только same-origin + warning (иначе виджет не встроить) 
+- [x] Заодно: SQL-интерполяция `CHAT_TIMEOUT_MINUTES` → параметр (`services/chat.ts:99`)
 
 ---
 

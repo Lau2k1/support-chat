@@ -1,7 +1,7 @@
-import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import ws from 'ws';
 import { pool } from '../db';
-import { SECRET } from '../middleware/auth';
+import { resolveOperator } from '../middleware/auth';
 import { ClientWs, IncomingMessage, OutgoingMessage } from './types';
 import {
   safeSend,
@@ -22,6 +22,27 @@ function isAuth(ws: ClientWs): boolean {
   return ws.role === 'operator' || ws.role === 'client';
 }
 
+/**
+ * Resolves the chat a WS action applies to.
+ * - Clients are bound to the chat they created/joined (payload id is ignored).
+ * - Operators are trusted staff and may address an open chat by id.
+ */
+function resolveTargetChatId(ws: ClientWs, payloadId: unknown): number | null {
+  if (ws.role === 'client') {
+    return ws.chatId ?? null;
+  }
+  if (ws.role === 'operator') {
+    const id = Number(payloadId);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }
+  return null;
+}
+
+async function isChatOpen(chatId: number): Promise<boolean> {
+  const res = await pool.query('SELECT status FROM chats WHERE id = $1', [chatId]);
+  return res.rows.length > 0 && res.rows[0].status !== 'closed';
+}
+
 export function handleConnection(ws: ClientWs) {
   ws.on('message', async (rawData: ws.Data) => {
     try {
@@ -29,19 +50,14 @@ export function handleConnection(ws: ClientWs) {
 
       switch (msg.type) {
         case 'auth': {
-          try {
-            const payload = jwt.verify(msg.token, SECRET) as ClientWs['operator'];
-            const opResult = await pool.query('SELECT is_enabled FROM operators WHERE id = $1', [payload!.id]);
-            if (!opResult.rows.length || !opResult.rows[0].is_enabled) {
-              safeSend(ws, { type: 'auth_error' });
-              break;
-            }
-            ws.operator = payload;
-            ws.role = 'operator';
-            safeSend(ws, { type: 'auth_ok' });
-          } catch {
+          const operator = await resolveOperator(msg.token);
+          if (!operator) {
             safeSend(ws, { type: 'auth_error' });
+            break;
           }
+          ws.operator = operator;
+          ws.role = 'operator';
+          safeSend(ws, { type: 'auth_ok' });
           break;
         }
 
@@ -52,12 +68,12 @@ export function handleConnection(ws: ClientWs) {
           }
           addOperator(ws);
           broadcastOperatorsStatus();
-          if (ws.operatorStatus === 'online') {
-            const active = await pool.query(
-              "SELECT id, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE status = 'open' ORDER BY updated_at DESC"
-            );
-            safeSend(ws, { type: 'init_operator', chats: active.rows });
-          }
+          // Always hand the operator the current open chats on first join,
+          // regardless of the order in which operator_status arrives.
+          const active = await pool.query(
+            "SELECT id, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE status = 'open' ORDER BY updated_at DESC"
+          );
+          safeSend(ws, { type: 'init_operator', chats: active.rows });
           break;
         }
 
@@ -67,37 +83,64 @@ export function handleConnection(ws: ClientWs) {
             safeSend(ws, { type: 'operators_offline' });
             break;
           }
-          const nextId = await pool.query('SELECT COALESCE(MAX(client_id), 0) + 1 AS next_id FROM chats');
-          const clientId = nextId.rows[0].next_id;
+          const clientToken = crypto.randomUUID();
           const res = await pool.query(
-            "INSERT INTO chats (client_id, status, updated_at) VALUES ($1, 'open', CURRENT_TIMESTAMP) RETURNING id, extract(epoch from updated_at) * 1000 as updated_at",
-            [clientId]
+            "INSERT INTO chats (client_id, status, client_token, updated_at) VALUES ((SELECT COALESCE(MAX(client_id), 0) + 1 FROM chats), 'open', $1, CURRENT_TIMESTAMP) RETURNING id, extract(epoch from updated_at) * 1000 as updated_at",
+            [clientToken]
           );
           const chat = res.rows[0];
           ws.chatId = chat.id;
           ws.role = 'client';
           joinRoom(chat.id, ws);
-          safeSend(ws, { type: 'chat_created', chatId: chat.id });
+          safeSend(ws, { type: 'chat_created', chatId: chat.id, token: clientToken });
           broadcastToOnlineOperators({ type: 'new_chat', chatId: chat.id, updated_at: chat.updated_at });
           break;
         }
 
         case 'join_chat': {
           const cId = Number(msg.chatId);
+          if (!Number.isInteger(cId) || cId <= 0) {
+            safeSend(ws, { type: 'chat_error', error: 'Invalid chat id' });
+            break;
+          }
+
+          if (ws.role === 'client' || !ws.role) {
+            // A client may only (re)join a chat it can prove ownership of.
+            const token = typeof msg.token === 'string' ? msg.token : '';
+            const chatCheck = await pool.query(
+              'SELECT status, client_token FROM chats WHERE id = $1',
+              [cId]
+            );
+            const chat = chatCheck.rows[0];
+            if (!chat || !token || chat.client_token !== token) {
+              safeSend(ws, { type: 'chat_error', chatId: cId, error: 'Chat access denied' });
+              break;
+            }
+            if (chat.status === 'closed') {
+              safeSend(ws, { type: 'chat_closed', chatId: cId });
+              break;
+            }
+            ws.role = 'client';
+            ws.chatId = cId;
+            joinRoom(cId, ws);
+            break;
+          }
+
+          // Operator
           const chatCheck = await pool.query('SELECT status FROM chats WHERE id = $1', [cId]);
           if (!chatCheck.rows.length || chatCheck.rows[0].status === 'closed') {
             safeSend(ws, { type: 'chat_closed', chatId: cId });
             break;
           }
           ws.chatId = cId;
-          if (!ws.role) ws.role = 'client';
           joinRoom(cId, ws);
           break;
         }
 
         case 'message': {
           if (!isAuth(ws)) break;
-          const cId = Number(msg.chatId);
+          const cId = resolveTargetChatId(ws, msg.chatId);
+          if (cId === null || !(await isChatOpen(cId))) break;
           const sName = ws.role === 'operator' ? ws.operator!.name : 'Клиент';
           const sId = ws.role === 'operator' ? ws.operator!.id : 0;
           const mType = (msg as any).message_type || 'text';
@@ -130,7 +173,8 @@ export function handleConnection(ws: ClientWs) {
         case 'typingStart':
         case 'typingStop': {
           if (!isAuth(ws)) break;
-          const cId = Number(msg.chatId);
+          const cId = resolveTargetChatId(ws, msg.chatId);
+          if (cId === null) break;
           const senderId = ws.role === 'operator' ? ws.operator!.id : 0;
           broadcastToRoom(cId, { type: msg.type, chatId: cId, senderId }, ws);
           break;
@@ -138,7 +182,8 @@ export function handleConnection(ws: ClientWs) {
 
         case 'messageRead': {
           if (!isAuth(ws)) break;
-          const cId = Number(msg.chatId);
+          const cId = resolveTargetChatId(ws, msg.chatId);
+          if (cId === null) break;
           const messageId = Number(msg.messageId);
           const readerId = ws.role === 'operator' ? ws.operator!.id : 0;
 
@@ -168,6 +213,7 @@ export function handleConnection(ws: ClientWs) {
         case 'transfer_chat': {
           if (ws.role !== 'operator') break;
           const tChatId = Number(msg.chatId);
+          if (!Number.isInteger(tChatId) || tChatId <= 0) break;
           const targetOp = findOperatorById(Number((msg as any).targetOperatorId));
           if (!targetOp) break;
 
@@ -199,7 +245,8 @@ export function handleConnection(ws: ClientWs) {
 
         case 'close_chat': {
           if (!isAuth(ws)) break;
-          const cId = Number(msg.chatId);
+          const cId = resolveTargetChatId(ws, msg.chatId);
+          if (cId === null) break;
           await pool.query("UPDATE chats SET status = 'closed' WHERE id = $1", [cId]);
           const closeMsg: OutgoingMessage = { type: 'chat_closed', chatId: cId };
           broadcastToOperators(closeMsg);

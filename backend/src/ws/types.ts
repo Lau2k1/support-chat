@@ -17,7 +17,7 @@ export type IncomingMessage =
   | { type: 'auth'; token: string }
   | { type: 'operator_join' }
   | { type: 'init_chat' }
-  | { type: 'join_chat'; chatId: number | string }
+  | { type: 'join_chat'; chatId: number | string; token?: string }
   | { type: 'message'; chatId: number | string; content: string; message_type?: string }
   | { type: 'typingStart'; chatId: number | string }
   | { type: 'typingStop'; chatId: number | string }
@@ -31,7 +31,8 @@ export type OutgoingMessage =
   | { type: 'auth_ok' }
   | { type: 'init_operator'; chats: ChatRow[] }
   | { type: 'new_chat'; chatId: number; updated_at: number }
-  | { type: 'chat_created'; chatId: number }
+  | { type: 'chat_created'; chatId: number; token: string }
+  | { type: 'chat_error'; chatId?: number; error: string }
   | { type: 'message'; message: MessageRow & { sender_name: string }; updated_at: number }
   | { type: 'typingStart'; chatId: number; senderId: number }
   | { type: 'typingStop'; chatId: number; senderId: number }

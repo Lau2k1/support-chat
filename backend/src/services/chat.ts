@@ -24,9 +24,9 @@ export function addOperator(ws: ClientWs) {
 
 export function removeConnection(ws: ClientWs) {
   operators.delete(ws);
-  if (ws.chatId) {
-    rooms.get(ws.chatId)?.delete(ws);
-  }
+  // Purge the socket from every room, not just ws.chatId, so no stale
+  // memberships are left behind (operators may join several chats).
+  rooms.forEach((members) => members.delete(ws));
 }
 
 export function getOnlineOperators(): { id: number; name: string }[] {
@@ -96,8 +96,9 @@ export function startAutoCloseTimer(wss: WebSocketServer) {
     try {
       const expired = await pool.query(
         `UPDATE chats SET status = 'closed' 
-         WHERE status = 'open' AND updated_at < NOW() - INTERVAL '${CHAT_TIMEOUT_MINUTES} minutes'
-         RETURNING id`
+         WHERE status = 'open' AND updated_at < NOW() - ($1 || ' minutes')::interval
+         RETURNING id`,
+        [String(CHAT_TIMEOUT_MINUTES)]
       );
 
       for (const chat of expired.rows) {

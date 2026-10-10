@@ -27,7 +27,7 @@ router.put('/admin/operators/:id/toggle', async (req, res) => {
 
     const newVal = !current.rows[0].is_enabled;
     const result = await pool.query(
-      'UPDATE operators SET is_enabled = $1 WHERE id = $2 RETURNING id, name, email, role, is_enabled',
+      'UPDATE operators SET is_enabled = $1, token_version = token_version + 1 WHERE id = $2 RETURNING id, name, email, role, is_enabled',
       [newVal, opId]
     );
     res.json(result.rows[0]);
@@ -45,7 +45,7 @@ router.put('/admin/operators/:id/role', async (req, res) => {
     if (Number(req.params.id) === adminId) return res.status(400).json({ error: 'Cannot change own role' });
 
     const result = await pool.query(
-      'UPDATE operators SET role = $1 WHERE id = $2 RETURNING id, name, email, role, is_enabled',
+      'UPDATE operators SET role = $1, token_version = token_version + 1 WHERE id = $2 RETURNING id, name, email, role, is_enabled',
       [role, req.params.id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Operator not found' });

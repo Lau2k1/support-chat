@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS operators (
 ALTER TABLE operators ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'operator';
 ALTER TABLE operators ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN DEFAULT true;
 ALTER TABLE operators ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+-- Increment to invalidate already-issued JWTs (role change / disable / revoke).
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS chats (
     id SERIAL PRIMARY KEY,
@@ -26,6 +28,9 @@ CREATE TABLE IF NOT EXISTS chats (
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS client_name VARCHAR(255);
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS client_device VARCHAR(255);
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS client_region VARCHAR(255);
+-- Opaque secret issued on chat creation; proves a websocket/REST caller owns this chat.
+ALTER TABLE chats ADD COLUMN IF NOT EXISTS client_token UUID;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_chats_client_token ON chats(client_token) WHERE client_token IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS messages (
     id SERIAL PRIMARY KEY,
