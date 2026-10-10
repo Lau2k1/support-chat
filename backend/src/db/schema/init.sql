@@ -11,6 +11,11 @@ CREATE TABLE IF NOT EXISTS tenants (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Seat quota: max concurrent operators + pending invites for the tenant.
+-- NULL = unlimited. Superadmin manages this from the owner CRM ("выдать
+-- количество инвайт-кодов / мест").
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS operator_limit INTEGER;
+
 CREATE TABLE IF NOT EXISTS operators (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,

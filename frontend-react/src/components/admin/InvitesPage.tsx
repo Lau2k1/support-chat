@@ -14,6 +14,10 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { adminApi } from '@/services/endpoints';
@@ -24,6 +28,8 @@ import type { InviteCode } from '@/types';
 export default function InvitesPage() {
   const [invites, setInvites] = useState<InviteCode[]>([]);
   const [expiry, setExpiry] = useState('0');
+  const [createdCodes, setCreatedCodes] = useState<string[] | null>(null);
+  const [busy, setBusy] = useState(false);
   const showConfirm = useUIStore((s) => s.showConfirm);
   const showToast = useUIStore((s) => s.showToast);
 
@@ -37,11 +43,21 @@ export default function InvitesPage() {
   useEffect(() => { load(); }, [load]);
 
   const handleGenerate = async () => {
+    setBusy(true);
     try {
-      await adminApi.createInvite(Number(expiry) || undefined);
+      const res = await adminApi.createInvite(Number(expiry) || undefined);
+      setCreatedCodes(res.data.codes);
       load();
-      showToast('Инвайт-код создан');
-    } catch { showToast('Ошибка создания', 'error'); }
+    } catch (e: any) {
+      showToast(e?.response?.data?.error || 'Ошибка создания', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCloseCodes = () => {
+    setCreatedCodes(null);
+    load();
   };
 
   const handleDelete = (id: number) => {
@@ -80,7 +96,7 @@ export default function InvitesPage() {
               <MenuItem value="168">7 дней</MenuItem>
             </Select>
           </FormControl>
-          <Button variant="contained" onClick={handleGenerate}>Сгенерировать</Button>
+          <Button variant="contained" onClick={handleGenerate} disabled={busy}>Сгенерировать</Button>
         </Box>
       </Box>
 
@@ -153,6 +169,44 @@ export default function InvitesPage() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      <Dialog open={!!createdCodes} onClose={handleCloseCodes} maxWidth="sm" fullWidth>
+        <DialogTitle>Инвайт-коды созданы</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Выдайте эти коды операторам — они зарегистрируются по ссылке «Регистрация по инвайт-коду».
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {createdCodes?.map((code) => (
+              <Box key={code} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box
+                  component="span"
+                  sx={{
+                    flex: 1,
+                    fontFamily: 'monospace',
+                    fontWeight: 600,
+                    fontSize: 15,
+                    letterSpacing: 1.5,
+                    color: 'primary.main',
+                    bgcolor: '#f0f4ff',
+                    px: 1.5,
+                    py: 0.8,
+                    borderRadius: 1,
+                  }}
+                >
+                  {code}
+                </Box>
+                <Button size="small" variant="outlined" startIcon={<ContentCopyIcon sx={{ fontSize: 14 }} />} onClick={() => handleCopy(code)}>
+                  Копировать
+                </Button>
+              </Box>
+            ))}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCodes}>Закрыть</Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 }

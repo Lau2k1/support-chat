@@ -22,7 +22,7 @@ const statusColors = { online: '#4ade80', busy: '#f59e0b', offline: '#94a3b8' };
 const statusLabels = { online: 'Онлайн', busy: 'Занят', offline: 'Оффлайн' };
 
 export default function TopBar() {
-  const { user, isAdmin, logout } = useAuthStore();
+  const { user, isAdmin, isSuperadmin, logout } = useAuthStore();
   const navigate = useNavigate();
   const { openTabs, currentChatId, chatUnread, operatorStatus, setOperatorStatus } = useChatStore();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -111,7 +111,13 @@ export default function TopBar() {
           ))}
         </Menu>
 
-        {isAdmin && (
+        {isSuperadmin && (
+          <IconButton size="small" onClick={() => navigate('/crm')} sx={{ bgcolor: '#111827', color: '#fff', borderRadius: 1, px: 1 }}>
+            <AdminPanelSettingsIcon sx={{ fontSize: 16 }} />
+            <Typography sx={{ fontSize: 11, fontWeight: 600, ml: 0.5 }}>CRM</Typography>
+          </IconButton>
+        )}
+        {isAdmin && !isSuperadmin && (
           <IconButton size="small" onClick={() => navigate('/admin')} sx={{ bgcolor: '#1e293b', color: '#fff', borderRadius: 1, px: 1 }}>
             <AdminPanelSettingsIcon sx={{ fontSize: 16 }} />
             <Typography sx={{ fontSize: 11, fontWeight: 600, ml: 0.5 }}>Админ</Typography>

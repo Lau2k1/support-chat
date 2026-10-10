@@ -20,7 +20,7 @@ function isGlobal(req: express.Request): boolean {
 // Operators (tenant-scoped)
 // ---------------------------------------------------------------------------
 
-router.get('/admin/operators', async (req, res) => {
+router.get('/operators', async (req, res) => {
   try {
     const global = isGlobal(req);
     const result = await pool.query(
@@ -37,7 +37,7 @@ router.get('/admin/operators', async (req, res) => {
   }
 });
 
-router.put('/admin/operators/:id/toggle', async (req, res) => {
+router.put('/operators/:id/toggle', async (req, res) => {
   try {
     const global = isGlobal(req);
     const current = await pool.query(
@@ -66,7 +66,7 @@ router.put('/admin/operators/:id/toggle', async (req, res) => {
   }
 });
 
-router.put('/admin/operators/:id/role', async (req, res) => {
+router.put('/operators/:id/role', async (req, res) => {
   try {
     const global = isGlobal(req);
     const { role } = req.body;
@@ -94,7 +94,7 @@ router.put('/admin/operators/:id/role', async (req, res) => {
   }
 });
 
-router.delete('/admin/operators/:id', async (req, res) => {
+router.delete('/operators/:id', async (req, res) => {
   try {
     const global = isGlobal(req);
     if (Number(req.params.id) === (req as AuthenticatedRequest).user!.id) return res.status(400).json({ error: 'Cannot delete yourself' });
@@ -118,33 +118,66 @@ router.delete('/admin/operators/:id', async (req, res) => {
 // Invite codes (tenant-scoped; superadmin may create for any tenant)
 // ---------------------------------------------------------------------------
 
-router.post('/admin/invite-codes', async (req, res) => {
+interface SeatState {
+  operator_limit: number | null;
+  operators: number;
+  pending: number;
+}
+
+/** Seats occupied = operators + not-yet-used (not expired) invites. */
+async function getSeatState(tenantId: number): Promise<SeatState | null> {
+  const result = await pool.query(
+    `SELECT t.operator_limit,
+            (SELECT COUNT(*)::int FROM operators o WHERE o.tenant_id = t.id) AS operators,
+            (SELECT COUNT(*)::int FROM invite_codes ic
+              WHERE ic.tenant_id = t.id AND ic.used_by IS NULL
+                AND (ic.expires_at IS NULL OR ic.expires_at > now())) AS pending
+     FROM tenants t WHERE t.id = $1`,
+    [tenantId]
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  return { operator_limit: row.operator_limit as number | null, operators: row.operators, pending: row.pending };
+}
+
+router.post('/invite-codes', async (req, res) => {
   try {
     const global = isGlobal(req);
-    const { expiresInHours } = req.body;
+    const { expiresInHours, count } = req.body;
     // Superadmins must pick a tenant; tenant admins always get their own.
     const tenantId = global && req.body.tenantId ? Number(req.body.tenantId) : (req as AuthenticatedRequest).user!.tenantId;
-    if (!Number.isInteger(tenantId)) return res.status(400).json({ error: 'Tenant required' });
+    if (typeof tenantId !== 'number' || !Number.isInteger(tenantId)) return res.status(400).json({ error: 'Tenant required' });
 
-    const code = crypto.randomBytes(6).toString('hex').toUpperCase();
-    const adminId = (req as AuthenticatedRequest).user!.id;
+    const howMany = global && Number.isInteger(count) && count > 0 ? Math.min(Number(count), 100) : 1;
 
-    let expiresAt = null;
-    if (expiresInHours && expiresInHours > 0) {
-      expiresAt = new Date(Date.now() + expiresInHours * 3600000).toISOString();
+    // Seat quota: owner issued N "seats" to the tenant; won't exceed them.
+    const seats = await getSeatState(tenantId);
+    if (!seats) return res.status(404).json({ error: 'Tenant not found' });
+    if (seats.operator_limit !== null && seats.operators + seats.pending + howMany > seats.operator_limit) {
+      return res.status(400).json({ error: `Seat limit reached (${seats.operator_limit})` });
     }
 
-    const result = await pool.query(
-      'INSERT INTO invite_codes (code, created_by, expires_at, tenant_id) VALUES ($1, $2, $3, $4) RETURNING id, code, expires_at, created_at, tenant_id',
-      [code, adminId, expiresAt, tenantId]
-    );
-    res.status(201).json(result.rows[0]);
+    const adminId = (req as AuthenticatedRequest).user!.id;
+    const codes: string[] = [];
+    for (let i = 0; i < howMany; i++) {
+      const code = crypto.randomBytes(6).toString('hex').toUpperCase();
+      codes.push(code);
+      let expiresAt: string | null = null;
+      if (expiresInHours && expiresInHours > 0) {
+        expiresAt = new Date(Date.now() + expiresInHours * 3600000).toISOString();
+      }
+      await pool.query(
+        'INSERT INTO invite_codes (code, created_by, expires_at, tenant_id) VALUES ($1, $2, $3, $4)',
+        [code, adminId, expiresAt, tenantId]
+      );
+    }
+    res.status(201).json({ codes, count: codes.length, tenant_id: tenantId });
   } catch {
     res.status(500).json({ error: 'DB Error' });
   }
 });
 
-router.get('/admin/invite-codes', async (req, res) => {
+router.get('/invite-codes', async (req, res) => {
   try {
     const global = isGlobal(req);
     const result = await pool.query(
@@ -166,7 +199,7 @@ router.get('/admin/invite-codes', async (req, res) => {
   }
 });
 
-router.delete('/admin/invite-codes/:id', async (req, res) => {
+router.delete('/invite-codes/:id', async (req, res) => {
   try {
     const global = isGlobal(req);
     const result = await pool.query(
@@ -184,7 +217,7 @@ router.delete('/admin/invite-codes/:id', async (req, res) => {
 // Stats & audit
 // ---------------------------------------------------------------------------
 
-router.get('/admin/operator-stats', async (req, res) => {
+router.get('/operator-stats', async (req, res) => {
   try {
     const global = isGlobal(req);
     const result = await pool.query(`
@@ -236,7 +269,7 @@ router.get('/admin/operator-stats', async (req, res) => {
   }
 });
 
-router.get('/admin/chats', async (req, res) => {
+router.get('/chats', async (req, res) => {
   try {
     const global = isGlobal(req);
     const { status, operator_id, from, to, limit = '50', offset = '0' } = req.query;
@@ -273,7 +306,7 @@ router.get('/admin/chats', async (req, res) => {
 // Settings (per tenant)
 // ---------------------------------------------------------------------------
 
-router.get('/admin/settings', async (req, res) => {
+router.get('/settings', async (req, res) => {
   try {
     const global = isGlobal(req);
     if (global && !req.query.tenantId) return res.status(400).json({ error: 'tenantId required for superadmin' });
@@ -287,7 +320,7 @@ router.get('/admin/settings', async (req, res) => {
   }
 });
 
-router.put('/admin/settings', async (req, res) => {
+router.put('/settings', async (req, res) => {
   try {
     const global = isGlobal(req);
     if (global && !req.body.tenantId) return res.status(400).json({ error: 'tenantId required for superadmin' });
@@ -313,7 +346,7 @@ router.put('/admin/settings', async (req, res) => {
 // Tags (per tenant)
 // ---------------------------------------------------------------------------
 
-router.get('/admin/tags', async (req, res) => {
+router.get('/tags', async (req, res) => {
   try {
     const global = isGlobal(req);
     const result = await pool.query(
@@ -326,7 +359,7 @@ router.get('/admin/tags', async (req, res) => {
   }
 });
 
-router.post('/admin/tags', async (req, res) => {
+router.post('/tags', async (req, res) => {
   try {
     const global = isGlobal(req);
     const { name, color } = req.body;
@@ -349,7 +382,7 @@ router.post('/admin/tags', async (req, res) => {
   }
 });
 
-router.delete('/admin/tags/:id', async (req, res) => {
+router.delete('/tags/:id', async (req, res) => {
   try {
     const global = isGlobal(req);
     const result = await pool.query(
@@ -370,22 +403,125 @@ router.delete('/admin/tags/:id', async (req, res) => {
 const superRouter = Router();
 superRouter.use(authMiddleware, superAdminMiddleware);
 
-superRouter.get('/superadmin/tenants', async (_req, res) => {
+superRouter.get('/tenants', async (_req, res) => {
   try {
     const result = await pool.query(`
-      SELECT t.id, t.slug, t.name, t.status, t.created_at,
+      SELECT t.id, t.slug, t.name, t.status, t.operator_limit, t.created_at,
              (SELECT COUNT(*)::int FROM operators o WHERE o.tenant_id = t.id) AS operators_count,
-             (SELECT COUNT(*)::int FROM chats c WHERE c.tenant_id = t.id) AS chats_count
+             (SELECT COUNT(*)::int FROM chats c WHERE c.tenant_id = t.id) AS chats_count,
+             (SELECT COUNT(*)::int FROM chats c WHERE c.tenant_id = t.id AND c.status = 'open') AS open_chats,
+             (SELECT COUNT(*)::int FROM messages m
+                JOIN chats c ON c.id = m.chat_id AND c.tenant_id = t.id) AS messages_count,
+             (SELECT COUNT(*)::int FROM invite_codes ic WHERE ic.tenant_id = t.id) AS invites_issued,
+             (SELECT COUNT(*)::int FROM invite_codes ic WHERE ic.tenant_id = t.id AND ic.used_by IS NOT NULL) AS invites_used,
+             (SELECT COALESCE(AVG(c.rating), 0) FROM chats c WHERE c.tenant_id = t.id AND c.rating IS NOT NULL) AS avg_rating
       FROM tenants t
       ORDER BY t.id
     `);
-    res.json(result.rows);
+    res.json(result.rows.map((r: any) => ({
+      ...r,
+      avg_rating: Math.round(Number(r.avg_rating) * 10) / 10,
+    })));
   } catch {
     res.status(500).json({ error: 'DB Error' });
   }
 });
 
-superRouter.post('/superadmin/tenants', async (req, res) => {
+superRouter.put('/tenants/:id', async (req, res) => {
+  try {
+    const { name, operator_limit } = req.body;
+    if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    if (operator_limit !== undefined && operator_limit !== null) {
+      if (!Number.isInteger(operator_limit) || operator_limit < 0) {
+        return res.status(400).json({ error: 'operator_limit must be a non-negative integer or null' });
+      }
+    }
+    const nextName = name !== undefined ? name.trim() : null;
+    const nextLimit = operator_limit === undefined ? '__keep__' : operator_limit;
+    const result = await pool.query(
+      `UPDATE tenants
+       SET name = COALESCE($1, name),
+           operator_limit = CASE WHEN $2::text = '__keep__' THEN operator_limit ELSE $2::int END
+       WHERE id = $3
+       RETURNING id, slug, name, status, operator_limit, created_at`,
+      [nextName, nextLimit, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Tenant not found' });
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+/** Owner issues a batch of invite codes to a tenant (handed over to the client). */
+superRouter.post('/tenants/:id/invites', async (req, res) => {
+  try {
+    const tenantId = Number(req.params.id);
+    const { count = 1, expiresInHours } = req.body;
+    const howMany = Number.isInteger(count) && count > 0 ? Math.min(Number(count), 100) : 1;
+
+    const seats = await getSeatState(tenantId);
+    if (!seats) return res.status(404).json({ error: 'Tenant not found' });
+    if (seats.operator_limit !== null && seats.operators + seats.pending + howMany > seats.operator_limit) {
+      return res.status(400).json({ error: `Not enough free seats (limit ${seats.operator_limit})` });
+    }
+
+    const adminId = (req as AuthenticatedRequest).user!.id;
+    const codes: string[] = [];
+    for (let i = 0; i < howMany; i++) {
+      const code = crypto.randomBytes(6).toString('hex').toUpperCase();
+      codes.push(code);
+      let expiresAt: string | null = null;
+      if (expiresInHours && expiresInHours > 0) {
+        expiresAt = new Date(Date.now() + expiresInHours * 3600000).toISOString();
+      }
+      await pool.query(
+        'INSERT INTO invite_codes (code, created_by, expires_at, tenant_id) VALUES ($1, $2, $3, $4)',
+        [code, adminId, expiresAt, tenantId]
+      );
+    }
+    res.status(201).json({ tenant_id: tenantId, codes, count: codes.length });
+  } catch {
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+/** Global CRM metrics for the owner dashboard. */
+superRouter.get('/dashboard', async (_req, res) => {
+  try {
+    const totals = await pool.query(`
+      SELECT
+        (SELECT COUNT(*)::int FROM tenants) AS tenants,
+        (SELECT COUNT(*)::int FROM tenants WHERE status = 'active') AS active_tenants,
+        (SELECT COUNT(*)::int FROM operators WHERE role != 'superadmin') AS operators,
+        (SELECT COUNT(*)::int FROM chats) AS chats,
+        (SELECT COUNT(*)::int FROM chats WHERE status = 'open') AS open_chats,
+        (SELECT COUNT(*)::int FROM messages) AS messages,
+        (SELECT COUNT(*)::int FROM invite_codes) AS invites,
+        (SELECT COUNT(*)::int FROM invite_codes WHERE used_by IS NOT NULL) AS invites_used,
+        (SELECT COALESCE(AVG(rating), 0) FROM chats WHERE rating IS NOT NULL) AS avg_rating
+    `);
+    const daily = await pool.query(`
+      SELECT to_char(day, 'YYYY-MM-DD') AS day, COALESCE(cnt, 0)::int AS count
+      FROM generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, '1 day') day
+      LEFT JOIN (
+        SELECT created_at::date AS d, COUNT(*)::int AS cnt FROM chats GROUP BY 1
+      ) s ON s.d = day::date
+      ORDER BY day
+    `);
+    res.json({
+      ...totals.rows[0],
+      avg_rating: Math.round(Number(totals.rows[0].avg_rating) * 10) / 10,
+      daily: daily.rows,
+    });
+  } catch {
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+superRouter.post('/tenants', async (req, res) => {
   try {
     const { name, slug } = req.body;
     if (!name || typeof name !== 'string' || !name.trim()) {
@@ -405,7 +541,7 @@ superRouter.post('/superadmin/tenants', async (req, res) => {
   }
 });
 
-superRouter.put('/superadmin/tenants/:id/status', async (req, res) => {
+superRouter.put('/tenants/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
     if (!['active', 'suspended'].includes(status)) return res.status(400).json({ error: 'Invalid status' });

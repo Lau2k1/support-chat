@@ -12,8 +12,33 @@ export interface Tenant {
   name: string;
   status: 'active' | 'suspended';
   created_at?: string;
+  operator_limit?: number | null;
   operators_count?: number;
   chats_count?: number;
+  open_chats?: number;
+  messages_count?: number;
+  invites_issued?: number;
+  invites_used?: number;
+  avg_rating?: number;
+}
+
+export interface InviteBatch {
+  tenant_id: number;
+  codes: string[];
+  count: number;
+}
+
+export interface CrmDashboard {
+  tenants: number;
+  active_tenants: number;
+  operators: number;
+  chats: number;
+  open_chats: number;
+  messages: number;
+  invites: number;
+  invites_used: number;
+  avg_rating: number;
+  daily: { day: string; count: number }[];
 }
 
 export interface Operator {

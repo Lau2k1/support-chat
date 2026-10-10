@@ -10,8 +10,10 @@ import type {
   OperatorStats,
   AdminChat,
   InviteCode,
+  InviteBatch,
   Settings,
   Tenant,
+  CrmDashboard,
 } from '@/types';
 
 export const authApi = {
@@ -73,8 +75,8 @@ export const adminApi = {
   deleteTag: (id: number) =>
     api.delete(`/admin/tags/${id}`),
   getInvites: () => api.get<InviteCode[]>('/admin/invite-codes'),
-  createInvite: (expiresInHours?: number) =>
-    api.post<InviteCode>('/admin/invite-codes', { expiresInHours: expiresInHours || null }),
+  createInvite: (expiresInHours?: number, count = 1) =>
+    api.post<InviteBatch>('/admin/invite-codes', { expiresInHours: expiresInHours || null, count }),
   deleteInvite: (id: number) =>
     api.delete(`/admin/invite-codes/${id}`),
   getSettings: () => api.get<Settings>('/admin/settings'),
@@ -86,6 +88,11 @@ export const superadminApi = {
   getTenants: () => api.get<Tenant[]>('/superadmin/tenants'),
   createTenant: (data: { name: string; slug: string }) =>
     api.post<Tenant>('/superadmin/tenants', data),
+  updateTenant: (id: number, data: { name?: string; operator_limit?: number | null }) =>
+    api.put<Tenant>(`/superadmin/tenants/${id}`, data),
   setTenantStatus: (id: number, status: 'active' | 'suspended') =>
     api.put<Tenant>(`/superadmin/tenants/${id}/status`, { status }),
+  issueInvites: (id: number, data: { count: number; expiresInHours?: number }) =>
+    api.post<InviteBatch>(`/superadmin/tenants/${id}/invites`, data),
+  getDashboard: () => api.get<CrmDashboard>('/superadmin/dashboard'),
 };

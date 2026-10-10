@@ -1,4 +1,4 @@
-import { Box, IconButton, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/People';
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 import LabelIcon from '@mui/icons-material/Label';
@@ -6,14 +6,11 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ChatIcon from '@mui/icons-material/Chat';
-import DomainIcon from '@mui/icons-material/Domain';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '@/stores/authStore';
 
-type Page = 'tenants' | 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats';
+type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats';
 
-const items: { page: Page; icon: React.ReactNode; label: string; superadminOnly?: boolean }[] = [
-  { page: 'tenants', icon: <DomainIcon fontSize="small" />, label: 'Тенанты', superadminOnly: true },
+const items: { page: Page; icon: React.ReactNode; label: string }[] = [
   { page: 'operators', icon: <PeopleIcon fontSize="small" />, label: 'Операторы' },
   { page: 'invites', icon: <ConfirmationNumberIcon fontSize="small" />, label: 'Инвайты' },
   { page: 'stats', icon: <BarChartIcon fontSize="small" />, label: 'Статистика' },
@@ -29,8 +26,6 @@ interface Props {
 
 export default function AdminSideNav({ current, onChange }: Props) {
   const navigate = useNavigate();
-  const isSuperadmin = useAuthStore((s) => s.isSuperadmin);
-  const visibleItems = items.filter((i) => !i.superadminOnly || isSuperadmin);
 
   return (
     <Box
@@ -53,7 +48,7 @@ export default function AdminSideNav({ current, onChange }: Props) {
       </Box>
 
       <Box sx={{ flex: 1, py: 1 }}>
-        {visibleItems.map((item) => (
+        {items.map((item) => (
           <Box
             key={item.page}
             onClick={() => onChange(item.page)}
@@ -82,7 +77,7 @@ export default function AdminSideNav({ current, onChange }: Props) {
 
       <Box sx={{ px: 2, py: 1.5, borderTop: '1px solid #334155' }}>
         <Box
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/operator')}
           sx={{
             display: 'flex',
             alignItems: 'center',

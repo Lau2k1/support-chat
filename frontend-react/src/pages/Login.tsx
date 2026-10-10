@@ -43,7 +43,7 @@ export default function Login() {
             Support<span style={{ color: '#007bff' }}>Chat</span>
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Панель оператора
+            Платформа поддержки
           </Typography>
         </Box>
 

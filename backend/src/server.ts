@@ -50,8 +50,15 @@ app.use(authRoutes);
 app.use(chatRoutes);
 app.use(cannedRoutes);
 app.use(uploadRoutes);
-app.use(adminRoutes);
-app.use(superRouter);
+
+// SPA pages (client-side routes) must be served before the authenticated admin routers —
+// otherwise /admin would hit authMiddleware and return 401 JSON instead of index.html.
+app.get(['/login', '/register', '/operator', '/admin', '/crm'], (_req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
+app.use('/admin', adminRoutes);
+app.use('/superadmin', superRouter);
 
 app.get('{*path}', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
