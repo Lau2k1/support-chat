@@ -43,6 +43,11 @@ app.use('/login', authLimiter);
 app.use('/register', authLimiter);
 app.use('/upload', uploadLimiter);
 
+// Liveness probe for Docker/orchestrators (no auth, not rate-limited).
+app.get('/health', (_req, res) => {
+  res.json({ ok: true });
+});
+
 const frontendPath = path.join(__dirname, '../../frontend-react/dist');
 app.use(express.static(frontendPath));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));

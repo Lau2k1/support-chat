@@ -1,0 +1,14 @@
+# Caddy reverse proxy: automatic HTTPS (Let's Encrypt) + WebSocket passthrough.
+# DOMAIN is provided by docker-compose (from deploy/.env).
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	# WebSocket upgrade (/ws) and the whole API/SPA go to the app container.
+	reverse_proxy app:3000
+}

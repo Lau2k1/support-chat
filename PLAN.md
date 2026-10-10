@@ -159,15 +159,17 @@
 - Порты наружу: **80/443** (+22). 3000/5433 — только внутри compose-сети
 - Нагрузка при этих цифрах: ~50–80 WS-соединений, <100 КБ/с трафика — запас колоссальный
 
-- [ ] `Dockerfile` для backend (multi-stage: build TS → node slim runtime)
-- [ ] Сборка фронта (`npm run build`, два бандла index+widget) → копия в образ или CI-артефакт; раздача бэкендом (уже есть catch-all) **или** отдельный nginx
-- [ ] `docker-compose.prod.yml`: app + postgres + caddy, restart policies, healthchecks, volumes для БД и `uploads/`
-- [ ] Секреты через `.env` на сервере (не коммитить), `JWT_SECRET` — длинный случайный, пароли БД — сгенерированные
-- [ ] TLS: Caddy с авто Let's Encrypt (WS работает через прокси из коробки)
-- [ ] Файрвол: открыты 80/443/22; 5433/3000 наружу не пробрасывать
-- [ ] Бэкапы: cron `pg_dump` + архив `uploads/` (хранить вне сервера), ретенция ≥ 7 дней
-- [ ] Логирование (Docker json-file + rotation) и мониторинг (uptime-пинг, рестарт по healthcheck)
+- [x] `Dockerfile` для backend (multi-stage: frontend build + TS build → `node:22-bookworm-slim` runtime с prod-зависимостями) — `backend/Dockerfile`
+- [x] Сборка фронта (`npm run build`, два бандла index+widget) → копия в образ; раздача бэкендом (уже есть catch-all)
+- [x] `docker-compose.prod.yml`: app + postgres + caddy, restart policies, healthchecks, volumes для БД и `uploads/`, ротация логов json-file
+- [x] Секреты через `.env` на сервере (не коммитить), `JWT_SECRET` — длинный случайный, пароли БД — сгенерированные (`deploy/.env.example`)
+- [x] TLS: Caddy с авто Let's Encrypt (WS работает через прокси из коробки) — `deploy/Caddyfile`
+- [x] Файрвол: открыты 80/443/22; 5433/3000 наружу не пробрасывать (шаги в `README.deploy.md`)
+- [x] Бэкапы: `deploy/backup.sh` (`pg_dump` + архив `uploads/`, ретенция ≥ 7 дней) + строка для cron
+- [x] Логирование (Docker json-file + rotation) и healthcheck приложения (`GET /health`) + `restart: always` в compose
 - [ ] Домены: основной + поддомены клиентов (если выбран вариант с поддоменами из 7.5)
+
+> Артефакты деплоя готовы (`backend/Dockerfile`, `backend/docker-entrypoint.sh`, `.dockerignore`, `docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/.env.example`, `deploy/backup.sh`, `README.deploy.md`) и **проверены локально** (сборка образа + запуск на изолированном `postgres:16`: миграция схемы, seed суперадмина, `/health`, логин, отдача SPA и виджета). Осталось развернуть на VPS.
 
 ---
 
