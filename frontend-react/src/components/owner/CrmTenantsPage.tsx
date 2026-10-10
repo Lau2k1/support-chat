@@ -17,12 +17,14 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { superadminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
 import type { Tenant } from '@/types';
 
 export default function CrmTenantsPage() {
+  const navigate = useNavigate();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -198,6 +200,14 @@ export default function CrmTenantsPage() {
                 <TableCell>{t.invites_used ?? 0} из {t.invites_issued ?? 0}</TableCell>
                 <TableCell>
                   <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="secondary"
+                      onClick={() => navigate(`/crm?view=tenant&id=${t.id}`)}
+                    >
+                      Управление
+                    </Button>
                     <Button size="small" variant="contained" onClick={() => handleOpenIssue(t)}>
                       Выдать инвайты
                     </Button>

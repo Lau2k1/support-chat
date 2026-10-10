@@ -4,7 +4,7 @@ import { adminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
 import type { Settings } from '@/types';
 
-export default function SettingsPage() {
+export default function SettingsPage({ tenantId }: { tenantId?: number } = {}) {
   const [timeout, setTimeout_] = useState('7');
   const [welcome, setWelcome] = useState('');
   const [loading, setLoading] = useState(true);
@@ -13,18 +13,18 @@ export default function SettingsPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await adminApi.getSettings();
+        const res = await adminApi.getSettings(tenantId);
         setTimeout_(res.data.chat_timeout_minutes || '7');
         setWelcome(res.data.welcome_message || '');
       } catch { showToast('Ошибка загрузки настроек', 'error'); }
       finally { setLoading(false); }
     };
     load();
-  }, [showToast]);
+  }, [showToast, tenantId]);
 
   const handleSave = async () => {
     try {
-      await adminApi.saveSettings({ chat_timeout_minutes: timeout, welcome_message: welcome });
+      await adminApi.saveSettings({ chat_timeout_minutes: timeout, welcome_message: welcome }, tenantId);
       showToast('Настройки сохранены');
     } catch { showToast('Ошибка сохранения', 'error'); }
   };

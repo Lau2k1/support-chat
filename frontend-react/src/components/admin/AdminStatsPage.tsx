@@ -3,18 +3,18 @@ import { Box, Typography, Card, Grid, Paper, Table, TableBody, TableCell, TableH
 import { adminApi } from '@/services/endpoints';
 import type { OperatorStats } from '@/types';
 
-export default function AdminStatsPage() {
+export default function AdminStatsPage({ tenantId }: { tenantId?: number } = {}) {
   const [stats, setStats] = useState<OperatorStats[]>([]);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await adminApi.getOperatorStats();
+        const res = await adminApi.getOperatorStats(tenantId);
         setStats(res.data);
       } catch { /* ignore */ }
     };
     load();
-  }, []);
+  }, [tenantId]);
 
   const totalChats = stats.reduce((s, o) => s + Number(o.total_chats), 0);
   const totalMsgs = stats.reduce((s, o) => s + Number(o.total_messages), 0);

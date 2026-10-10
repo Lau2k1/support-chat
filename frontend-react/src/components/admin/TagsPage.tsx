@@ -23,7 +23,7 @@ import { adminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
 import type { Tag } from '@/types';
 
-export default function TagsPage() {
+export default function TagsPage({ tenantId }: { tenantId?: number } = {}) {
   const [tags, setTags] = useState<Tag[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [tagName, setTagName] = useState('');
@@ -33,17 +33,17 @@ export default function TagsPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await adminApi.getTags();
+      const res = await adminApi.getTags(tenantId);
       setTags(res.data);
     } catch { showToast('Ошибка загрузки', 'error'); }
-  }, [showToast]);
+  }, [showToast, tenantId]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleSave = async () => {
     if (!tagName.trim()) { showToast('Введите название', 'error'); return; }
     try {
-      await adminApi.createTag({ name: tagName.trim(), color: tagColor });
+      await adminApi.createTag({ name: tagName.trim(), color: tagColor }, tenantId);
       setModalOpen(false);
       setTagName('');
       setTagColor('#007bff');

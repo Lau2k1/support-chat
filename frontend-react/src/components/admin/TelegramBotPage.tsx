@@ -16,7 +16,7 @@ import { adminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
 import type { TelegramBot } from '@/types';
 
-export default function TelegramBotPage() {
+export default function TelegramBotPage({ tenantId }: { tenantId?: number } = {}) {
   const [bot, setBot] = useState<TelegramBot | null>(null);
   const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
   const [token, setToken] = useState('');
@@ -27,7 +27,7 @@ export default function TelegramBotPage() {
 
   const load = async () => {
     try {
-      const res = await adminApi.getTelegramBot();
+      const res = await adminApi.getTelegramBot(tenantId);
       setBot(res.data.bot);
       setWebhookUrl(res.data.webhook_url);
     } catch {
@@ -37,13 +37,17 @@ export default function TelegramBotPage() {
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => {
+    setLoading(true);
+    load();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [tenantId]);
 
   const handleConnect = async () => {
     if (!token.trim()) return;
     setBusy(true);
     try {
-      const res = await adminApi.connectTelegramBot(token.trim());
+      const res = await adminApi.connectTelegramBot(token.trim(), tenantId);
       setBot(res.data.bot);
       setWebhookUrl(res.data.webhook_url);
       setToken('');
@@ -61,7 +65,7 @@ export default function TelegramBotPage() {
   const handleToggle = async (isActive: boolean) => {
     setBusy(true);
     try {
-      const res = await adminApi.toggleTelegramBot(isActive);
+      const res = await adminApi.toggleTelegramBot(isActive, tenantId);
       setBot(res.data.bot);
       showToast(isActive ? 'Бот включён' : 'Бот выключен');
     } catch {
@@ -75,7 +79,7 @@ export default function TelegramBotPage() {
     if (!confirm('Отключить Telegram-бота? Сообщения из Telegram перестанут поступать.')) return;
     setBusy(true);
     try {
-      await adminApi.disconnectTelegramBot();
+      await adminApi.disconnectTelegramBot(tenantId);
       setBot(null);
       setWebhookUrl(null);
       showToast('Бот отключён');

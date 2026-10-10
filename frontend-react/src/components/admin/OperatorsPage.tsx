@@ -16,19 +16,19 @@ import { adminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
 import type { Operator } from '@/types';
 
-export default function OperatorsPage() {
+export default function OperatorsPage({ tenantId }: { tenantId?: number } = {}) {
   const [operators, setOperators] = useState<Operator[]>([]);
   const showConfirm = useUIStore((s) => s.showConfirm);
   const showToast = useUIStore((s) => s.showToast);
 
   const load = useCallback(async () => {
     try {
-      const res = await adminApi.getOperators();
+      const res = await adminApi.getOperators(tenantId);
       setOperators(res.data);
     } catch {
       showToast('Ошибка загрузки операторов', 'error');
     }
-  }, [showToast]);
+  }, [showToast, tenantId]);
 
   useEffect(() => { load(); }, [load]);
 

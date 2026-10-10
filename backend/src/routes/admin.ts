@@ -17,20 +17,41 @@ function isGlobal(req: express.Request): boolean {
   return (req as AuthenticatedRequest).user?.role === 'superadmin';
 }
 
+/**
+ * Explicit tenant filter for a superadmin request (query or body).
+ * Returns null to mean "all tenants" (legacy behaviour).
+ */
+function requestedTenant(req: express.Request): number | null {
+  const raw = (req.query.tenantId ?? (req.body ? req.body.tenantId : undefined)) as unknown;
+  if (raw === undefined || raw === null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/**
+ * Effective tenant scope for the request:
+ * - tenant admin → always own tenant;
+ * - superadmin → tenantId from query/body, or null (all tenants).
+ */
+function scopedTenant(req: express.Request): number | null {
+  const user = (req as AuthenticatedRequest).user!;
+  return user.role === 'superadmin' ? requestedTenant(req) : user.tenantId;
+}
+
 // ---------------------------------------------------------------------------
 // Operators (tenant-scoped)
 // ---------------------------------------------------------------------------
 
 router.get('/operators', async (req, res) => {
   try {
-    const global = isGlobal(req);
+    const scope = scopedTenant(req);
     const result = await pool.query(
       `SELECT o.id, o.name, o.email, o.role, o.is_enabled, o.status, o.tenant_id, t.name AS tenant_name, o.created_at
        FROM operators o
        LEFT JOIN tenants t ON t.id = o.tenant_id
-       WHERE 1=1 ${global ? '' : 'AND o.tenant_id = $1'}
+       WHERE 1=1 ${scope ? 'AND o.tenant_id = $1' : ''}
        ORDER BY o.id`,
-      global ? [] : [(req as AuthenticatedRequest).user!.tenantId]
+      scope ? [scope] : []
     );
     res.json(result.rows);
   } catch {
@@ -180,7 +201,7 @@ router.post('/invite-codes', async (req, res) => {
 
 router.get('/invite-codes', async (req, res) => {
   try {
-    const global = isGlobal(req);
+    const scope = scopedTenant(req);
     const result = await pool.query(
       `SELECT ic.id, ic.code, ic.expires_at, ic.created_at, ic.used_at, ic.tenant_id,
               t.name AS tenant_name,
@@ -190,9 +211,9 @@ router.get('/invite-codes', async (req, res) => {
        LEFT JOIN tenants t ON t.id = ic.tenant_id
        LEFT JOIN operators o1 ON ic.created_by = o1.id
        LEFT JOIN operators o2 ON ic.used_by = o2.id
-       WHERE 1=1 ${global ? '' : 'AND ic.tenant_id = $1'}
+       WHERE 1=1 ${scope ? 'AND ic.tenant_id = $1' : ''}
        ORDER BY ic.created_at DESC`,
-      global ? [] : [(req as AuthenticatedRequest).user!.tenantId]
+      scope ? [scope] : []
     );
     res.json(result.rows);
   } catch {
@@ -220,7 +241,7 @@ router.delete('/invite-codes/:id', async (req, res) => {
 
 router.get('/operator-stats', async (req, res) => {
   try {
-    const global = isGlobal(req);
+    const scope = scopedTenant(req);
     const result = await pool.query(`
       SELECT
         o.id, o.name, o.email, o.role, o.is_enabled,
@@ -257,9 +278,9 @@ router.get('/operator-stats', async (req, res) => {
         FROM chats WHERE rating IS NOT NULL AND assigned_operator_id IS NOT NULL
         GROUP BY assigned_operator_id
       ) ratings ON ratings.assigned_operator_id = o.id
-      ${global ? '' : 'WHERE o.tenant_id = $1'}
+      ${scope ? 'WHERE o.tenant_id = $1' : ''}
       ORDER BY o.id
-    `, global ? [] : [(req as AuthenticatedRequest).user!.tenantId]);
+    `, scope ? [scope] : []);
     res.json(result.rows.map(r => ({
       ...r,
       avg_response_sec: Math.round(Number(r.avg_response_sec)),
@@ -272,7 +293,7 @@ router.get('/operator-stats', async (req, res) => {
 
 router.get('/chats', async (req, res) => {
   try {
-    const global = isGlobal(req);
+    const scope = scopedTenant(req);
     const { status, operator_id, from, to, limit = '50', offset = '0' } = req.query;
     let sql = `
       SELECT c.id, c.client_id, c.status, c.rating, c.assigned_operator_id,
@@ -287,7 +308,7 @@ router.get('/chats', async (req, res) => {
     const params: any[] = [];
     let idx = 1;
 
-    if (!global) { sql += ` AND c.tenant_id = $${idx++}`; params.push((req as AuthenticatedRequest).user!.tenantId); }
+    if (scope) { sql += ` AND c.tenant_id = $${idx++}`; params.push(scope); }
     if (status) { sql += ` AND c.status = $${idx++}`; params.push(status); }
     if (operator_id) { sql += ` AND c.assigned_operator_id = $${idx++}`; params.push(Number(operator_id)); }
     if (from) { sql += ` AND c.created_at >= $${idx++}`; params.push(from); }
@@ -349,10 +370,10 @@ router.put('/settings', async (req, res) => {
 
 router.get('/tags', async (req, res) => {
   try {
-    const global = isGlobal(req);
+    const scope = scopedTenant(req);
     const result = await pool.query(
-      `SELECT id, name, color, created_at, tenant_id FROM tags WHERE 1=1 ${global ? '' : 'AND tenant_id = $1'} ORDER BY name`,
-      global ? [] : [(req as AuthenticatedRequest).user!.tenantId]
+      `SELECT id, name, color, created_at, tenant_id FROM tags WHERE 1=1 ${scope ? 'AND tenant_id = $1' : ''} ORDER BY name`,
+      scope ? [scope] : []
     );
     res.json(result.rows);
   } catch {
@@ -413,11 +434,11 @@ function botPublicRow(row: any) {
 
 router.get('/telegram-bot', async (req, res) => {
   try {
-    const user = (req as AuthenticatedRequest).user!;
-    if (!user.tenantId) return res.status(400).json({ error: 'Superadmin has no tenant bot' });
+    const tenantId = scopedTenant(req);
+    if (!tenantId) return res.status(400).json({ error: 'Tenant required' });
     const result = await pool.query(
       'SELECT id, bot_username, is_active, created_at FROM telegram_bots WHERE tenant_id = $1',
-      [user.tenantId]
+      [tenantId]
     );
     const bot = botPublicRow(result.rows[0]);
     res.json({ bot, webhook_url: bot ? webhookUrlFor(bot.id) : null });
@@ -428,8 +449,8 @@ router.get('/telegram-bot', async (req, res) => {
 
 router.put('/telegram-bot', async (req, res) => {
   try {
-    const user = (req as AuthenticatedRequest).user!;
-    if (!user.tenantId) return res.status(400).json({ error: 'Superadmin has no tenant bot' });
+    const tenantId = scopedTenant(req);
+    if (!tenantId) return res.status(400).json({ error: 'Tenant required' });
     const token = String(req.body.bot_token || '').trim();
     if (!/^\d+:[A-Za-z0-9_-]{20,}$/.test(token)) {
       return res.status(400).json({ error: 'Неверный формат токена (нужен токен от @BotFather)' });
@@ -445,7 +466,7 @@ router.put('/telegram-bot', async (req, res) => {
 
     const secret = crypto.randomBytes(24).toString('hex');
     const enc = encryptToken(token);
-    const existing = await pool.query('SELECT id FROM telegram_bots WHERE tenant_id = $1', [user.tenantId]);
+    const existing = await pool.query('SELECT id FROM telegram_bots WHERE tenant_id = $1', [tenantId]);
     let botId: number;
     if (existing.rows.length) {
       botId = existing.rows[0].id;
@@ -456,7 +477,7 @@ router.put('/telegram-bot', async (req, res) => {
     } else {
       const ins = await pool.query(
         'INSERT INTO telegram_bots (tenant_id, bot_token, bot_username, webhook_secret, is_active) VALUES ($1, $2, $3, $4, true) RETURNING id',
-        [user.tenantId, enc, me.username || null, secret]
+        [tenantId, enc, me.username || null, secret]
       );
       botId = ins.rows[0].id;
     }
@@ -482,10 +503,10 @@ router.put('/telegram-bot', async (req, res) => {
 
 router.put('/telegram-bot/toggle', async (req, res) => {
   try {
-    const user = (req as AuthenticatedRequest).user!;
-    if (!user.tenantId) return res.status(400).json({ error: 'Superadmin has no tenant bot' });
+    const tenantId = scopedTenant(req);
+    if (!tenantId) return res.status(400).json({ error: 'Tenant required' });
     const isActive = !!req.body.is_active;
-    const r = await pool.query('SELECT id, bot_token, webhook_secret FROM telegram_bots WHERE tenant_id = $1', [user.tenantId]);
+    const r = await pool.query('SELECT id, bot_token, webhook_secret FROM telegram_bots WHERE tenant_id = $1', [tenantId]);
     const bot = r.rows[0];
     if (!bot) return res.status(404).json({ error: 'Бот не подключён' });
 
@@ -511,9 +532,9 @@ router.put('/telegram-bot/toggle', async (req, res) => {
 
 router.delete('/telegram-bot', async (req, res) => {
   try {
-    const user = (req as AuthenticatedRequest).user!;
-    if (!user.tenantId) return res.status(400).json({ error: 'Superadmin has no tenant bot' });
-    const r = await pool.query('SELECT id, bot_token FROM telegram_bots WHERE tenant_id = $1', [user.tenantId]);
+    const tenantId = scopedTenant(req);
+    if (!tenantId) return res.status(400).json({ error: 'Tenant required' });
+    const r = await pool.query('SELECT id, bot_token FROM telegram_bots WHERE tenant_id = $1', [tenantId]);
     const bot = r.rows[0];
     if (!bot) return res.status(404).json({ error: 'Бот не подключён' });
     try {

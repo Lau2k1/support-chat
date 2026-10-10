@@ -27,7 +27,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { formatDateTime, formatTime } from '@/utils/format';
 import type { AdminChat, Operator, Message } from '@/types';
 
-export default function AuditPage() {
+export default function AuditPage({ tenantId }: { tenantId?: number } = {}) {
   const [chats, setChats] = useState<AdminChat[]>([]);
   const [operators, setOperators] = useState<Operator[]>([]);
   const [status, setStatus] = useState('');
@@ -43,16 +43,17 @@ export default function AuditPage() {
   useEffect(() => {
     const loadOps = async () => {
       try {
-        const res = await adminApi.getOperators();
+        const res = await adminApi.getOperators(tenantId);
         setOperators(res.data);
       } catch { /* ignore */ }
     };
     loadOps();
-  }, []);
+  }, [tenantId]);
 
   const load = useCallback(async () => {
     try {
       const params: Record<string, string> = { limit: '100' };
+      if (tenantId) params.tenantId = String(tenantId);
       if (status) params.status = status;
       if (operatorId) params.operator_id = operatorId;
       if (from) params.from = from + 'T00:00:00';
@@ -60,7 +61,7 @@ export default function AuditPage() {
       const res = await adminApi.getChats(params);
       setChats(res.data);
     } catch { showToast('Ошибка загрузки', 'error'); }
-  }, [status, operatorId, from, to, showToast]);
+  }, [status, operatorId, from, to, showToast, tenantId]);
 
   useEffect(() => { load(); }, [load]);
 

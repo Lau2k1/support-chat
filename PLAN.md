@@ -140,6 +140,8 @@
 - [x] **Лимит мест** (`tenants.operator_limit`): владелец выдаёт клиенту N мест (операторы + неиспользованные инвайты ≤ лимит); `POST /admin/invite-codes` и `POST /superadmin/tenants/:id/invites` проверяют квоту
 - [x] **Выдача инвайтов владельцем**: `POST /superadmin/tenants/:id/invites {count}` — пакет кодов клиенту; `PUT /superadmin/tenants/:id` — имя/лимит; `GET /superadmin/dashboard` — метрики
 - [x] Смоук-тест `backend/test/crm-smoke.cjs` (20/20): role-redirect, квота мест, выдача инвайтов, запрет доступа админа тенанта к `/superadmin/*`
+- [x] **Управление тенантом из CRM** (`/crm?view=tenant&id=N`, кнопка «Управление» в списке клиентов): владелец управляет выбранным клиентом, не заходя в `/admin` — табы «Операторы», «Инвайты», «Теги», «Настройки», «Аудит», «Статистика», «Telegram-бот» (компоненты админки переиспользованы через параметр `tenantId`). Бэкенд: суперадмин может скоупить `/admin/operators|invite-codes|operator-stats|chats|tags|telegram-bot` по `?tenantId=`/body; без него — по-прежнему «всё» (обратная совместимость); админ тенанта `tenantId` игнорирует (изоляция)
+- [x] Смоук-тест `backend/test/crm-tenant-detail-smoke.cjs` (24/24): скоуп листингов по tenantId, изоляция settings/tags/telegram по тенантам, запрет «подглядывания» админом тенанта в чужой тенант через `tenantId`
 
 ### 7.5 Идентификация тенанта в виджете
 - [x] **Вариант 2 выбран**: `<script ... data-tenant="acme">` в сниппете встраивания. Виджет читает `document.querySelector('script[data-tenant]')` и шлёт slug в `init_chat`. Поддомены (вариант 1) можно добавить позже как альтернативу

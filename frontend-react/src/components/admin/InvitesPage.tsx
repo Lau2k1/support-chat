@@ -25,7 +25,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { formatDateTime } from '@/utils/format';
 import type { InviteCode } from '@/types';
 
-export default function InvitesPage() {
+export default function InvitesPage({ tenantId }: { tenantId?: number } = {}) {
   const [invites, setInvites] = useState<InviteCode[]>([]);
   const [expiry, setExpiry] = useState('0');
   const [createdCodes, setCreatedCodes] = useState<string[] | null>(null);
@@ -35,17 +35,17 @@ export default function InvitesPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await adminApi.getInvites();
+      const res = await adminApi.getInvites(tenantId);
       setInvites(res.data);
     } catch { showToast('Ошибка загрузки', 'error'); }
-  }, [showToast]);
+  }, [showToast, tenantId]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleGenerate = async () => {
     setBusy(true);
     try {
-      const res = await adminApi.createInvite(Number(expiry) || undefined);
+      const res = await adminApi.createInvite(Number(expiry) || undefined, 1, tenantId);
       setCreatedCodes(res.data.codes);
       load();
     } catch (e: any) {

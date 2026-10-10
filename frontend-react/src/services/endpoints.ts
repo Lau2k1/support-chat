@@ -60,36 +60,42 @@ export const cannedApi = {
 };
 
 export const adminApi = {
-  getOperators: () => api.get<Operator[]>('/admin/operators'),
+  getOperators: (tenantId?: number) =>
+    api.get<Operator[]>('/admin/operators', { params: tenantId ? { tenantId } : undefined }),
   toggleOperator: (id: number) =>
     api.put<Operator>(`/admin/operators/${id}/toggle`),
   changeRole: (id: number, role: string) =>
     api.put<Operator>(`/admin/operators/${id}/role`, { role }),
   deleteOperator: (id: number) =>
     api.delete(`/admin/operators/${id}`),
-  getOperatorStats: () => api.get<OperatorStats[]>('/admin/operator-stats'),
-  getChats: (params?: { status?: string; operator_id?: number; from?: string; to?: string; limit?: number; offset?: number }) =>
+  getOperatorStats: (tenantId?: number) =>
+    api.get<OperatorStats[]>('/admin/operator-stats', { params: tenantId ? { tenantId } : undefined }),
+  getChats: (params?: { status?: string; operator_id?: number; from?: string; to?: string; limit?: number; offset?: number; tenantId?: number }) =>
     api.get<AdminChat[]>('/admin/chats', { params }),
-  getTags: () => api.get<Tag[]>('/admin/tags'),
-  createTag: (data: { name: string; color?: string }) =>
-    api.post<Tag>('/admin/tags', data),
+  getTags: (tenantId?: number) =>
+    api.get<Tag[]>('/admin/tags', { params: tenantId ? { tenantId } : undefined }),
+  createTag: (data: { name: string; color?: string }, tenantId?: number) =>
+    api.post<Tag>('/admin/tags', tenantId ? { ...data, tenantId } : data),
   deleteTag: (id: number) =>
     api.delete(`/admin/tags/${id}`),
-  getInvites: () => api.get<InviteCode[]>('/admin/invite-codes'),
-  createInvite: (expiresInHours?: number, count = 1) =>
-    api.post<InviteBatch>('/admin/invite-codes', { expiresInHours: expiresInHours || null, count }),
+  getInvites: (tenantId?: number) =>
+    api.get<InviteCode[]>('/admin/invite-codes', { params: tenantId ? { tenantId } : undefined }),
+  createInvite: (expiresInHours?: number, count = 1, tenantId?: number) =>
+    api.post<InviteBatch>('/admin/invite-codes', { expiresInHours: expiresInHours || null, count, ...(tenantId ? { tenantId } : {}) }),
   deleteInvite: (id: number) =>
     api.delete(`/admin/invite-codes/${id}`),
-  getSettings: () => api.get<Settings>('/admin/settings'),
-  saveSettings: (data: Partial<Settings>) =>
-    api.put<Settings>('/admin/settings', data),
-  getTelegramBot: () => api.get<{ bot: TelegramBot | null; webhook_url: string | null }>('/admin/telegram-bot'),
-  connectTelegramBot: (bot_token: string) =>
-    api.put<{ bot: TelegramBot; webhook_url: string | null; webhook_registered: boolean; webhook_error: string | null }>('/admin/telegram-bot', { bot_token }),
-  toggleTelegramBot: (is_active: boolean) =>
-    api.put<{ bot: TelegramBot }>('/admin/telegram-bot/toggle', { is_active }),
-  disconnectTelegramBot: () =>
-    api.delete('/admin/telegram-bot'),
+  getSettings: (tenantId?: number) =>
+    api.get<Settings>('/admin/settings', { params: tenantId ? { tenantId } : undefined }),
+  saveSettings: (data: Partial<Settings>, tenantId?: number) =>
+    api.put<Settings>('/admin/settings', tenantId ? { ...data, tenantId } : data),
+  getTelegramBot: (tenantId?: number) =>
+    api.get<{ bot: TelegramBot | null; webhook_url: string | null }>('/admin/telegram-bot', { params: tenantId ? { tenantId } : undefined }),
+  connectTelegramBot: (bot_token: string, tenantId?: number) =>
+    api.put<{ bot: TelegramBot; webhook_url: string | null; webhook_registered: boolean; webhook_error: string | null }>('/admin/telegram-bot', tenantId ? { bot_token, tenantId } : { bot_token }),
+  toggleTelegramBot: (is_active: boolean, tenantId?: number) =>
+    api.put<{ bot: TelegramBot }>('/admin/telegram-bot/toggle', tenantId ? { is_active, tenantId } : { is_active }),
+  disconnectTelegramBot: (tenantId?: number) =>
+    api.delete('/admin/telegram-bot', { params: tenantId ? { tenantId } : undefined }),
 };
 
 export const superadminApi = {
