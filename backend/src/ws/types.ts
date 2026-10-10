@@ -4,6 +4,8 @@ export interface OperatorPayload {
   id: number;
   name: string;
   role: string;
+  /** Superadmin has no tenant (null). */
+  tenantId: number | null;
 }
 
 export interface ClientWs extends WebSocket {
@@ -16,7 +18,7 @@ export interface ClientWs extends WebSocket {
 export type IncomingMessage =
   | { type: 'auth'; token: string }
   | { type: 'operator_join' }
-  | { type: 'init_chat' }
+  | { type: 'init_chat'; tenant?: string }
   | { type: 'join_chat'; chatId: number | string; token?: string }
   | { type: 'message'; chatId: number | string; content: string; message_type?: string }
   | { type: 'typingStart'; chatId: number | string }

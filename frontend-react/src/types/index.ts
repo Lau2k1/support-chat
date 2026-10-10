@@ -1,8 +1,19 @@
 export interface JwtPayload {
   id: number;
   name: string;
-  role: 'admin' | 'operator';
+  role: 'superadmin' | 'admin' | 'operator';
+  tid?: number | null;
   exp?: number;
+}
+
+export interface Tenant {
+  id: number;
+  slug: string;
+  name: string;
+  status: 'active' | 'suspended';
+  created_at?: string;
+  operators_count?: number;
+  chats_count?: number;
 }
 
 export interface Operator {

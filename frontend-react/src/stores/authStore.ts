@@ -14,6 +14,8 @@ interface AuthState {
   user: JwtPayload | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isSuperadmin: boolean;
+  tenantId: number | null;
   login: (token: string) => void;
   logout: () => void;
   checkAuth: () => void;
@@ -27,7 +29,9 @@ export const useAuthStore = create<AuthState>((set) => {
     token,
     user,
     isAuthenticated: !!user,
-    isAdmin: user?.role === 'admin',
+    isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
+    isSuperadmin: user?.role === 'superadmin',
+    tenantId: user?.tid ?? null,
 
     login: (newToken: string) => {
       localStorage.setItem('token', newToken);
@@ -36,33 +40,39 @@ export const useAuthStore = create<AuthState>((set) => {
         token: newToken,
         user: parsed,
         isAuthenticated: !!parsed,
-        isAdmin: parsed?.role === 'admin',
+        isAdmin: parsed?.role === 'admin' || parsed?.role === 'superadmin',
+        isSuperadmin: parsed?.role === 'superadmin',
+        tenantId: parsed?.tid ?? null,
       });
     },
 
     logout: () => {
       localStorage.removeItem('token');
-      set({ token: null, user: null, isAuthenticated: false, isAdmin: false });
+      set({
+        token: null,
+        user: null,
+        isAuthenticated: false,
+        isAdmin: false,
+        isSuperadmin: false,
+        tenantId: null,
+      });
     },
 
     checkAuth: () => {
       const t = localStorage.getItem('token');
       if (!t) {
-        set({ token: null, user: null, isAuthenticated: false, isAdmin: false });
+        set({ token: null, user: null, isAuthenticated: false, isAdmin: false, isSuperadmin: false, tenantId: null });
         return;
       }
       const parsed = parseJwt(t);
-      if (!parsed) {
-        localStorage.removeItem('token');
-        set({ token: null, user: null, isAuthenticated: false, isAdmin: false });
-        return;
-      }
-      if (parsed.exp && parsed.exp * 1000 < Date.now()) {
-        localStorage.removeItem('token');
-        set({ token: null, user: null, isAuthenticated: false, isAdmin: false });
-        return;
-      }
-      set({ token: t, user: parsed, isAuthenticated: true, isAdmin: parsed.role === 'admin' });
+      set({
+        token: t,
+        user: parsed,
+        isAuthenticated: !!parsed,
+        isAdmin: parsed?.role === 'admin' || parsed?.role === 'superadmin',
+        isSuperadmin: parsed?.role === 'superadmin',
+        tenantId: parsed?.tid ?? null,
+      });
     },
   };
 });

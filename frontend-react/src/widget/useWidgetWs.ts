@@ -1,5 +1,14 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 
+/**
+ * Tenant slug comes from the embed snippet on the client site:
+ * `<script src="/assets/widget.js" data-tenant="acme"></script>`.
+ */
+function getTenantSlug(): string {
+  const el = document.querySelector('script[data-tenant]');
+  return el?.getAttribute('data-tenant')?.trim() ?? '';
+}
+
 interface WidgetMessage {
   id: number;
   chat_id: number;
@@ -102,7 +111,7 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
         fetchMessages(Number(chatId));
       } else if (pendingInitRef.current) {
         pendingInitRef.current = false;
-        ws.send(JSON.stringify({ type: 'init_chat' }));
+        ws.send(JSON.stringify({ type: 'init_chat', tenant: getTenantSlug() }));
       }
     };
 
@@ -217,7 +226,7 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
     }
 
     if (!chatId) {
-      wsRef.current.send(JSON.stringify({ type: 'init_chat' }));
+      wsRef.current.send(JSON.stringify({ type: 'init_chat', tenant: getTenantSlug() }));
     } else {
       const token = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
       wsRef.current.send(JSON.stringify({ type: 'join_chat', chatId: Number(chatId), token }));

@@ -1,3 +1,16 @@
+-- Multi-tenant SaaS schema. Idempotent: safe to re-run on every migration
+-- (CREATE ... IF NOT EXISTS + ALTER ... IF NOT EXISTS).
+-- Tenant isolation: rows that belong to a tenant carry tenant_id. The
+-- superadmin owns no tenant (tenant_id NULL) and sees all tenants.
+
+CREATE TABLE IF NOT EXISTS tenants (
+    id SERIAL PRIMARY KEY,
+    slug VARCHAR(100) UNIQUE NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    status VARCHAR(20) DEFAULT 'active',   -- 'active' | 'suspended'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS operators (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -14,6 +27,9 @@ ALTER TABLE operators ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN DEFAULT true;
 ALTER TABLE operators ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 -- Increment to invalidate already-issued JWTs (role change / disable / revoke).
 ALTER TABLE operators ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
+-- Multitenancy: superadmin has tenant_id NULL; everyone else belongs to a tenant.
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
+CREATE INDEX IF NOT EXISTS idx_operators_tenant ON operators(tenant_id);
 
 CREATE TABLE IF NOT EXISTS chats (
     id SERIAL PRIMARY KEY,
@@ -31,6 +47,8 @@ ALTER TABLE chats ADD COLUMN IF NOT EXISTS client_region VARCHAR(255);
 -- Opaque secret issued on chat creation; proves a websocket/REST caller owns this chat.
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS client_token UUID;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_chats_client_token ON chats(client_token) WHERE client_token IS NOT NULL;
+ALTER TABLE chats ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
+CREATE INDEX IF NOT EXISTS idx_chats_tenant ON chats(tenant_id);
 
 CREATE TABLE IF NOT EXISTS messages (
     id SERIAL PRIMARY KEY,
@@ -56,7 +74,9 @@ CREATE TABLE IF NOT EXISTS canned_responses (
     content TEXT NOT NULL
 );
 
+ALTER TABLE canned_responses ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
 CREATE INDEX IF NOT EXISTS idx_canned_responses_operator ON canned_responses(operator_id);
+CREATE INDEX IF NOT EXISTS idx_canned_responses_tenant ON canned_responses(tenant_id);
 
 CREATE TABLE IF NOT EXISTS invite_codes (
     id SERIAL PRIMARY KEY,
@@ -68,10 +88,20 @@ CREATE TABLE IF NOT EXISTS invite_codes (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE invite_codes ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
+CREATE INDEX IF NOT EXISTS idx_invite_codes_tenant ON invite_codes(tenant_id);
+
+-- Fresh installs get the composite PK straight away. Existing databases are
+-- migrated in seed.ts (backfill tenant_id → drop old PK → add composite PK).
 CREATE TABLE IF NOT EXISTS settings (
-    key VARCHAR(100) PRIMARY KEY,
-    value TEXT NOT NULL
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+    key VARCHAR(100) NOT NULL,
+    value TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, key)
 );
+
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
+CREATE INDEX IF NOT EXISTS idx_settings_tenant ON settings(tenant_id);
 
 CREATE TABLE IF NOT EXISTS tags (
     id SERIAL PRIMARY KEY,
@@ -79,6 +109,10 @@ CREATE TABLE IF NOT EXISTS tags (
     color VARCHAR(7),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE tags ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
+CREATE INDEX IF NOT EXISTS idx_tags_tenant ON tags(tenant_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_tenant_name ON tags(tenant_id, name) WHERE tenant_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS chat_tags (
     chat_id INTEGER REFERENCES chats(id) ON DELETE CASCADE,

@@ -45,6 +45,10 @@ router.post('/register', async (req, res) => {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Invalid or already used invite code' });
     }
+    if (!invite.tenant_id) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Invite code has no tenant' });
+    }
     if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Invite code has expired' });
@@ -58,8 +62,8 @@ router.post('/register', async (req, res) => {
 
     const hash = await bcrypt.hash(password, 10);
     const opResult = await client.query(
-      'INSERT INTO operators (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, role, token_version',
-      [name, email, hash, 'operator']
+      'INSERT INTO operators (name, email, password, role, tenant_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, role, token_version, tenant_id',
+      [name, email, hash, 'operator', invite.tenant_id]
     );
     const newOp = opResult.rows[0];
 

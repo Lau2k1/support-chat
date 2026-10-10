@@ -14,14 +14,14 @@ router.get('/canned-responses', authMiddleware, async (req, res) => {
 });
 
 router.post('/canned-responses', authMiddleware, async (req, res) => {
-  const userId = (req as AuthenticatedRequest).user!.id;
+  const user = (req as AuthenticatedRequest).user!;
   const { shortcut, title, content } = req.body;
   if (!shortcut || !title || !content) {
     return res.status(400).json({ error: 'shortcut, title and content are required' });
   }
   const result = await pool.query(
-    'INSERT INTO canned_responses (operator_id, shortcut, title, content) VALUES ($1, $2, $3, $4) RETURNING id, shortcut, title, content',
-    [userId, shortcut, title, content]
+    'INSERT INTO canned_responses (operator_id, tenant_id, shortcut, title, content) VALUES ($1, $2, $3, $4, $5) RETURNING id, shortcut, title, content',
+    [user.id, user.tenantId, shortcut, title, content]
   );
   res.status(201).json(result.rows[0]);
 });

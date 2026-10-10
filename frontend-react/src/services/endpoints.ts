@@ -11,6 +11,7 @@ import type {
   AdminChat,
   InviteCode,
   Settings,
+  Tenant,
 } from '@/types';
 
 export const authApi = {
@@ -79,4 +80,12 @@ export const adminApi = {
   getSettings: () => api.get<Settings>('/admin/settings'),
   saveSettings: (data: Partial<Settings>) =>
     api.put<Settings>('/admin/settings', data),
+};
+
+export const superadminApi = {
+  getTenants: () => api.get<Tenant[]>('/superadmin/tenants'),
+  createTenant: (data: { name: string; slug: string }) =>
+    api.post<Tenant>('/superadmin/tenants', data),
+  setTenantStatus: (id: number, status: 'active' | 'suspended') =>
+    api.put<Tenant>(`/superadmin/tenants/${id}/status`, { status }),
 };

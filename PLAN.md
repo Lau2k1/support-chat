@@ -99,40 +99,39 @@
 
 ---
 
-## 7. Мультитенантность (SaaS: 5 клиентов × ~3 оператора)
+## 7. Мультитенантность (SaaS: 5 клиентов × ~3 оператора) ✅
 
-> Цель: один инстанс, 5 организаций-клиентов со своими операторами и чатами.
 > Изоляция — через `tenant_id` в строках БД (не отдельные БД/контейнеры).
+> Суперадмин не принадлежит тенанту (tenant_id NULL) и видит всё (может «запрыгивать» в любой чат).
 
 ### 7.1 Схема БД
-- [ ] Новая таблица `tenants` (id, name, status, created_at)
-- [ ] `tenant_id` добавить в: `operators`, `chats`, `tags`, `settings`, `invite_codes` (+FK, индексы)
-- [ ] `messages` — через `chats.tenant_id` (прямой FK не обязателен, но проверить все выборки)
-- [ ] Обновить `init.sql` + написать SQL-скрипт миграции существующих данных (или решить, что данных нет)
+- [x] Таблица `tenants` (id, slug UNIQUE, name, status 'active'|'suspended', created_at)
+- [x] `tenant_id` добавлен в: `operators`, `chats`, `tags`, `settings`, `invite_codes`, `canned_responses` (+FK, индексы; `settings` — составной PK `(tenant_id, key)`)
+- [x] `messages` — через `chats.tenant_id` (все выборки скоуплены через чат)
+- [x] `init.sql` обновлён (idempotентно); бэкфилл старых строк + смена PK `settings` — в `seed.ts` (порядок: migrate → seed); уникальность тегов per-tenant (`(tenant_id, name)`)
 
 ### 7.2 Роли и доступ
-- [ ] Три уровня: **superadmin** (ты, глобальный доступ) → **tenant-admin** (клиент: свои операторы/инвайты/настройки/статистика) → **оператор**
-- [ ] `middleware/auth.ts`: `authMiddleware` + проверка принадлежности ресурса тенанту; `adminMiddleware` → раздельные `tenantAdminMiddleware` / `superAdminMiddleware`
-- [ ] При регистрации/инвайте оператора — привязка к тенанту invite-кода
+- [x] Три уровня: **superadmin** (глобально) → **admin** (tenant-admin) → **operator**
+- [x] `middleware/auth.ts`: JWT несёт `tid`; `resolveOperator` возвращает `tenantId`; `adminMiddleware` заменён на `tenantAdminMiddleware` / `superAdminMiddleware`
+- [x] Регистрация оператора привязывается к тенанту invite-кода (`register` берёт `invite.tenant_id`)
 
 ### 7.3 Бэкенд: скоупинг всех запросов
-- [ ] REST: каждый маршрут фильтрует по `req.user.tenantId` (chats, messages, canned-responses, tags, stats, settings)
-- [ ] `/admin/*` — переименовать/разделить: `/tenant/*` (ресурсы тенанта) и `/superadmin/*` (управление тенантами)
-- [ ] `invite_codes`: создание tenant-admin'ом своего тенанта; superadmin — CRUD тенантов
-- [ ] WS: `operator_join`, `init_operator`, `new_chat`, `operators_status`, `transfer_chat` — рассылка только внутри тенанта (Map keyed by tenantId)
-- [ ] `services/chat.ts`: in-memory реестр скоупить по tenantId (Set операторов → Map<tenantId, Set>)
-- [ ] `settings` (welcome_message, chat_timeout) — per-tenant
+- [x] REST: `/chats`, `/messages`, `/upload`, `/rate`, `/stats`, `/stats/daily`, `/canned-responses`, `/archive`, теги — фильтр по `req.user.tenantId` (superadmin — без фильтра); оператор не может читать чат чужого тенанта
+- [x] `/admin/*` остались как есть (скоуплены), добавлены `/superadmin/tenants` (CRUD + вкл/выкл; suspend также отключает операторов тенанта). Решено не переименовывать `/admin` → `/tenant` — меньше правок фронта, цель разделения полномочий достигнута
+- [x] `invite_codes`: tenant-admin создаёт только для своего тенанта; superadmin — для любого (`tenantId` в body)
+- [x] WS: `operator_join`/`init_operator`/`new_chat`/`operators_status`/`transfer_chat` рассылаются только внутри тенанта; оператор не может зайти в чат чужого тенанта (`chatAccess`)
+- [x] `services/chat.ts`: `Map<tenantId, Set<ClientWs>>`, superadmin в группе 0 и доступен всем тенантам
+- [x] `settings` per-tenant; авто-закрытие чатов читает таймаут каждого тенанта из `settings` (env — fallback)
 
 ### 7.4 Фронтенд
-- [ ] `authStore`: хранить tenantId/tenantRole из JWT
-- [ ] `AdminPanel` — для tenant-admin видит только свои данные; отдельный супер-админ UI (тенанты, их статистика)
-- [ ] Виджет: передавать tenantId (через snippet/поддомен/`data-tenant-id`) — определить способ идентификации клиента на странице его сайта
-- [ ] Скоупить загрузку тегов/кан-ответов/операторов по тенанту
+- [x] `authStore`: `tenantId`, `isSuperadmin`, `isAdmin` (admin|superadmin) из JWT
+- [x] `AdminPanel`+`AdminSideNav`: страница «Тенанты» (TenantsPage) только у superadmin; остальное скоуплено сервером
+- [x] Виджет передаёт тенант: `init_chat { tenant: data-tenant }` (см. 7.5)
+- [x] Теги/кан-ответы/операторы скоуплены по тенанту (серверная фильтрация; демо-тенант в сиде)
 
-### 7.5 Идентификация тенанта в виджете (выбрать один вариант)
-- [ ] Вариант 1: отдельный поддомен клиента (`chat.client-a.ru`) — Host-заголовок → тенант (рекомендуется при наличии поддоменов)
-- [ ] Вариант 2: `<script data-tenant="...">` в сниппете встраивания
-- [ ] Вариант 3: path (`/t/client-a/...`)
+### 7.5 Идентификация тенанта в виджете
+- [x] **Вариант 2 выбран**: `<script ... data-tenant="acme">` в сниппете встраивания. Виджет читает `document.querySelector('script[data-tenant]')` и шлёт slug в `init_chat`. Поддомены (вариант 1) можно добавить позже как альтернативу
+- [ ] (отложено) README/документация сниппета встраивания для клиентов (раздел 6)
 
 ---
 

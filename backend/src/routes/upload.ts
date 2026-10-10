@@ -54,7 +54,7 @@ router.post('/upload/:chatId', upload.single('file'), async (req, res) => {
     return res.status(400).json({ error: 'Invalid chat id' });
   }
 
-  const chatCheck = await pool.query('SELECT status FROM chats WHERE id = $1', [chatId]);
+  const chatCheck = await pool.query('SELECT status, tenant_id FROM chats WHERE id = $1', [chatId]);
   if (!chatCheck.rows.length || chatCheck.rows[0].status === 'closed') {
     return res.status(404).json({ error: 'Chat not found or closed' });
   }
@@ -62,6 +62,9 @@ router.post('/upload/:chatId', upload.single('file'), async (req, res) => {
   const { operator, isOwner } = await resolveCaller(req, chatId);
   if (!operator && !isOwner) {
     return res.status(401).json({ error: 'Auth required' });
+  }
+  if (operator && operator.role !== 'superadmin' && chatCheck.rows[0].tenant_id !== operator.tenantId) {
+    return res.status(403).json({ error: 'Chat belongs to another tenant' });
   }
 
   const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.originalname);
@@ -114,6 +117,12 @@ router.post('/rate/:chatId', async (req, res) => {
   if (!operator && !isOwner) {
     return res.status(401).json({ error: 'Auth required' });
   }
+  if (operator && operator.role !== 'superadmin') {
+    const chatCheck = await pool.query('SELECT tenant_id FROM chats WHERE id = $1', [chatId]);
+    if (!chatCheck.rows.length || chatCheck.rows[0].tenant_id !== operator.tenantId) {
+      return res.status(403).json({ error: 'Chat belongs to another tenant' });
+    }
+  }
 
   const result = await pool.query(
     'UPDATE chats SET rating = $1 WHERE id = $2 AND status = $3 RETURNING id',
@@ -123,11 +132,16 @@ router.post('/rate/:chatId', async (req, res) => {
   res.json({ ok: true });
 });
 
-router.get('/stats', authMiddleware, async (_req, res) => {
-  const totalChats = await pool.query('SELECT COUNT(*)::int AS count FROM chats');
-  const openChats = await pool.query("SELECT COUNT(*)::int AS count FROM chats WHERE status = 'open'");
-  const closedChats = await pool.query("SELECT COUNT(*)::int AS count FROM chats WHERE status = 'closed'");
+router.get('/stats', authMiddleware, async (req, res) => {
+  const user = (req as AuthenticatedRequest).user!;
+  const scope = user.role !== 'superadmin' ? ' AND c.tenant_id = $1' : '';
+  const scopeParams = user.role !== 'superadmin' ? [user.tenantId] : [];
 
+  const totalChats = await pool.query(`SELECT COUNT(*)::int AS count FROM chats c WHERE 1=1${scope}`, scopeParams);
+  const openChats = await pool.query(`SELECT COUNT(*)::int AS count FROM chats c WHERE c.status = 'open'${scope}`, scopeParams);
+  const closedChats = await pool.query(`SELECT COUNT(*)::int AS count FROM chats c WHERE c.status = 'closed'${scope}`, scopeParams);
+
+  const statsScope = user.role !== 'superadmin';
   const avgResponse = await pool.query(`
     SELECT COALESCE(AVG(diff), 0) AS avg_seconds FROM (
       SELECT EXTRACT(EPOCH FROM (m1.created_at - c.created_at)) AS diff
@@ -139,11 +153,15 @@ router.get('/stats', authMiddleware, async (_req, res) => {
           WHERE m2.chat_id = c.id AND m2.sender_id != 0
         )
         AND c.created_at > NOW() - INTERVAL '30 days'
+        ${statsScope ? 'AND c.tenant_id = $1' : ''}
     ) sub
-  `);
+  `, statsScope ? [user.tenantId] : []);
 
-  const avgRating = await pool.query('SELECT COALESCE(AVG(rating), 0) AS avg_rating FROM chats WHERE rating IS NOT NULL');
-  const totalMessages = await pool.query('SELECT COUNT(*)::int AS count FROM messages');
+  const avgRating = await pool.query(`SELECT COALESCE(AVG(rating), 0) AS avg_rating FROM chats c WHERE rating IS NOT NULL${scope}`, scopeParams);
+  const totalMessages = await pool.query(
+    `SELECT COUNT(*)::int AS count FROM messages m JOIN chats c ON c.id = m.chat_id WHERE 1=1${scope}`,
+    scopeParams
+  );
 
   res.json({
     totalChats: totalChats.rows[0].count,
@@ -155,15 +173,16 @@ router.get('/stats', authMiddleware, async (_req, res) => {
   });
 });
 
-router.get('/stats/daily', authMiddleware, async (_req, res) => {
+router.get('/stats/daily', authMiddleware, async (req, res) => {
+  const user = (req as AuthenticatedRequest).user!;
   const result = await pool.query(`
     SELECT TO_CHAR(date, 'DD.MM') AS day, COALESCE(count, 0) AS count
     FROM generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, '1 day') AS date
     LEFT JOIN LATERAL (
-      SELECT COUNT(*)::int AS count FROM chats WHERE DATE(created_at) = date
+      SELECT COUNT(*)::int AS count FROM chats c WHERE DATE(c.created_at) = date ${user.role !== 'superadmin' ? 'AND c.tenant_id = $1' : ''}
     ) c ON true
     ORDER BY date
-  `);
+  `, user.role !== 'superadmin' ? [user.tenantId] : []);
   res.json(result.rows);
 });
 

@@ -1,18 +1,23 @@
 import { Router } from 'express';
 import { pool } from '../db';
-import { authMiddleware, resolveOperator } from '../middleware/auth';
+import { authMiddleware, resolveOperator, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/archive', authMiddleware, async (_req, res) => {
+router.get('/archive', authMiddleware, async (req, res) => {
+  const user = (req as AuthenticatedRequest).user!;
+  const scopeSql = user.role !== 'superadmin' ? ' AND tenant_id = $1' : '';
+  const params = user.role !== 'superadmin' ? [user.tenantId] : [];
   const result = await pool.query(
-    "SELECT id, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE status = 'closed' ORDER BY updated_at DESC LIMIT 50"
+    `SELECT id, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE status = 'closed'${scopeSql} ORDER BY updated_at DESC LIMIT 50`,
+    params
   );
   res.json(result.rows);
 });
 
 router.get('/chats', authMiddleware, async (req, res) => {
   try {
+    const user = (req as AuthenticatedRequest).user!;
     const { status, from, to, limit = '50', offset = '0' } = req.query;
     let sql = `
       SELECT c.id, c.client_id, c.client_name, c.client_device, c.client_region, c.status, c.rating, c.assigned_operator_id,
@@ -30,6 +35,10 @@ router.get('/chats', authMiddleware, async (req, res) => {
     const params: any[] = [];
     let idx = 1;
 
+    if (user.role !== 'superadmin') {
+      sql += ` AND c.tenant_id = $${idx++}`;
+      params.push(user.tenantId);
+    }
     if (status) { sql += ` AND c.status = $${idx++}`; params.push(status); }
     // Accept every shape the frontends send: a single id, an id[] array, or a
     // comma-separated string. (With Express 5's 'simple' query parser, axios's
@@ -77,7 +86,10 @@ router.get('/chats', authMiddleware, async (req, res) => {
 router.get('/messages/:chatId', async (req, res) => {
   const chatId = req.params.chatId;
 
-  const chatRes = await pool.query('SELECT status, client_token FROM chats WHERE id = $1', [chatId]);
+  const chatRes = await pool.query(
+    'SELECT status, client_token, tenant_id FROM chats WHERE id = $1',
+    [chatId]
+  );
   if (!chatRes.rows.length) {
     return res.status(404).json({ error: 'Chat not found' });
   }
@@ -87,6 +99,10 @@ router.get('/messages/:chatId', async (req, res) => {
   const authHeader = req.headers.authorization;
   const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
   const operator = bearer ? await resolveOperator(bearer) : null;
+
+  if (operator && operator.role !== 'superadmin' && chatRes.rows[0].tenant_id !== operator.tenantId) {
+    return res.status(403).json({ error: 'Chat belongs to another tenant' });
+  }
 
   const clientToken =
     (typeof req.query.token === 'string' ? req.query.token : undefined) ||
@@ -114,19 +130,28 @@ router.get('/chat-status/:id', async (req, res) => {
   res.json(result.rows[0] || { status: 'not_found' });
 });
 
+async function isOwnResource(client: any, chatId: number | string, tagId: number | string): Promise<boolean> {
+  const chatCheck = await pool.query(
+    'SELECT c.id, c.tenant_id FROM chats c WHERE c.id = $1',
+    [chatId]
+  );
+  if (!chatCheck.rows.length) return false;
+  const tagCheck = await pool.query('SELECT tenant_id FROM tags WHERE id = $1', [tagId]);
+  if (!tagCheck.rows.length) return false;
+  if (client.role === 'superadmin') return true;
+  return chatCheck.rows[0].tenant_id === client.tenantId && tagCheck.rows[0].tenant_id === client.tenantId;
+}
+
 router.put('/chats/:chatId/tag', authMiddleware, async (req, res) => {
   try {
-    const { chatId } = req.params;
+    const user = (req as AuthenticatedRequest).user!;
+    const chatId = String(req.params.chatId);
     const { tagId } = req.body;
     if (!tagId || isNaN(Number(tagId))) return res.status(400).json({ error: 'Invalid tagId' });
 
-    // Check if chat exists
-    const chatCheck = await pool.query('SELECT id FROM chats WHERE id = $1', [chatId]);
-    if (!chatCheck.rows.length) return res.status(404).json({ error: 'Chat not found' });
-
-    // Check if tag exists
-    const tagCheck = await pool.query('SELECT id FROM tags WHERE id = $1', [tagId]);
-    if (!tagCheck.rows.length) return res.status(404).json({ error: 'Tag not found' });
+    if (!(await isOwnResource(user, chatId, tagId))) {
+      return res.status(404).json({ error: 'Chat or tag not found' });
+    }
 
     // Insert if not exists
     await pool.query(
@@ -141,7 +166,12 @@ router.put('/chats/:chatId/tag', authMiddleware, async (req, res) => {
 
 router.delete('/chats/:chatId/tag/:tagId', authMiddleware, async (req, res) => {
   try {
-    const { chatId, tagId } = req.params;
+    const user = (req as AuthenticatedRequest).user!;
+    const chatId = String(req.params.chatId);
+    const tagId = String(req.params.tagId);
+    if (!(await isOwnResource(user, chatId, tagId))) {
+      return res.status(404).json({ error: 'Chat or tag not found' });
+    }
     const result = await pool.query(
       'DELETE FROM chat_tags WHERE chat_id = $1 AND tag_id = $2 RETURNING chat_id',
       [chatId, tagId]

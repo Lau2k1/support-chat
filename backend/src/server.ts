@@ -11,7 +11,7 @@ import authRoutes from './routes/auth';
 import chatRoutes from './routes/chat';
 import cannedRoutes from './routes/canned';
 import uploadRoutes from './routes/upload';
-import adminRoutes from './routes/admin';
+import adminRoutes, { superRouter } from './routes/admin';
 import { handleConnection } from './ws/handler';
 import { startAutoCloseTimer } from './services/chat';
 
@@ -51,6 +51,7 @@ app.use(chatRoutes);
 app.use(cannedRoutes);
 app.use(uploadRoutes);
 app.use(adminRoutes);
+app.use(superRouter);
 
 app.get('{*path}', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));

@@ -35,6 +35,7 @@ export default defineConfig({
       '/admin/chats': 'http://localhost:3000',
       '/admin/tags': 'http://localhost:3000',
       '/admin/settings': 'http://localhost:3000',
+      '/superadmin': 'http://localhost:3000',
       '/': {
         target: 'http://localhost:3000',
         ws: true,

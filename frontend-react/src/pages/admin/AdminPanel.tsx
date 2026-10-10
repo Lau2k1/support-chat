@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Box } from '@mui/material';
 import AdminSideNav from '@/components/admin/AdminSideNav';
+import TenantsPage from '@/components/admin/TenantsPage';
 import OperatorsPage from '@/components/admin/OperatorsPage';
 import InvitesPage from '@/components/admin/InvitesPage';
 import TagsPage from '@/components/admin/TagsPage';
@@ -8,10 +9,10 @@ import SettingsPage from '@/components/admin/SettingsPage';
 import AuditPage from '@/components/admin/AuditPage';
 import AdminStatsPage from '@/components/admin/AdminStatsPage';
 
-type AdminPage = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats';
+type AdminPage = 'tenants' | 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats';
 
 export default function AdminPanel() {
-  const [page, setPage] = useState<AdminPage>('operators');
+  const [page, setPage] = useState<AdminPage>('tenants');
 
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
@@ -34,6 +35,7 @@ export default function AdminPanel() {
           {pageTitles[page]}
         </Box>
         <Box sx={{ flex: 1, overflowY: 'auto', p: 3 }}>
+          {page === 'tenants' && <TenantsPage />}
           {page === 'operators' && <OperatorsPage />}
           {page === 'invites' && <InvitesPage />}
           {page === 'tags' && <TagsPage />}
@@ -47,6 +49,7 @@ export default function AdminPanel() {
 }
 
 const pageTitles: Record<AdminPage, string> = {
+  tenants: 'Тенанты',
   operators: 'Операторы',
   invites: 'Инвайт-коды',
   tags: 'Теги',

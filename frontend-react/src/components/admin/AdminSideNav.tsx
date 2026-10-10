@@ -6,11 +6,14 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ChatIcon from '@mui/icons-material/Chat';
+import DomainIcon from '@mui/icons-material/Domain';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/stores/authStore';
 
-type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats';
+type Page = 'tenants' | 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats';
 
-const items: { page: Page; icon: React.ReactNode; label: string }[] = [
+const items: { page: Page; icon: React.ReactNode; label: string; superadminOnly?: boolean }[] = [
+  { page: 'tenants', icon: <DomainIcon fontSize="small" />, label: 'Тенанты', superadminOnly: true },
   { page: 'operators', icon: <PeopleIcon fontSize="small" />, label: 'Операторы' },
   { page: 'invites', icon: <ConfirmationNumberIcon fontSize="small" />, label: 'Инвайты' },
   { page: 'stats', icon: <BarChartIcon fontSize="small" />, label: 'Статистика' },
@@ -26,6 +29,8 @@ interface Props {
 
 export default function AdminSideNav({ current, onChange }: Props) {
   const navigate = useNavigate();
+  const isSuperadmin = useAuthStore((s) => s.isSuperadmin);
+  const visibleItems = items.filter((i) => !i.superadminOnly || isSuperadmin);
 
   return (
     <Box
@@ -48,7 +53,7 @@ export default function AdminSideNav({ current, onChange }: Props) {
       </Box>
 
       <Box sx={{ flex: 1, py: 1 }}>
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <Box
             key={item.page}
             onClick={() => onChange(item.page)}
