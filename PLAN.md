@@ -167,9 +167,10 @@
 - [x] Файрвол: открыты 80/443/22; 5433/3000 наружу не пробрасывать (шаги в `README.deploy.md`)
 - [x] Бэкапы: `deploy/backup.sh` (`pg_dump` + архив `uploads/`, ретенция ≥ 7 дней) + строка для cron
 - [x] Логирование (Docker json-file + rotation) и healthcheck приложения (`GET /health`) + `restart: always` в compose
-- [ ] Домены: основной + поддомены клиентов (если выбран вариант с поддоменами из 7.5)
+- [x] Домены: основной — `sct.chat` (Let's Encrypt через Caddy); поддомены клиентов не требуются (выбран вариант с `data-tenant`)
+- [x] Файрвол: наружу слушают только 22/80/443 (проверено `ss -tlnp`); 3000/5432 не публикуются
 
-> Артефакты деплоя готовы (`backend/Dockerfile`, `backend/docker-entrypoint.sh`, `.dockerignore`, `docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/.env.example`, `deploy/backup.sh`, `README.deploy.md`) и **проверены локально** (сборка образа + запуск на изолированном `postgres:16`: миграция схемы, seed суперадмина, `/health`, логин, отдача SPA и виджета). Осталось развернуть на VPS.
+> **Развёрнуто на VPS** (Ubuntu 24.04, 2 vCPU / 3.8 ГБ RAM): `https://sct.chat` → Caddy (авто-HTTPS) → `app` + `postgres:16`. Схема применяется и суперадмин сидируется при старте, бэкапы в cron (`0 3 * * *`), логи с ротацией, healthcheck приложения. Артефакты деплоя проверены локально и на сервере.
 
 ---
 
