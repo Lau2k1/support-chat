@@ -18,6 +18,10 @@ import { startAutoCloseTimer } from './services/chat';
 
 const app = express();
 
+// We run behind a single reverse proxy (Caddy). Trust its X-Forwarded-For so
+// rate limiting and logs see the real client IP, not the proxy container's IP.
+app.set('trust proxy', 1);
+
 const isProd = process.env.NODE_ENV === 'production';
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
@@ -37,7 +41,13 @@ app.use(cors({
 app.use(express.json());
 
 // Basic rate limits (abuse protection). Tune when real numbers are known.
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много попыток, попробуйте позже' },
+});
 const uploadLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
 app.use('/login', authLimiter);
 app.use('/register', authLimiter);
