@@ -53,6 +53,7 @@
 - [x] **Даты инвайтов «—»**: `utils/format.ts` — общий парсер `toDate` (число-эпоха | ISO-строка | Date | null/undefined)
 - [x] **Реконнект WS**: `services/ws.ts` — `intentionalClose` сбрасывается в начале `connect()` (повторный login без F5)
 - [x] **`chat_timeout_minutes` из админки**: `services/chat.ts` — таймер читает `settings.chat_timeout_minutes` каждый цикл, env-переменная — fallback
+- [x] **SPA-глубокие ссылки**: `adminRoutes`/`superRouter` монтировались без префикса (`app.use(adminRoutes)`), а их `router.use(authMiddleware)` ловил **любой** запрос → GET `/login`/`/admin`/`/crm` отдавал 401 JSON вместо `index.html` (ломались F5 и прямые ссылки). Смонтированы под `/admin` и `/superadmin`, пути внутри убраны, SPA-страницы отдаются до защищённых роутеров
 
 ---
 
@@ -75,7 +76,8 @@
 - [ ] `RightPanel.tsx`: карточки шаблонов с `cursor:pointer` без `onClick`
 - [ ] Дубль импорта `MessageList` как `MessageListArchive` (`OperatorDashboard.tsx:25`)
 - [ ] `authStore.checkAuth` нигде не вызывается; в JWT нет `exp` (см. 1.3) — после добавления `exp` включить проверку
-- [ ] `userId`/`activeChatId` виджета — сейчас `localStorage`, ОК; для оператора после 1.3 проверить `atob`-парсинг
+- [ ] `userId`/`activeChatId` виджета — сейчас `localStorage`, ОК
+- [x] **`parseJwt` на base64url** (`authStore.ts`): `atob` падал на части токенов (`-`/`_`, паддинг, кириллица в имени) → пользователь считался неаутентифицированным и падал на `/login`. Нормализуем base64url + паддинг + UTF-8 (`decodeURIComponent`). Найдено при проверке роли оператора
 
 ---
 

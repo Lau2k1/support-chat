@@ -3,7 +3,19 @@ import type { JwtPayload } from '@/types';
 
 function parseJwt(token: string): JwtPayload | null {
   try {
-    return JSON.parse(atob(token.split('.')[1]));
+    const segment = token.split('.')[1];
+    // JWT uses base64url (no padding, -/_ instead of +/). atob() needs standard base64 with padding.
+    const base64 = segment.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+    const binary = atob(padded);
+    // atob() yields a binary (latin1) string; re-decode UTF-8 so non-ASCII names survive.
+    const json = decodeURIComponent(
+      binary
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(json);
   } catch {
     return null;
   }
