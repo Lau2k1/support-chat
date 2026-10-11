@@ -22,7 +22,11 @@ router.post('/login', async (req, res) => {
     }
     const result = await pool.query('SELECT * FROM operators WHERE lower(email) = $1', [email.trim().toLowerCase()]);
     const user = result.rows[0];
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    // SEC-11: always run bcrypt.compare — with a dummy hash when the user is
+    // missing — so the response time doesn't reveal whether the email exists.
+    const DUMMY_HASH = '$2b$10$P0Xx/2wH0DljYe9TDPHcHOXno6aDSd3tiMr9R9yyca1XFK7UVpSyO';
+    const passwordOk = await bcrypt.compare(password, user?.password || DUMMY_HASH);
+    if (!user || !passwordOk) {
       return res.status(401).json({ error: 'Неверный email или пароль' });
     }
     if (!user.is_enabled) {

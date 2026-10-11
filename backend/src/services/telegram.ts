@@ -17,7 +17,25 @@ import type { OutgoingMessage } from '../ws/types';
  * API. The bot token is stored encrypted (AES-256-GCM).
  */
 
-const TG_API_BASE = (process.env.TELEGRAM_API_BASE || 'https://api.telegram.org').replace(/\/$/, '');
+// SEC-18: validate TELEGRAM_API_BASE — must be a URL, and https-only in
+// production (prevents SSRF to internal services and protects bot tokens).
+function normalizeTgApiBase(): string {
+  const raw = (process.env.TELEGRAM_API_BASE || 'https://api.telegram.org').trim().replace(/\/$/, '');
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error('TELEGRAM_API_BASE must be a valid URL');
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error('TELEGRAM_API_BASE must use http(s)');
+  }
+  if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') {
+    throw new Error('TELEGRAM_API_BASE must use https in production');
+  }
+  return url.toString();
+}
+const TG_API_BASE = normalizeTgApiBase();
 const UPLOADS_DIR = path.join(__dirname, '../../uploads');
 
 // ---------------------------------------------------------------------------
@@ -358,9 +376,12 @@ export async function forwardMessageToTelegram(chatId: number, message: MessageL
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e);
     console.error('Telegram forward error:', reason);
+    // SEC-17: don't leak internal error details (URLs, tokens, stack traces) to
+    // operators — log the full reason, show a generic message in the panel.
+    const publicReason = 'Telegram временно недоступен';
     await pool.query(
       "INSERT INTO messages (chat_id, sender_id, content, message_type) VALUES ($1, 0, $2, 'note')",
-      [chatId, `Не удалось отправить в Telegram: ${reason}`]
+      [chatId, `Не удалось отправить в Telegram: ${publicReason}`]
     );
     const note: OutgoingMessage = {
       type: 'message',
@@ -368,7 +389,7 @@ export async function forwardMessageToTelegram(chatId: number, message: MessageL
         id: 0,
         chat_id: chatId,
         sender_id: 0,
-        content: `Не удалось отправить в Telegram: ${reason}`,
+        content: `Не удалось отправить в Telegram: ${publicReason}`,
         message_type: 'note',
         file_url: null,
         created_at: Date.now(),

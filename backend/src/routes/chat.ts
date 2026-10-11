@@ -87,6 +87,8 @@ router.get('/messages/:chatId', async (req, res) => {
 
   // Two ways in: a valid operator token, or the opaque client token issued
   // when the chat was created (proves the caller owns this chat).
+  // SEC-15: the client token is accepted ONLY via the X-Client-Token header —
+  // never in the query string (it would leak into logs, Referer, and history).
   const authHeader = req.headers.authorization;
   const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
   const operator = bearer ? await resolveOperator(bearer) : null;
@@ -95,9 +97,7 @@ router.get('/messages/:chatId', async (req, res) => {
     return res.status(403).json({ error: 'Chat belongs to another tenant' });
   }
 
-  const clientToken =
-    (typeof req.query.token === 'string' ? req.query.token : undefined) ||
-    (typeof req.headers['x-client-token'] === 'string' ? req.headers['x-client-token'] : undefined);
+  const clientToken = typeof req.headers['x-client-token'] === 'string' ? req.headers['x-client-token'] : null;
   const isOwner = !!clientToken && chatRes.rows[0].client_token === clientToken;
 
   if (!operator && !isOwner) {
@@ -116,9 +116,19 @@ router.get('/messages/:chatId', async (req, res) => {
   }
 });
 
+// SEC-12: /chat-status is no longer anonymous — the caller must prove ownership
+// of the chat via the X-Client-Token header (the same opaque token used for
+// /messages). This prevents enumerating arbitrary chat ids.
 router.get('/chat-status/:id', async (req, res) => {
-  const result = await pool.query('SELECT status FROM chats WHERE id = $1', [req.params.id]);
-  res.json(result.rows[0] || { status: 'not_found' });
+  const chatId = req.params.id;
+  const clientToken = typeof req.headers['x-client-token'] === 'string' ? req.headers['x-client-token'] : null;
+
+  const chatRes = await pool.query('SELECT status, client_token FROM chats WHERE id = $1', [chatId]);
+  const chat = chatRes.rows[0];
+  if (!chat || !clientToken || chat.client_token !== clientToken) {
+    return res.status(401).json({ error: 'Auth required' });
+  }
+  res.json({ status: chat.status });
 });
 
 async function isOwnResource(client: any, chatId: number | string, tagId: number | string): Promise<boolean> {

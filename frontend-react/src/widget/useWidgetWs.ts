@@ -82,7 +82,10 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
   const fetchMessages = useCallback(async (chatId: number) => {
     try {
       const token = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
-      const res = await fetch(`/messages/${chatId}?token=${encodeURIComponent(token)}`);
+      // SEC-15: send the client token in a header, never in the query string.
+      const res = await fetch(`/messages/${chatId}`, {
+        headers: token ? { 'X-Client-Token': token } : undefined,
+      });
       if (!res.ok) {
         if (res.status === 401 || res.status === 404) {
           localStorage.removeItem(STORAGE_KEY);
@@ -210,7 +213,11 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
 
   const checkChatStatus = useCallback(async (chatId: number) => {
     try {
-      const res = await fetch(`/chat-status/${chatId}`);
+      const token = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
+      // SEC-12: prove chat ownership via the X-Client-Token header.
+      const res = await fetch(`/chat-status/${chatId}`, {
+        headers: token ? { 'X-Client-Token': token } : undefined,
+      });
       const data = await res.json();
       if (data.status === 'closed' || data.status === 'not_found') {
         localStorage.removeItem(STORAGE_KEY);

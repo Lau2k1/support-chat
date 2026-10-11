@@ -119,6 +119,11 @@ CREATE TABLE IF NOT EXISTS settings (
 ALTER TABLE settings ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
 CREATE INDEX IF NOT EXISTS idx_settings_tenant ON settings(tenant_id);
 
+-- SEC-19: default empty widget_origins for every existing tenant (idempotent).
+INSERT INTO settings (tenant_id, key, value)
+SELECT id, 'widget_origins', '[]' FROM tenants
+ON CONFLICT (tenant_id, key) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS tags (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,

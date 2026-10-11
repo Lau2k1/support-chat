@@ -112,7 +112,7 @@ export function signToken(user: {
       tv: user.token_version ?? 0,
     },
     SECRET,
-    { expiresIn: TOKEN_TTL }
+    { expiresIn: TOKEN_TTL, algorithm: 'HS256' }
   );
 }
 
@@ -124,7 +124,9 @@ export function signToken(user: {
 export async function resolveOperator(token: string): Promise<AuthUser | null> {
   let payload: JwtPayload;
   try {
-    payload = jwt.verify(token, SECRET) as unknown as JwtPayload;
+    // SEC-13: pin the algorithm so an attacker can't switch to 'none' or an
+    // asymmetric trick (e.g. HS256 with a public key as HMAC secret).
+    payload = jwt.verify(token, SECRET, { algorithms: ['HS256'] }) as unknown as JwtPayload;
   } catch {
     return null;
   }

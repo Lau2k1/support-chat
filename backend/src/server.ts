@@ -17,6 +17,7 @@ import { handleConnection } from './ws/handler';
 import type { ClientWs } from './ws/types';
 import { startUploadsCleanup } from './services/uploads';
 import { startAutoCloseTimer } from './services/chat';
+import { pool } from './db';
 
 const app = express();
 
@@ -51,6 +52,9 @@ app.use(helmet({
       ...(isProd ? { upgradeInsecureRequests: [] } : {}),
     },
   },
+  // SEC-19: X-Frame-Options is superseded by CSP frame-ancestors (which supports
+  // a list of origins). Disabled globally; widget.html sets its own below.
+  frameguard: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // /uploads images are loaded from client sites
   crossOriginEmbedderPolicy: false,
 }));
@@ -92,6 +96,33 @@ app.get('/health', (_req, res) => {
 });
 
 const frontendPath = path.join(__dirname, '../../frontend-react/dist');
+
+// SEC-19: widget.html is embedded in customer sites via iframe. Allow
+// frame-ancestors for the tenant's configured widget_origins (plus same-origin).
+app.get('/widget.html', async (req, res, next) => {
+  const tenantSlug = typeof req.query.tenant === 'string' ? req.query.tenant.trim() : '';
+  const origins = new Set<string>();
+  if (tenantSlug) {
+    try {
+      const t = await pool.query('SELECT id FROM tenants WHERE slug = $1', [tenantSlug]);
+      if (t.rows.length) {
+        const s = await pool.query("SELECT value FROM settings WHERE tenant_id = $1 AND key = 'widget_origins'", [t.rows[0].id]);
+        if (s.rows.length) {
+          const list = JSON.parse(s.rows[0].value);
+          if (Array.isArray(list)) {
+            for (const o of list) {
+              if (typeof o === 'string' && /^https?:\/\//i.test(o)) origins.add(o);
+            }
+          }
+        }
+      }
+    } catch { /* ignore malformed settings */ }
+  }
+  const frameAncestors = ["'self'", ...origins].join(' ');
+  res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors ${frameAncestors}`);
+  next();
+});
+
 app.use(express.static(frontendPath));
 
 // SEC-01: uploads are served through an explicit controller (not express.static),

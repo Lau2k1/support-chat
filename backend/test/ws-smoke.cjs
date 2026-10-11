@@ -106,10 +106,24 @@ function check(name, ok, extra = '') {
   check('correct token accepted (no chat_error)', badResp === null || !['chat_error', 'chat_closed'].includes(badResp.type));
 
   // 7. REST messages with client token -> no notes visible
-  const msgs = await fetch(`${HTTP}/messages/${chatId}?token=${encodeURIComponent(created.token)}`);
+  const msgs = await fetch(`${HTTP}/messages/${chatId}`, {
+    headers: { 'X-Client-Token': created.token },
+  });
   const msgsBody = await msgs.json();
   const notes = msgsBody.filter((m) => m.message_type === 'note').length;
   check('REST messages via client token', msgs.status === 200 && notes === 0 && msgsBody.length >= 1);
+
+  // SEC-15: the client token in the query string must no longer be accepted.
+  const msgsQuery = await fetch(`${HTTP}/messages/${chatId}?token=${encodeURIComponent(created.token)}`);
+  check('REST messages via query token rejected (SEC-15)', msgsQuery.status === 401);
+
+  // SEC-12: /chat-status requires the client token.
+  const statusNoTok = await fetch(`${HTTP}/chat-status/${chatId}`);
+  check('/chat-status without token -> 401', statusNoTok.status === 401);
+  const statusOk = await fetch(`${HTTP}/chat-status/${chatId}`, {
+    headers: { 'X-Client-Token': created.token },
+  });
+  check('/chat-status with token -> 200', statusOk.status === 200);
 
   // 8. REST messages without token -> 401
   const noTok = await fetch(`${HTTP}/messages/${chatId}`);

@@ -128,6 +128,11 @@ router.put('/operators/:id/role', async (req, res) => {
     if (current.rows[0].role === 'superadmin' && !global) {
       return res.status(403).json({ error: 'Cannot manage superadmin' });
     }
+    // SEC-14: a tenant admin may only demote operators, not other admins.
+    const isSuper = (req as AuthenticatedRequest).user!.role === 'superadmin';
+    if (!isSuper && current.rows[0].role === 'admin') {
+      return res.status(403).json({ error: 'Only a superadmin can change an admin role' });
+    }
     if (!global && current.rows[0].tenant_id !== (req as AuthenticatedRequest).user!.tenantId) {
       return res.status(403).json({ error: 'Operator belongs to another tenant' });
     }
@@ -243,7 +248,8 @@ router.post('/invite-codes', async (req, res) => {
     const adminId = (req as AuthenticatedRequest).user!.id;
     const codes: string[] = [];
     for (let i = 0; i < howMany; i++) {
-      const code = crypto.randomBytes(6).toString('hex').toUpperCase();
+      // SEC-16: 8+ bytes of entropy (6 → 8 bytes = 16 hex chars).
+      const code = crypto.randomBytes(8).toString('hex').toUpperCase();
       codes.push(code);
       let expiresAt: string | null = null;
       if (expiresInHours && expiresInHours > 0) {
@@ -417,7 +423,7 @@ router.put('/settings', async (req, res) => {
     const global = isGlobal(req);
     if (global && !req.body.tenantId) return res.status(400).json({ error: 'tenantId required for superadmin' });
     const tenantId = global ? Number(req.body.tenantId) : (req as AuthenticatedRequest).user!.tenantId;
-    const allowedKeys = ['chat_timeout_minutes', 'welcome_message'];
+    const allowedKeys = ['chat_timeout_minutes', 'welcome_message', 'widget_origins'];
     if (req.body.chat_timeout_minutes !== undefined) {
       const err = validInt(req.body.chat_timeout_minutes, 'Время авто-закрытия', {
         min: LIMITS.chatTimeoutMin,
@@ -429,6 +435,13 @@ router.put('/settings', async (req, res) => {
       if (typeof req.body.welcome_message !== 'string' || req.body.welcome_message.length > LIMITS.welcomeMessage) {
         return res.status(400).json({ error: `Приветственное сообщение: максимум ${LIMITS.welcomeMessage} символов` });
       }
+    }
+    if (req.body.widget_origins !== undefined) {
+      const list = req.body.widget_origins;
+      if (!Array.isArray(list) || !list.every((o: unknown) => typeof o === 'string' && /^https?:\/\//i.test(o))) {
+        return res.status(400).json({ error: 'widget_origins: массив URL (http/https)' });
+      }
+      req.body.widget_origins = JSON.stringify(list);
     }
     for (const [key, value] of Object.entries(req.body)) {
       if (!allowedKeys.includes(key)) continue;
@@ -743,7 +756,8 @@ superRouter.post('/tenants/:id/invites', async (req, res) => {
     const adminId = (req as AuthenticatedRequest).user!.id;
     const codes: string[] = [];
     for (let i = 0; i < howMany; i++) {
-      const code = crypto.randomBytes(6).toString('hex').toUpperCase();
+      // SEC-16: 8+ bytes of entropy (6 → 8 bytes = 16 hex chars).
+      const code = crypto.randomBytes(8).toString('hex').toUpperCase();
       codes.push(code);
       let expiresAt: string | null = null;
       if (expiresInHours && expiresInHours > 0) {

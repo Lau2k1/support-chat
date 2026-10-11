@@ -121,6 +121,8 @@ export interface InviteCode {
 export interface Settings {
   chat_timeout_minutes: string;
   welcome_message: string;
+  /** SEC-19: origins allowed to iframe-embed the widget (JSON array of URLs). */
+  widget_origins?: string;
 }
 
 export interface Stats {

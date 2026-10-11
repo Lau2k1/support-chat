@@ -72,7 +72,8 @@ async function seed() {
     await pool.query(
       `INSERT INTO settings (tenant_id, key, value) VALUES
          ($1, 'chat_timeout_minutes', $2),
-         ($1, 'welcome_message', 'Здравствуйте! Чем могу помочь?')
+         ($1, 'welcome_message', 'Здравствуйте! Чем могу помочь?'),
+         ($1, 'widget_origins', '[]')
        ON CONFLICT (tenant_id, key) DO NOTHING`,
       [tenantId, String(process.env.CHAT_TIMEOUT_MINUTES || 7)]
     );
