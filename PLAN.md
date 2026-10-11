@@ -1,7 +1,7 @@
 # План исправлений — support-chat
 
 > Активный план работ. Отмечать `[x]` по мере выполнения, добавлять новые пункты по ходу.
-> Последнее обновление: 08.10.2026 (по результатам анализа кодовой базы).
+> Последнее обновление: 11.10.2026 (сверка плана с кодом).
 
 ---
 
@@ -12,7 +12,7 @@
 - [x] Корень: удалён рассинхронизированный `package-lock.json` + корневой `node_modules` (package.json остаётся `{}`); npm workspaces — опционально позже
 - [ ] Решить судьбу легаси: `backend/create-db.js` (закоммичен как есть, дублирует compose — кандидат на удаление), `backend/dist/` (в .gitignore, но устарел — пересобрать)
 - [ ] (опц.) Добавить `.gitattributes` (`* text=auto eol=lf`) — убрать CRLF-шум в предупреждениях git
-- [ ] Запушить локальные коммиты в `origin/main` (сейчас 4 коммита впереди)
+- [x] Запушить локальные коммиты в `origin/main` (ветка синхронизирована)
 
 ---
 
@@ -59,11 +59,11 @@
 
 ## 3. Недоработки бэкенда
 
-- [ ] `assigned_operator_id` никогда не пишется → писать при назначении и при `transfer_chat` (иначе `/admin/operator-stats`, фильтр `/admin/chats?operator_id` — всегда нули)
+- [x] `assigned_operator_id` пишется при назначении (`claimChat`, `ws/handler.ts:74`) и при `transfer_chat` (`ws/handler.ts:385`) — `/admin/operator-stats` и фильтр `/admin/chats?operator_id` работают
 - [ ] `client_id = MAX+1` (`ws/handler.ts:70`) → `INSERT ... RETURNING id` (устранение гонки)
 - [ ] Пустые `catch {}` → логирование (console/pino)
-- [ ] Интерполяция `CHAT_TIMEOUT_MINUTES` в SQL (`services/chat.ts:99`) → параметр
-- [ ] Мёртвые колонки: `chats.client_name/client_device/region`, `operators.status` — либо начать использовать, либо удалить из `init.sql`
+- [x] Интерполяция `CHAT_TIMEOUT_MINUTES` в SQL → значение читается из `settings` тенанта, env — только fallback (`services/chat.ts:178`)
+- [ ] Мёртвые колонки: `chats.client_device`/`client_region` (выбираются в `routes/chat.ts:26`, но не используются), `operators.status` — либо начать использовать, либо удалить из `init.sql` (`client_name` уже используется для Telegram)
 - [ ] Убрать неиспользуемый `export { upload }` (`routes/upload.ts:109`)
 - [ ] Мёртвый endpoint `GET /archive` — либо подключить фронту, либо удалить
 
@@ -73,9 +73,9 @@
 
 - [ ] Необработанные WS-события: `chat_created`, `messageRead`, `operators_offline` (оператор), пустой `break` у `chat_transferred` (`hooks/useWebSocket.ts`)
 - [ ] Виджет не узнаёт об оффлайне операторов: `operators_status` рассылается только операторам → дублировать в комнату клиента
-- [ ] `RightPanel.tsx`: карточки шаблонов с `cursor:pointer` без `onClick`
+- [x] `RightPanel.tsx`: карточки шаблонов вызывают `onInsertTemplate` (`RightPanel.tsx:80`) — клик вставляет текст в поле ввода
 - [ ] Дубль импорта `MessageList` как `MessageListArchive` (`OperatorDashboard.tsx:25`)
-- [ ] `authStore.checkAuth` нигде не вызывается; в JWT нет `exp` (см. 1.3) — после добавления `exp` включить проверку
+- [ ] `authStore.checkAuth` нигде не вызывается (JWT уже несёт `exp`, см. 1.3) — включить проверку при загрузке приложения
 - [ ] `userId`/`activeChatId` виджета — сейчас `localStorage`, ОК
 - [x] **`parseJwt` на base64url** (`authStore.ts`): `atob` падал на части токенов (`-`/`_`, паддинг, кириллица в имени) → пользователь считался неаутентифицированным и падал на `/login`. Нормализуем base64url + паддинг + UTF-8 (`decodeURIComponent`). Найдено при проверке роли оператора
 
@@ -85,7 +85,7 @@
 
 - [ ] Удалить неиспользуемые пакеты: `@tanstack/react-query` (только провайдер в `main.tsx`), `react-hook-form`, `zod`, `@hookform/resolvers` — либо начать использовать
 - [ ] Перенести `@types/*` из `dependencies` в `devDependencies` (`frontend-react/package.json`)
-- [ ] Удалить неиспользуемые экспорты: `getChatStatus`, `removeTag`, `rateChat` (операторским UI) — или подключить
+- [ ] Удалить неиспользуемый экспорт `getChatStatus` (`removeTag`/`rateChat` уже используются операторским UI) — или подключить
 - [ ] Проверить `noUnusedLocals/noUnusedParameters` во фронтовом tsconfig — включить
 
 ---
