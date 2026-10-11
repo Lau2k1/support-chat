@@ -156,14 +156,12 @@ function ChatsView({
   const chatSources = useChatStore((s) => s.chatSources);
   const chatNames = useChatStore((s) => s.chatNames);
   const chatPublicCodes = useChatStore((s) => s.chatPublicCodes);
-  const chatAssignees = useChatStore((s) => s.chatAssignees);
   const chatTags = useChatStore((s) => s.chatTags);
   const setChatTags = useChatStore((s) => s.setChatTags);
   const source = currentChatId ? chatSources[String(currentChatId)] : undefined;
   const chatName = currentChatId ? chatNames[String(currentChatId)] : undefined;
   const isTelegram = source === 'telegram';
   const publicCode = currentChatId ? (chatPublicCodes[String(currentChatId)] || `#${currentChatId}`) : '';
-  const assignee = currentChatId ? chatAssignees[String(currentChatId)] : undefined;
   const currentTags = currentChatId ? chatTags[String(currentChatId)] || [] : [];
 
   // Load the tags attached to the open chat (they are not part of init_operator).
@@ -234,14 +232,6 @@ function ChatsView({
           </Typography>
           {currentChatId && (
             <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexShrink: 0 }}>
-              {assignee && (
-                <Chip
-                  label={`Оператор: ${assignee.name}`}
-                  size="small"
-                  variant="outlined"
-                  sx={{ height: 22, fontSize: 11, maxWidth: 180 }}
-                />
-              )}
               {currentTags.map((t) => (
                 <Chip
                   key={t.id}
@@ -255,12 +245,12 @@ function ChatsView({
               <Button size="small" variant="outlined" startIcon={<SwapHorizIcon />} onClick={onOpenTransfer}>
                 Передать
               </Button>
-              <IconButton size="small" onClick={onToggleRightPanel}>
-                <InfoIcon fontSize="small" />
-              </IconButton>
               <Button size="small" variant="outlined" color="error" startIcon={<CloseIcon />} onClick={() => onCloseChat(currentChatId)}>
                 Закрыть
               </Button>
+              <IconButton size="small" onClick={onToggleRightPanel}>
+                <InfoIcon fontSize="small" />
+              </IconButton>
             </Box>
           )}
         </Box>
