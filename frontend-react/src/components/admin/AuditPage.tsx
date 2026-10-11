@@ -110,7 +110,7 @@ export default function AuditPage({ tenantId }: { tenantId?: number } = {}) {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <HeadCell>Код чата</HeadCell>
+                <HeadCell>ID чата</HeadCell>
                 <HeadCell>Клиент</HeadCell>
                 <HeadCell>Оператор</HeadCell>
                 <HeadCell>Статус</HeadCell>

@@ -7,11 +7,13 @@ interface RightPanelProps {
 }
 
 export default function RightPanel({ onInsertTemplate }: RightPanelProps) {
-  const { cannedResponses, currentChatId, chatNames, chatPublicCodes, chatAssignees } = useChatStore();
+  const { cannedResponses, currentChatId, chatNames, chatPublicCodes, chatAssignees, chatSources } = useChatStore();
   const key = currentChatId != null ? String(currentChatId) : '';
   const clientName = currentChatId ? chatNames[key] : undefined;
   const publicCode = currentChatId ? (chatPublicCodes[key] || `#${currentChatId}`) : '—';
   const assignee = currentChatId ? chatAssignees[key] : undefined;
+  const source = currentChatId ? chatSources[key] : undefined;
+  const isTelegram = source === 'telegram';
 
   return (
     <Box
@@ -26,18 +28,23 @@ export default function RightPanel({ onInsertTemplate }: RightPanelProps) {
         overflowY: 'auto',
       }}
     >
-      <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: '#f1f5f9' }}>
+      <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
         <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase' }} color="text.secondary">
           Информация
         </Typography>
-        <Box sx={{ mt: 1 }}>
-          <Typography variant="body2" color="text.secondary">Клиент: {clientName || '—'}</Typography>
-          <Typography variant="body2" color="text.secondary">Оператор: {assignee?.name || 'Не назначен'}</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace', fontSize: 12 }}>
-            Код чата: {publicCode}
+        <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Typography variant="body2" color="text.secondary">
+            Клиент: <Box component="span" sx={{ color: 'text.primary' }}>{clientName || '—'}</Box>
           </Typography>
-          <Typography variant="body2" color="text.secondary">Устройство: —</Typography>
-          <Typography variant="body2" color="text.secondary">Регион: —</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Канал: <Box component="span" sx={{ color: 'text.primary' }}>{isTelegram ? 'Telegram' : 'Виджет'}</Box>
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Оператор: <Box component="span" sx={{ color: 'text.primary' }}>{assignee?.name || 'Не назначен'}</Box>
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            ID чата: <Box component="span" sx={{ fontFamily: 'monospace', color: 'text.primary' }}>{publicCode}</Box>
+          </Typography>
         </Box>
       </Box>
       <Divider />
@@ -58,7 +65,8 @@ export default function RightPanel({ onInsertTemplate }: RightPanelProps) {
                 borderRadius: 1,
                 mb: 0.5,
                 cursor: 'pointer',
-                '&:hover': { bgcolor: '#f0f4ff', borderColor: 'primary.main' },
+                transition: 'background-color 0.15s ease',
+                '&:hover': { bgcolor: '#eff6ff', borderColor: 'primary.main' },
               }}
             >
               <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 12 }}>{t.title}</Typography>

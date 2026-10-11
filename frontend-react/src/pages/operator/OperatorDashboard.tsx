@@ -249,7 +249,7 @@ function ChatsView({
                   size="small"
                   onDelete={() => handleRemoveTag(t.id)}
                   title="Снять тег"
-                  sx={{ height: 22, fontSize: 11, bgcolor: t.color || '#e2e8f0', color: '#0f172a' }}
+                  sx={{ height: 22, fontSize: 11, bgcolor: t.color || '#007bff', color: '#fff' }}
                 />
               ))}
               <Button size="small" variant="outlined" startIcon={<SwapHorizIcon />} onClick={onOpenTransfer}>
