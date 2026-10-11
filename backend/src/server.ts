@@ -135,9 +135,61 @@ app.get('{*path}', (_req, res) => {
 });
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
 
-wss.on('connection', (socket, req) => handleConnection(socket as ClientWs, req));
+// SEC-03: reject cross-origin WebSocket handshakes. A browser sends `Origin`,
+// so a rogue site cannot open an authenticated socket with the victim's cookie.
+// Requests without `Origin` are non-browser clients (smoke tests, server-side).
+function wsOriginAllowed(origin: string | undefined, host: string | undefined): boolean {
+  if (!origin) return true;
+  let parsed: URL;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return false;
+  }
+  if (host && parsed.host === host) return true; // same origin as the request
+  if (allowedOrigins && allowedOrigins.includes(origin)) return true;
+  return false;
+}
+
+const wss = new WebSocketServer({
+  server,
+  maxPayload: 64 * 1024,
+  verifyClient: (info, cb) => {
+    const host = typeof info.req.headers.host === 'string' ? info.req.headers.host : undefined;
+    const origin = typeof info.origin === 'string' && info.origin ? info.origin : undefined;
+    if (wsOriginAllowed(origin, host)) {
+      cb(true);
+    } else {
+      console.warn('WS handshake rejected for origin:', origin);
+      cb(false, 403, 'Forbidden');
+    }
+  },
+});
+
+// SEC-03: drop half-open sockets so leaked connections can't pile up.
+const wsHeartbeat = setInterval(() => {
+  wss.clients.forEach((client) => {
+    const socket = client as ClientWs;
+    if (socket.isAlive === false) return socket.terminate();
+    socket.isAlive = false;
+    socket.ping();
+  });
+}, 30_000);
+wsHeartbeat.unref();
+wss.on('close', () => clearInterval(wsHeartbeat));
+
+wss.on('connection', (socket, req) => {
+  const ws = socket as ClientWs;
+  ws.isAlive = true;
+  ws.on('pong', () => {
+    ws.isAlive = true;
+  });
+  // SEC-03: a socket-level error (e.g. maxPayload exceeded) must never crash the
+  // process — without this listener `ws` rethrows it as an uncaught exception.
+  ws.on('error', (err) => console.warn('WS socket error:', err.message));
+  handleConnection(ws, req);
+});
 
 startAutoCloseTimer(wss);
 // SEC-02: hourly sweep of orphaned upload files.

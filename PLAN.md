@@ -327,11 +327,11 @@
   - [x] удалять файл при отказе/ошибке (413 на лимит, cleanup при ошибке вставки); TTL-очистка «сирот» (`services/uploads.ts`, ежечасно);
   - [x] `resolveCaller` принимает cookie-сессию оператора (после SEC-01);
   - [ ] обновить `multer` (см. SEC-07).
-- [ ] **SEC-03 (высоко) WebSocket: нет проверки Origin, `maxPayload`, heartbeat.**
+- [x] **SEC-03 (высоко) WebSocket: нет проверки Origin, `maxPayload`, heartbeat.** ✅ (dev проверено)
   `server.ts:86` (`new WebSocketServer({ server })`); `ws/handler.ts:137` — `init_chat` без аутентификации (спам-чаты).
-  - [ ] `maxPayload` (≤64 КБ) + `verifyClient`/Origin по allowlist;
-  - [ ] ping/pong heartbeat;
-  - [ ] rate-limit на `init_chat`.
+  - [x] `maxPayload` (64 КБ) + `verifyClient`/Origin по allowlist (same-host или `CORS_ORIGINS`; без Origin — non-browser клиенты) + обработчик `error` на сокете (иначе превышение `maxPayload` роняло процесс);
+  - [x] ping/pong heartbeat (30 с, `terminate` мёртвых);
+  - [x] rate-limit на `init_chat` (5/мин на сокет, 30/мин на IP по `X-Forwarded-For`).
 
 ### 13.2 Средне
 

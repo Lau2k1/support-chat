@@ -15,6 +15,13 @@ export interface ClientWs extends WebSocket {
   chatId?: number;
   /** Tenant a client socket belongs to (set when it joins/creates a chat). */
   tenantId?: number | null;
+  /** SEC-03: liveness flag for the ping/pong heartbeat. */
+  isAlive?: boolean;
+  /** SEC-03: client IP (from X-Forwarded-For) for per-IP rate limiting. */
+  clientIp?: string;
+  /** SEC-03: per-socket `init_chat` rate-limit state. */
+  initChatCount?: number;
+  initChatWindowStart?: number;
 }
 
 export type IncomingMessage =

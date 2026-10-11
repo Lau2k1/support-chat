@@ -22,6 +22,50 @@ import {
 import { forwardMessageToTelegram } from '../services/telegram';
 import { LIMITS } from '../utils/validate';
 
+// ---------------------------------------------------------------------------
+// SEC-03: abuse protection for `init_chat` (each call creates a DB chat row).
+// ---------------------------------------------------------------------------
+const INIT_CHAT_WINDOW_MS = 60_000;
+const INIT_CHAT_MAX_PER_SOCKET = 5;
+const INIT_CHAT_MAX_PER_IP = 30;
+const ipInitChat = new Map<string, { count: number; start: number }>();
+
+function clientIp(req?: HttpIncomingMessage): string {
+  const xff = req?.headers['x-forwarded-for'];
+  if (typeof xff === 'string' && xff) return xff.split(',')[0].trim();
+  return req?.socket?.remoteAddress || 'unknown';
+}
+
+/** Returns true when this socket/IP may create another chat right now. */
+function allowInitChat(ws: ClientWs): boolean {
+  const now = Date.now();
+
+  if (!ws.initChatWindowStart || now - ws.initChatWindowStart > INIT_CHAT_WINDOW_MS) {
+    ws.initChatWindowStart = now;
+    ws.initChatCount = 0;
+  }
+  ws.initChatCount = (ws.initChatCount || 0) + 1;
+  if (ws.initChatCount > INIT_CHAT_MAX_PER_SOCKET) return false;
+
+  const ip = ws.clientIp || 'unknown';
+  let rec = ipInitChat.get(ip);
+  if (!rec || now - rec.start > INIT_CHAT_WINDOW_MS) {
+    rec = { count: 0, start: now };
+    ipInitChat.set(ip, rec);
+  }
+  rec.count += 1;
+  if (rec.count > INIT_CHAT_MAX_PER_IP) return false;
+
+  // Bound memory: drop stale IP buckets occasionally.
+  if (ipInitChat.size > 5000) {
+    for (const [key, value] of ipInitChat) {
+      if (now - value.start > INIT_CHAT_WINDOW_MS) ipInitChat.delete(key);
+    }
+  }
+  return true;
+}
+
+
 function isAuth(ws: ClientWs): boolean {
   return ws.role === 'operator' || ws.role === 'client';
 }
@@ -92,6 +136,9 @@ function announceAssignment(chatId: number, operator: OperatorPayload, tenantId:
 }
 
 export function handleConnection(ws: ClientWs, req?: HttpIncomingMessage) {
+  // SEC-03: remember the caller IP for per-IP abuse limits.
+  ws.clientIp = clientIp(req);
+
   // SEC-01: authenticate operators straight from the HttpOnly session cookie sent
   // on the WS handshake, so the browser never has to expose the JWT to JS. The
   // legacy `auth` message below stays supported for API clients / smoke tests.
@@ -155,6 +202,11 @@ export function handleConnection(ws: ClientWs, req?: HttpIncomingMessage) {
         }
 
         case 'init_chat': {
+          // SEC-03: cap chat creation per socket/IP.
+          if (!allowInitChat(ws)) {
+            safeSend(ws, { type: 'chat_error', chatId: undefined, error: 'Слишком много запросов, попробуйте позже' });
+            break;
+          }
           const tenantSlug = typeof msg.tenant === 'string' ? msg.tenant.trim() : '';
           if (!tenantSlug) {
             safeSend(ws, { type: 'chat_error', chatId: undefined, error: 'Идентификатор тенанта не указан' });
