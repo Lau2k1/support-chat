@@ -15,6 +15,7 @@ import adminRoutes, { superRouter } from './routes/admin';
 import telegramRoutes from './routes/telegram';
 import { handleConnection } from './ws/handler';
 import type { ClientWs } from './ws/types';
+import { startUploadsCleanup } from './services/uploads';
 import { startAutoCloseTimer } from './services/chat';
 
 const app = express();
@@ -139,6 +140,8 @@ const wss = new WebSocketServer({ server });
 wss.on('connection', (socket, req) => handleConnection(socket as ClientWs, req));
 
 startAutoCloseTimer(wss);
+// SEC-02: hourly sweep of orphaned upload files.
+startUploadsCleanup();
 
 const PORT = Number(process.env.PORT) || 3000;
 server.listen(PORT, () => console.log(`🚀 Server started on :${PORT}`));

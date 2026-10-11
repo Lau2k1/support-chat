@@ -315,17 +315,18 @@
 
 ### 13.1 Критично / Высоко
 
-- [ ] **SEC-01 (критично) Stored XSS из Telegram → угон JWT оператора.**
+- [x] **SEC-01 (критично) Stored XSS из Telegram → угон JWT оператора.** ✅ `74ea764` (dev+prod проверено)
   `services/telegram.ts:120-130` сохраняет файлы с расширением из имени (`document.file_name` / `audio` / `video`) без allowlist; `/uploads` раздаётся `express.static` как `text/html` (`server.ts:64`), CSP выключен (`server.ts:33-37`). Пользователь TG шлёт боту `pwn.html` → при клике оператора (`MessageList.tsx:93,97`) скрипт исполняется в origin `sct.chat` → кража `localStorage token`.
-  - [ ] allowlist расширений / хранить как `.bin` в `downloadTelegramFile`;
-  - [ ] раздавать `/uploads` как `attachment` (не-image) и `inline` только для проверенных raster-изображений (отдельный контроллер вместо static);
-  - [ ] включить строгую CSP через `helmet.contentSecurityPolicy`;
-  - [ ] вынести JWT из `localStorage` в HttpOnly cookie.
-- [ ] **SEC-02 (высоко) Запись файлов до аутентификации → disk-DoS.**
+  - [x] allowlist расширений / хранить как `.bin` в `downloadTelegramFile` (+ лимит 20 МБ);
+  - [x] раздавать `/uploads` как `attachment` (не-image) и `inline` только для проверенных raster-изображений (отдельный контроллер вместо static);
+  - [x] включить строгую CSP через `helmet.contentSecurityPolicy`;
+  - [x] вынести JWT из `localStorage` в HttpOnly cookie (+ `GET /me`, `POST /logout`, WS-auth из cookie на handshake, CORS credentials по allowlist; Bearer сохранён для API/smoke).
+- [x] **SEC-02 (высоко) Запись файлов до аутентификации → disk-DoS.** ✅ (dev проверено)
   `routes/upload.ts:49` — multer пишет файл раньше `resolveCaller()`; при 401/403 файл не удаляется (до ~300 МБ/мин с одного IP).
-  - [ ] auth/проверка чата перед `upload.single`;
-  - [ ] удалять файл при отказе; TTL-очистка «сирот»;
-  - [ ] обновить `multer`.
+  - [x] auth/проверка чата перед `upload.single` (middleware `authorizeUpload`);
+  - [x] удалять файл при отказе/ошибке (413 на лимит, cleanup при ошибке вставки); TTL-очистка «сирот» (`services/uploads.ts`, ежечасно);
+  - [x] `resolveCaller` принимает cookie-сессию оператора (после SEC-01);
+  - [ ] обновить `multer` (см. SEC-07).
 - [ ] **SEC-03 (высоко) WebSocket: нет проверки Origin, `maxPayload`, heartbeat.**
   `server.ts:86` (`new WebSocketServer({ server })`); `ws/handler.ts:137` — `init_chat` без аутентификации (спам-чаты).
   - [ ] `maxPayload` (≤64 КБ) + `verifyClient`/Origin по allowlist;
