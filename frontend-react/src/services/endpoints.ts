@@ -29,8 +29,6 @@ export const chatApi = {
     api.get<Chat[]>('/chats', { params }),
   getMessages: (chatId: number) =>
     api.get<Message[]>(`/messages/${chatId}`),
-  getChatStatus: (chatId: number) =>
-    api.get<{ status: string }>(`/chat-status/${chatId}`),
   getTags: () =>
     api.get<Tag[]>('/tags'),
   getChatTags: (chatId: number) =>

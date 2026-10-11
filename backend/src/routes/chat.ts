@@ -5,19 +5,6 @@ import { startOfDay, endOfDay } from '../utils/dateRange';
 
 const router = Router();
 
-router.get('/archive', authMiddleware, async (req, res) => {
-  const user = (req as AuthenticatedRequest).user!;
-  const scopeSql = user.role !== 'superadmin' ? ' AND tenant_id = $1' : '';
-  const params = user.role !== 'superadmin' ? [user.tenantId] : [];
-  const result = await pool.query(
-    `SELECT id, extract(epoch from updated_at) * 1000 as updated_at,
-            COALESCE(tenant_id, 0)::text || '_' || id::text AS public_code
-     FROM chats WHERE status = 'closed'${scopeSql} ORDER BY updated_at DESC LIMIT 50`,
-    params
-  );
-  res.json(result.rows);
-});
-
 router.get('/chats', authMiddleware, async (req, res) => {
   try {
     const user = (req as AuthenticatedRequest).user!;

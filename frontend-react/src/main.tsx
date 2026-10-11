@@ -3,30 +3,18 @@ import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { theme } from '@/theme';
 import { router } from '@/router';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import Toast from '@/components/common/Toast';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
-
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <RouterProvider router={router} />
-        <ConfirmDialog />
-        <Toast />
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <RouterProvider router={router} />
+      <ConfirmDialog />
+      <Toast />
+    </ThemeProvider>
   </React.StrictMode>
 );

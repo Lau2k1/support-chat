@@ -192,5 +192,4 @@ router.get('/stats/daily', authMiddleware, async (req, res) => {
   res.json(result.rows);
 });
 
-export { upload };
 export default router;

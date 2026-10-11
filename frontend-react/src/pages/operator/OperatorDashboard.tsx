@@ -25,7 +25,6 @@ import TransferModal from '@/components/chat/TransferModal';
 import TagSelectorModal from '@/components/chat/TagSelectorModal';
 import ArchiveFiltersComponent from '@/components/archive/ArchiveFilters';
 import ArchiveList from '@/components/archive/ArchiveList';
-import MessageListArchive from '@/components/chat/MessageList';
 import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -366,7 +365,7 @@ function ArchiveView() {
               )}
             </Box>
             {selectedId ? (
-              <MessageListArchive messages={archiveMessages} />
+              <MessageList messages={archiveMessages} />
             ) : (
               <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary' }}>
                 <Typography>Выберите чат из архива</Typography>

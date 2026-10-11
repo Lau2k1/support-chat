@@ -1,0 +1,20 @@
+# Нормализуем переводы строк: текстовые файлы — всегда LF в репозитории
+# и при checkout (убирает CRLF-шум в git-предупреждениях).
+* text=auto eol=lf
+
+# Windows-скрипты оставляем с CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Бинарные файлы — не трогаем.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.woff  binary
+*.woff2 binary
+*.ttf  binary
+*.eot  binary
