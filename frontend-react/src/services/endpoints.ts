@@ -31,6 +31,10 @@ export const chatApi = {
     api.get<Message[]>(`/messages/${chatId}`),
   getChatStatus: (chatId: number) =>
     api.get<{ status: string }>(`/chat-status/${chatId}`),
+  getTags: () =>
+    api.get<Tag[]>('/tags'),
+  getChatTags: (chatId: number) =>
+    api.get<Tag[]>(`/chats/${chatId}/tags`),
   addTag: (chatId: number, tagId: number) =>
     api.put<{ ok: boolean }>(`/chats/${chatId}/tag`, { tagId }),
   removeTag: (chatId: number, tagId: number) =>
@@ -91,9 +95,9 @@ export const adminApi = {
   saveSettings: (data: Partial<Settings>, tenantId?: number) =>
     api.put<Settings>('/admin/settings', tenantId ? { ...data, tenantId } : data),
   getTelegramBot: (tenantId?: number) =>
-    api.get<{ bot: TelegramBot | null; webhook_url: string | null }>('/admin/telegram-bot', { params: tenantId ? { tenantId } : undefined }),
+    api.get<{ bot: TelegramBot | null; webhook_configured: boolean }>('/admin/telegram-bot', { params: tenantId ? { tenantId } : undefined }),
   connectTelegramBot: (bot_token: string, tenantId?: number) =>
-    api.put<{ bot: TelegramBot; webhook_url: string | null; webhook_registered: boolean; webhook_error: string | null }>('/admin/telegram-bot', tenantId ? { bot_token, tenantId } : { bot_token }),
+    api.put<{ bot: TelegramBot; webhook_registered: boolean; webhook_error: string | null }>('/admin/telegram-bot', tenantId ? { bot_token, tenantId } : { bot_token }),
   toggleTelegramBot: (is_active: boolean, tenantId?: number) =>
     api.put<{ bot: TelegramBot }>('/admin/telegram-bot/toggle', tenantId ? { is_active, tenantId } : { is_active }),
   disconnectTelegramBot: (tenantId?: number) =>

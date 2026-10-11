@@ -29,7 +29,7 @@ import { useChatStore } from '@/stores/chatStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { wsManager } from '@/services/ws';
-import { chatApi, statsApi, cannedApi, adminApi } from '@/services/endpoints';
+import { chatApi, statsApi, cannedApi } from '@/services/endpoints';
 import type { Chat, ArchiveFilters, Stats, DailyStat } from '@/types';
 
 type ViewType = 'chats' | 'archive' | 'stats';
@@ -51,7 +51,7 @@ export default function OperatorDashboard() {
     const loadData = async () => {
       try {
         const [tagsRes, cannedRes] = await Promise.all([
-          adminApi.getTags(),
+          chatApi.getTags(),
           cannedApi.getAll(),
         ]);
         setAllTags(tagsRes.data);
@@ -151,13 +151,46 @@ function ChatsView({
   onOpenTemplates: () => void;
   onOpenTransfer: () => void;
   onOpenTagSelector: () => void;
-  chatInputRef: React.Ref<ChatInputApi> | undefined;
+  chatInputRef: React.RefObject<ChatInputApi | null>;
 }) {
   const chatSources = useChatStore((s) => s.chatSources);
   const chatNames = useChatStore((s) => s.chatNames);
+  const chatPublicCodes = useChatStore((s) => s.chatPublicCodes);
+  const chatAssignees = useChatStore((s) => s.chatAssignees);
+  const chatTags = useChatStore((s) => s.chatTags);
+  const setChatTags = useChatStore((s) => s.setChatTags);
   const source = currentChatId ? chatSources[String(currentChatId)] : undefined;
   const chatName = currentChatId ? chatNames[String(currentChatId)] : undefined;
   const isTelegram = source === 'telegram';
+  const publicCode = currentChatId ? (chatPublicCodes[String(currentChatId)] || `#${currentChatId}`) : '';
+  const assignee = currentChatId ? chatAssignees[String(currentChatId)] : undefined;
+  const currentTags = currentChatId ? chatTags[String(currentChatId)] || [] : [];
+
+  // Load the tags attached to the open chat (they are not part of init_operator).
+  useEffect(() => {
+    if (!currentChatId) return;
+    let cancelled = false;
+    chatApi
+      .getChatTags(currentChatId)
+      .then((res) => {
+        if (!cancelled) setChatTags(String(currentChatId), res.data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [currentChatId, setChatTags]);
+
+  const handleRemoveTag = async (tagId: number) => {
+    if (!currentChatId) return;
+    try {
+      await chatApi.removeTag(currentChatId, tagId);
+      const res = await chatApi.getChatTags(currentChatId);
+      setChatTags(String(currentChatId), res.data);
+    } catch {
+      /* ignore */
+    }
+  };
 
   return (
     <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -179,8 +212,17 @@ function ChatsView({
             flexShrink: 0,
           }}
         >
-           <Typography sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-            {currentChatId ? (chatName || `${isTelegram ? 'Telegram' : 'Клиент'} #${currentChatId}`) : 'Выберите чат'}
+           <Typography sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+            <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {currentChatId ? (chatName || (isTelegram ? 'Telegram' : 'Клиент')) : 'Выберите чат'}
+            </Box>
+            {currentChatId && (
+              <Chip
+                label={publicCode}
+                size="small"
+                sx={{ height: 20, fontSize: 11, fontFamily: 'monospace', bgcolor: '#f1f5f9' }}
+              />
+            )}
             {currentChatId && isTelegram && (
               <Chip
                 icon={<SendIcon sx={{ fontSize: 14 }} />}
@@ -191,7 +233,25 @@ function ChatsView({
             )}
           </Typography>
           {currentChatId && (
-            <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexShrink: 0 }}>
+              {assignee && (
+                <Chip
+                  label={`Оператор: ${assignee.name}`}
+                  size="small"
+                  variant="outlined"
+                  sx={{ height: 22, fontSize: 11, maxWidth: 180 }}
+                />
+              )}
+              {currentTags.map((t) => (
+                <Chip
+                  key={t.id}
+                  label={t.name}
+                  size="small"
+                  onDelete={() => handleRemoveTag(t.id)}
+                  title="Снять тег"
+                  sx={{ height: 22, fontSize: 11, bgcolor: t.color || '#e2e8f0', color: '#0f172a' }}
+                />
+              ))}
               <Button size="small" variant="outlined" startIcon={<SwapHorizIcon />} onClick={onOpenTransfer}>
                 Передать
               </Button>
@@ -217,7 +277,9 @@ function ChatsView({
         )}
       </Box>
 
-      {showRightPanel && <RightPanel />}
+      {showRightPanel && (
+        <RightPanel onInsertTemplate={(content) => chatInputRef.current?.insertTemplate(content)} />
+      )}
     </Box>
   );
 }
@@ -258,6 +320,8 @@ function ArchiveView() {
     }
   };
 
+  const selectedChat = selectedId ? chats.find((c) => c.id === selectedId) : undefined;
+
   return (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -273,7 +337,7 @@ function ArchiveView() {
             <Box sx={{ height: 50, bgcolor: '#fff', px: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', fontWeight: 600, fontSize: 14, flexShrink: 0 }}>
               <Typography sx={{ fontWeight: 600 }}>
                 {selectedId
-                  ? `${chats.find((c) => c.id === selectedId)?.client_name || `Клиент #${selectedId}`} (архив)`
+                  ? `${selectedChat?.client_name || 'Клиент'} · ${selectedChat?.public_code || `#${selectedId}`} (архив)`
                   : 'Выберите чат из архива'}
               </Typography>
               {selectedId && (

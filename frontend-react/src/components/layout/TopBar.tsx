@@ -25,7 +25,7 @@ const statusLabels = { online: 'Онлайн', busy: 'Занят', offline: 'О�
 export default function TopBar() {
   const { user, isAdmin, isSuperadmin, logout } = useAuthStore();
   const navigate = useNavigate();
-  const { openTabs, currentChatId, chatUnread, operatorStatus, setOperatorStatus } = useChatStore();
+  const { openTabs, currentChatId, chatUnread, chatPublicCodes, operatorStatus, setOperatorStatus } = useChatStore();
   const showConfirm = useUIStore((s) => s.showConfirm);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
@@ -68,7 +68,7 @@ export default function TopBar() {
         {openTabs.map((tabId) => (
           <Chip
             key={tabId}
-            label={`Клиент #${tabId}`}
+            label={`Чат ${chatPublicCodes[String(tabId)] || `#${tabId}`}`}
             color={tabId === currentChatId ? 'primary' : 'default'}
             size="small"
             onClick={() => useChatStore.getState().setCurrentChat(tabId)}

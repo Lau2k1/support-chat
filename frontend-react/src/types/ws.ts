@@ -1,9 +1,9 @@
 export type WsIncomingMessage =
   | { type: 'auth_ok' }
   | { type: 'auth_error' }
-  | { type: 'init_operator'; chats: { id: number; client_name?: string | null; updated_at: number; source?: string }[] }
-  | { type: 'new_chat'; chatId: number; client_name?: string | null; updated_at: number; source?: string }
-  | { type: 'chat_created'; chatId: number }
+  | { type: 'init_operator'; chats: { id: number; public_code?: string; client_name?: string | null; updated_at: number; source?: string; assigned_operator_id?: number | null; operator_name?: string | null }[] }
+  | { type: 'new_chat'; chatId: number; public_code?: string; client_name?: string | null; updated_at: number; source?: string; assigned_operator_id?: number | null; operator_name?: string | null }
+  | { type: 'chat_created'; chatId: number; public_code?: string }
   | { type: 'message'; message: import('.').Message; updated_at: number }
   | { type: 'typingStart'; chatId: number; senderId: number }
   | { type: 'typingStop'; chatId: number; senderId: number }
@@ -11,6 +11,7 @@ export type WsIncomingMessage =
   | { type: 'chat_closed'; chatId: number; reason?: string }
   | { type: 'operators_status'; operators: import('.').OnlineOperator[] }
   | { type: 'chat_transferred'; chatId: number }
+  | { type: 'chat_assigned'; chatId: number; operatorId: number; operatorName: string }
   | { type: 'operators_offline' };
 
 export type WsOutgoingMessage =

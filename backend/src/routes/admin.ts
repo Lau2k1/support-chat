@@ -341,6 +341,7 @@ router.get('/chats', async (req, res) => {
     const { status, operator_id, from, to, limit = '50', offset = '0' } = req.query;
     let sql = `
       SELECT c.id, c.client_id, c.status, c.rating, c.assigned_operator_id,
+             COALESCE(c.tenant_id, 0)::text || '_' || c.id::text AS public_code,
              o.name AS operator_name,
              extract(epoch from c.created_at) * 1000 AS created_at,
              extract(epoch from c.updated_at) * 1000 AS updated_at,
@@ -524,7 +525,10 @@ router.get('/telegram-bot', async (req, res) => {
       [tenantId]
     );
     const bot = botPublicRow(result.rows[0]);
-    res.json({ bot, webhook_url: bot ? webhookUrlFor(bot.id) : null });
+    // The webhook endpoint is intentionally NOT exposed to the panel: showing it
+    // adds no value (Telegram is configured server-side) and only widens the
+    // attack surface. Clients only need to know whether it is configured.
+    res.json({ bot, webhook_configured: !!process.env.PUBLIC_BASE_URL });
   } catch {
     res.status(500).json({ error: 'DB Error' });
   }
@@ -578,7 +582,7 @@ router.put('/telegram-bot', async (req, res) => {
     }
 
     const result = await pool.query('SELECT id, bot_username, is_active, created_at FROM telegram_bots WHERE id = $1', [botId]);
-    res.json({ bot: botPublicRow(result.rows[0]), webhook_url: url, webhook_registered: webhookRegistered, webhook_error: webhookError });
+    res.json({ bot: botPublicRow(result.rows[0]), webhook_registered: webhookRegistered, webhook_error: webhookError });
   } catch {
     res.status(500).json({ error: 'DB Error' });
   }

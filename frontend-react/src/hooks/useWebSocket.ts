@@ -14,6 +14,8 @@ export function useWebSocket() {
     setPreview,
     setChatSource,
     setChatName,
+    setChatPublicCode,
+    setChatAssignee,
     setTyping,
     setOnlineOperators,
     currentChatId,
@@ -39,6 +41,10 @@ export function useWebSocket() {
             setChatTimer(String(chat.id), chat.updated_at);
             if (chat.source) setChatSource(String(chat.id), chat.source);
             if (chat.client_name) setChatName(String(chat.id), chat.client_name);
+            if (chat.public_code) setChatPublicCode(String(chat.id), chat.public_code);
+            if (chat.assigned_operator_id && chat.operator_name) {
+              setChatAssignee(String(chat.id), { id: chat.assigned_operator_id, name: chat.operator_name });
+            }
           });
           break;
 
@@ -46,6 +52,10 @@ export function useWebSocket() {
           setChatTimer(String(data.chatId), data.updated_at);
           if (data.source) setChatSource(String(data.chatId), data.source);
           if (data.client_name) setChatName(String(data.chatId), data.client_name);
+          if (data.public_code) setChatPublicCode(String(data.chatId), data.public_code);
+          if (data.assigned_operator_id && data.operator_name) {
+            setChatAssignee(String(data.chatId), { id: data.assigned_operator_id, name: data.operator_name });
+          }
           playNewChatSound();
           break;
 
@@ -95,9 +105,13 @@ export function useWebSocket() {
 
         case 'chat_transferred':
           break;
+
+        case 'chat_assigned':
+          setChatAssignee(String(data.chatId), { id: data.operatorId, name: data.operatorName });
+          break;
       }
     },
-    [addMessage, setChatTimer, incrementUnread, setPreview, setChatSource, setChatName, setTyping, setOnlineOperators, currentChatId, setCurrentChat, logout]
+    [addMessage, setChatTimer, incrementUnread, setPreview, setChatSource, setChatName, setChatPublicCode, setChatAssignee, setTyping, setOnlineOperators, currentChatId, setCurrentChat, logout]
   );
 
   useEffect(() => {

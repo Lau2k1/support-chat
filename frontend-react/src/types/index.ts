@@ -64,6 +64,7 @@ export interface Operator {
 export interface Chat {
   id: number;
   client_id: number;
+  public_code?: string;
   client_name?: string;
   client_device?: string;
   client_region?: string;
@@ -151,6 +152,7 @@ export interface OperatorStats {
 export interface AdminChat {
   id: number;
   client_id: number;
+  public_code?: string;
   status: 'open' | 'closed';
   rating?: number;
   assigned_operator_id?: number;

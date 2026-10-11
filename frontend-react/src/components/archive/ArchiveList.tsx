@@ -42,7 +42,10 @@ export default function ArchiveList({ chats, selectedId, onSelect }: ArchiveList
             <ListItemText
               primary={
                 <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
-                  {chat.client_name || `Клиент #${chat.id}`}
+                  {chat.client_name || 'Клиент'}
+                  <Box component="span" sx={{ ml: 0.75, fontFamily: 'monospace', fontSize: 11, color: 'text.secondary' }}>
+                    {chat.public_code || `#${chat.id}`}
+                  </Box>
                 </Typography>
               }
               secondary={

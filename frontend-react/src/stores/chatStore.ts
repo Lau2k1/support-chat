@@ -10,6 +10,12 @@ interface ChatState {
   chatPreviews: Record<string, string>;
   chatSources: Record<string, string>;
   chatNames: Record<string, string>;
+  /** Collision-free public code ("<project>_<chatId>") per chat. */
+  chatPublicCodes: Record<string, string>;
+  /** Operator currently assigned to each chat. */
+  chatAssignees: Record<string, { id: number; name: string }>;
+  /** Tags currently attached to each chat (open chats the operator has viewed). */
+  chatTags: Record<string, Tag[]>;
   typingChatIds: Set<number>;
   onlineOperators: OnlineOperator[];
   allTags: Tag[];
@@ -28,6 +34,9 @@ interface ChatState {
   setPreview: (chatId: string, preview: string) => void;
   setChatSource: (chatId: string, source: string) => void;
   setChatName: (chatId: string, name: string) => void;
+  setChatPublicCode: (chatId: string, code: string) => void;
+  setChatAssignee: (chatId: string, assignee: { id: number; name: string } | null) => void;
+  setChatTags: (chatId: string, tags: Tag[]) => void;
   setTyping: (chatId: number, isTyping: boolean) => void;
   setOnlineOperators: (operators: OnlineOperator[]) => void;
   setAllTags: (tags: Tag[]) => void;
@@ -46,6 +55,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   chatPreviews: {},
   chatSources: {},
   chatNames: {},
+  chatPublicCodes: {},
+  chatAssignees: {},
+  chatTags: {},
   typingChatIds: new Set<number>(),
   onlineOperators: [],
   allTags: [],
@@ -103,6 +115,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setChatName: (chatId, name) =>
     set((s) => ({ chatNames: { ...s.chatNames, [chatId]: name } })),
 
+  setChatPublicCode: (chatId, code) =>
+    set((s) => ({ chatPublicCodes: { ...s.chatPublicCodes, [chatId]: code } })),
+
+  setChatAssignee: (chatId, assignee) =>
+    set((s) => {
+      if (!assignee) {
+        const { [chatId]: _, ...rest } = s.chatAssignees;
+        return { chatAssignees: rest };
+      }
+      return { chatAssignees: { ...s.chatAssignees, [chatId]: assignee } };
+    }),
+
+  setChatTags: (chatId, tags) =>
+    set((s) => ({ chatTags: { ...s.chatTags, [chatId]: tags } })),
+
   setTyping: (chatId, isTyping) =>
     set((s) => {
       const next = new Set(s.typingChatIds);
@@ -122,12 +149,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   removeChat: (chatId) =>
     set((s) => {
-      const { [String(chatId)]: _, ...restMessages } = s.messages;
-      const { [String(chatId)]: __, ...restTimers } = s.chatTimers;
-      const { [String(chatId)]: ___, ...restUnread } = s.chatUnread;
-      const { [String(chatId)]: ____, ...restPreviews } = s.chatPreviews;
-      const { [String(chatId)]: _____, ...restSources } = s.chatSources;
-      const { [String(chatId)]: ______, ...restNames } = s.chatNames;
+      const key = String(chatId);
+      const { [key]: _, ...restMessages } = s.messages;
+      const { [key]: __, ...restTimers } = s.chatTimers;
+      const { [key]: ___, ...restUnread } = s.chatUnread;
+      const { [key]: ____, ...restPreviews } = s.chatPreviews;
+      const { [key]: _____, ...restSources } = s.chatSources;
+      const { [key]: ______, ...restNames } = s.chatNames;
+      const { [key]: _______, ...restPublicCodes } = s.chatPublicCodes;
+      const { [key]: ________, ...restAssignees } = s.chatAssignees;
+      const { [key]: _________, ...restChatTags } = s.chatTags;
       return {
         messages: restMessages,
         chatTimers: restTimers,
@@ -135,6 +166,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         chatPreviews: restPreviews,
         chatSources: restSources,
         chatNames: restNames,
+        chatPublicCodes: restPublicCodes,
+        chatAssignees: restAssignees,
+        chatTags: restChatTags,
       };
     }),
 }));

@@ -19,7 +19,7 @@ import type { TelegramBot } from '@/types';
 
 export default function TelegramBotPage({ tenantId }: { tenantId?: number } = {}) {
   const [bot, setBot] = useState<TelegramBot | null>(null);
-  const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
+  const [webhookConfigured, setWebhookConfigured] = useState(false);
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -30,7 +30,7 @@ export default function TelegramBotPage({ tenantId }: { tenantId?: number } = {}
     try {
       const res = await adminApi.getTelegramBot(tenantId);
       setBot(res.data.bot);
-      setWebhookUrl(res.data.webhook_url);
+      setWebhookConfigured(res.data.webhook_configured);
     } catch {
       showToast('Ошибка загрузки бота', 'error');
     } finally {
@@ -54,12 +54,11 @@ export default function TelegramBotPage({ tenantId }: { tenantId?: number } = {}
     try {
       const res = await adminApi.connectTelegramBot(token.trim(), tenantId);
       setBot(res.data.bot);
-      setWebhookUrl(res.data.webhook_url);
+      setWebhookConfigured(res.data.webhook_registered);
       setToken('');
       setShowTokenForm(false);
       if (res.data.webhook_registered) showToast('Бот подключён, вебхук зарегистрирован');
-      else if (res.data.webhook_url) showToast('Бот подключён, но вебхук не зарегистрирован: ' + (res.data.webhook_error || 'ошибка'), 'error');
-      else showToast('Бот подключён. Задайте PUBLIC_BASE_URL, чтобы включить вебхук');
+      else showToast('Бот подключён, но вебхук не зарегистрирован: ' + (res.data.webhook_error || 'ошибка'), 'error');
     } catch (e: any) {
       showToast(e.response?.data?.error || 'Не удалось подключить бота', 'error');
     } finally {
@@ -86,7 +85,7 @@ export default function TelegramBotPage({ tenantId }: { tenantId?: number } = {}
     try {
       await adminApi.disconnectTelegramBot(tenantId);
       setBot(null);
-      setWebhookUrl(null);
+      setWebhookConfigured(false);
       showToast('Бот отключён');
     } catch {
       showToast('Ошибка отключения', 'error');
@@ -150,20 +149,12 @@ export default function TelegramBotPage({ tenantId }: { tenantId?: number } = {}
 
           <Divider sx={{ my: 2 }} />
 
-          <Typography sx={{ fontWeight: 600, fontSize: 13, mb: 0.5 }}>Вебхук</Typography>
-          {webhookUrl ? (
-            <>
-              <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
-                Telegram отправляет обновления на этот адрес:
-              </Typography>
-              <Box sx={{ bgcolor: '#f5f5f5', borderRadius: 1, px: 1.5, py: 1, fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all', mb: 2 }}>
-                {webhookUrl}
-              </Box>
-            </>
-          ) : (
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>
+            Приём сообщений настроен на стороне платформы — публиковать адрес вебхука не требуется.
+          </Typography>
+          {!webhookConfigured && (
             <Alert severity="warning" sx={{ mb: 2 }}>
-              <code>PUBLIC_BASE_URL</code> не задан — вебхук не зарегистрирован автоматически.
-              Укажите публичный адрес платформы в переменных окружения бэкенда и переподключите бота.
+              Вебхук пока не активен. Обратитесь к администратору платформы, чтобы включить приём сообщений.
             </Alert>
           )}
 

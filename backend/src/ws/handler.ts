@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import ws from 'ws';
 import { pool } from '../db';
 import { resolveOperator } from '../middleware/auth';
-import { ClientWs, IncomingMessage, OutgoingMessage } from './types';
+import { ClientWs, IncomingMessage, OutgoingMessage, OperatorPayload } from './types';
 import {
   safeSend,
   joinRoom,
@@ -61,6 +61,34 @@ async function chatAccess(ws: ClientWs, chatId: number): Promise<'open' | 'close
   return 'open';
 }
 
+/**
+ * Binds a chat to the first operator who picks it up (opens or answers it),
+ * unless another operator already owns it. Returns the chat's tenant when the
+ * assignment actually happened, so callers can notify other operators.
+ *
+ * This is what makes `chats.assigned_operator_id` reflect reality — without it
+ * the CRM/audit views always show "Не назначен", even after a reply.
+ */
+async function claimChat(chatId: number, operator: OperatorPayload): Promise<{ assigned: boolean; tenantId: number | null }> {
+  const upd = await pool.query(
+    `UPDATE chats SET assigned_operator_id = $2
+     WHERE id = $1 AND assigned_operator_id IS NULL
+     RETURNING tenant_id`,
+    [chatId, operator.id]
+  );
+  if (upd.rows.length) return { assigned: true, tenantId: upd.rows[0].tenant_id };
+  return { assigned: false, tenantId: null };
+}
+
+/** Notifies every operator serving the tenant that a chat got an assignee. */
+function announceAssignment(chatId: number, operator: OperatorPayload, tenantId: number | null) {
+  if (tenantId === null || tenantId === undefined) return;
+  broadcastToOperators(
+    { type: 'chat_assigned', chatId, operatorId: operator.id, operatorName: operator.name },
+    tenantId
+  );
+}
+
 export function handleConnection(ws: ClientWs) {
   ws.on('message', async (rawData: ws.Data) => {
     try {
@@ -89,7 +117,16 @@ export function handleConnection(ws: ClientWs) {
           // Always hand the operator the current open chats on first join,
           // regardless of the order in which operator_status arrives.
           const active = await pool.query(
-            "SELECT id, client_name, extract(epoch from updated_at) * 1000 as updated_at, COALESCE(source, 'widget') AS source FROM chats WHERE status = 'open' AND ($1::int IS NULL OR tenant_id = $1) ORDER BY updated_at DESC",
+            `SELECT c.id, c.client_name,
+                    extract(epoch from c.updated_at) * 1000 as updated_at,
+                    COALESCE(c.source, 'widget') AS source,
+                    COALESCE(c.tenant_id, 0)::text || '_' || c.id::text AS public_code,
+                    c.assigned_operator_id,
+                    o.name AS operator_name
+             FROM chats c
+             LEFT JOIN operators o ON o.id = c.assigned_operator_id
+             WHERE c.status = 'open' AND ($1::int IS NULL OR c.tenant_id = $1)
+             ORDER BY c.updated_at DESC`,
             [ws.operator!.tenantId]
           );
           safeSend(ws, { type: 'init_operator', chats: active.rows });
@@ -120,15 +157,15 @@ export function handleConnection(ws: ClientWs) {
           }
           const clientToken = crypto.randomUUID();
           const res = await pool.query(
-            "INSERT INTO chats (client_id, status, client_token, tenant_id, source, updated_at) VALUES ((SELECT COALESCE(MAX(client_id), 0) + 1 FROM chats), 'open', $1, $2, 'widget', CURRENT_TIMESTAMP) RETURNING id, extract(epoch from updated_at) * 1000 as updated_at",
+            "INSERT INTO chats (client_id, status, client_token, tenant_id, source, updated_at) VALUES ((SELECT COALESCE(MAX(client_id), 0) + 1 FROM chats), 'open', $1, $2, 'widget', CURRENT_TIMESTAMP) RETURNING id, extract(epoch from updated_at) * 1000 as updated_at, COALESCE(tenant_id, 0)::text || '_' || id::text AS public_code",
             [clientToken, tenant.id]
           );
           const chat = res.rows[0];
           ws.chatId = chat.id;
           ws.role = 'client';
           joinRoom(chat.id, ws);
-          safeSend(ws, { type: 'chat_created', chatId: chat.id, token: clientToken });
-          broadcastToOnlineOperators({ type: 'new_chat', chatId: chat.id, client_name: null, updated_at: chat.updated_at, source: 'widget' }, tenant.id);
+          safeSend(ws, { type: 'chat_created', chatId: chat.id, token: clientToken, public_code: chat.public_code });
+          broadcastToOnlineOperators({ type: 'new_chat', chatId: chat.id, public_code: chat.public_code, client_name: null, updated_at: chat.updated_at, source: 'widget' }, tenant.id);
           break;
         }
 
@@ -173,6 +210,15 @@ export function handleConnection(ws: ClientWs) {
           }
           ws.chatId = cId;
           joinRoom(cId, ws);
+
+          // Opening a chat counts as picking it up: bind it to this operator if
+          // nobody owns it yet, and let the rest of the team see the assignee.
+          if (ws.operator) {
+            const claim = await claimChat(cId, ws.operator);
+            if (claim.assigned) {
+              announceAssignment(cId, ws.operator, claim.tenantId ?? chatCheck.rows[0].tenant_id);
+            }
+          }
           break;
         }
 
@@ -186,6 +232,15 @@ export function handleConnection(ws: ClientWs) {
             break;
           }
           if (access !== 'open') break;
+
+          // A reply also claims the chat (covers the case where the operator
+          // sends without explicitly opening, e.g. from a notification).
+          if (ws.role === 'operator' && ws.operator) {
+            const claim = await claimChat(cId, ws.operator);
+            if (claim.assigned) {
+              announceAssignment(cId, ws.operator, claim.tenantId);
+            }
+          }
 
           const sName = ws.role === 'operator' ? ws.operator!.name : 'Клиент';
           const sId = ws.role === 'operator' ? ws.operator!.id : 0;
@@ -284,6 +339,13 @@ export function handleConnection(ws: ClientWs) {
           joinRoom(tChatId, targetOp);
           targetOp.chatId = tChatId;
 
+          // Ownership moves with the chat.
+          await pool.query('UPDATE chats SET assigned_operator_id = $1 WHERE id = $2', [targetOp.operator!.id, tChatId]);
+          broadcastToOperators(
+            { type: 'chat_assigned', chatId: tChatId, operatorId: targetOp.operator!.id, operatorName: targetOp.operator!.name },
+            chatTenantId
+          );
+
           const sysRes = await pool.query(
             "INSERT INTO messages (chat_id, sender_id, content, message_type) VALUES ($1, 0, $2, 'note') RETURNING *, extract(epoch from created_at) * 1000 as created_at",
             [tChatId, `Чат передан оператору ${targetOp.operator!.name}`]
@@ -297,11 +359,16 @@ export function handleConnection(ws: ClientWs) {
           safeSend(targetOp, { type: 'chat_transferred', chatId: tChatId });
 
           const chatInfo = await pool.query(
-            "SELECT id, client_name, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE id = $1",
+            `SELECT c.id, c.client_name, extract(epoch from c.updated_at) * 1000 as updated_at,
+                    COALESCE(c.tenant_id, 0)::text || '_' || c.id::text AS public_code,
+                    c.assigned_operator_id, o.name AS operator_name
+             FROM chats c LEFT JOIN operators o ON o.id = c.assigned_operator_id
+             WHERE c.id = $1`,
             [tChatId]
           );
           if (chatInfo.rows.length) {
-            safeSend(targetOp, { type: 'new_chat', chatId: tChatId, client_name: chatInfo.rows[0].client_name ?? null, updated_at: chatInfo.rows[0].updated_at });
+            const ci = chatInfo.rows[0];
+            safeSend(targetOp, { type: 'new_chat', chatId: tChatId, public_code: ci.public_code, client_name: ci.client_name ?? null, updated_at: ci.updated_at, assigned_operator_id: ci.assigned_operator_id, operator_name: ci.operator_name });
           }
           break;
         }

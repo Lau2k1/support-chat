@@ -11,6 +11,7 @@ import {
   Box,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import CheckIcon from '@mui/icons-material/Check';
 import { useState } from 'react';
 import { useChatStore } from '@/stores/chatStore';
 import { chatApi } from '@/services/endpoints';
@@ -23,29 +24,47 @@ interface TagSelectorProps {
 }
 
 export default function TagSelectorModal({ open, onClose, chatId }: TagSelectorProps) {
-  const { allTags } = useChatStore();
+  const { allTags, chatTags, setChatTags } = useChatStore();
   const showToast = useUIStore((s) => s.showToast);
   const [search, setSearch] = useState('');
+
+  const assignedIds = new Set((chatId ? chatTags[String(chatId)] : undefined)?.map((t) => t.id) || []);
 
   const filtered = allTags.filter((t) =>
     t.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleSelect = async (tagId: number) => {
-    if (!chatId) return;
+  /** Re-reads the chat's tags from the server so every view stays in sync. */
+  const refresh = async (id: number) => {
     try {
-      await chatApi.addTag(chatId, tagId);
-      showToast('Тег назначен');
-      onClose();
+      const res = await chatApi.getChatTags(id);
+      setChatTags(String(id), res.data);
     } catch {
-      showToast('Ошибка назначения тега', 'error');
+      /* keep the previous snapshot on failure */
+    }
+  };
+
+  const handleToggle = async (tagId: number) => {
+    if (!chatId) return;
+    const isAssigned = assignedIds.has(tagId);
+    try {
+      if (isAssigned) {
+        await chatApi.removeTag(chatId, tagId);
+        showToast('Тег снят');
+      } else {
+        await chatApi.addTag(chatId, tagId);
+        showToast('Тег назначен');
+      }
+      await refresh(chatId);
+    } catch {
+      showToast('Ошибка изменения тега', 'error');
     }
   };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        Выбрать тег
+        Теги чата
         <IconButton onClick={onClose} size="small"><CloseIcon /></IconButton>
       </DialogTitle>
       <DialogContent>
@@ -58,14 +77,28 @@ export default function TagSelectorModal({ open, onClose, chatId }: TagSelectorP
           sx={{ mb: 1.5 }}
         />
         <List dense>
-          {filtered.map((tag) => (
-            <ListItemButton key={tag.id} onClick={() => handleSelect(tag.id)} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, mb: 0.5 }}>
-              <ListItemIcon sx={{ minWidth: 28 }}>
-                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: tag.color || '#007bff' }} />
-              </ListItemIcon>
-              <ListItemText primary={tag.name} />
-            </ListItemButton>
-          ))}
+          {filtered.map((tag) => {
+            const assigned = assignedIds.has(tag.id);
+            return (
+              <ListItemButton
+                key={tag.id}
+                onClick={() => handleToggle(tag.id)}
+                sx={{
+                  border: '1px solid',
+                  borderColor: assigned ? 'primary.main' : 'divider',
+                  bgcolor: assigned ? '#eff6ff' : undefined,
+                  borderRadius: 1,
+                  mb: 0.5,
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 28 }}>
+                  <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: tag.color || '#007bff' }} />
+                </ListItemIcon>
+                <ListItemText primary={tag.name} />
+                {assigned && <CheckIcon fontSize="small" color="primary" />}
+              </ListItemButton>
+            );
+          })}
           {filtered.length === 0 && (
             <ListItemText primary="Нет тегов" sx={{ color: 'text.secondary', textAlign: 'center' }} />
           )}

@@ -110,7 +110,7 @@ export default function AuditPage({ tenantId }: { tenantId?: number } = {}) {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <HeadCell>ID</HeadCell>
+                <HeadCell>Код чата</HeadCell>
                 <HeadCell>Клиент</HeadCell>
                 <HeadCell>Оператор</HeadCell>
                 <HeadCell>Статус</HeadCell>
@@ -130,7 +130,7 @@ export default function AuditPage({ tenantId }: { tenantId?: number } = {}) {
               )}
               {chats.map((c) => (
                 <TableRow key={c.id} hover>
-                  <TableCell>#{c.id}</TableCell>
+                  <TableCell><Box component="span" sx={{ fontFamily: 'monospace', fontSize: 12 }}>{c.public_code || `#${c.id}`}</Box></TableCell>
                   <TableCell>Клиент #{c.client_id}</TableCell>
                   <TableCell>{c.operator_name || <Box component="span" color="text.secondary">Не назначен</Box>}</TableCell>
                   <TableCell>

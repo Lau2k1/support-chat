@@ -20,7 +20,7 @@ interface ChatSidebarProps {
 }
 
 export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebarProps) {
-  const { chatTimers, chatUnread, chatPreviews, chatSources, chatNames } = useChatStore();
+  const { chatTimers, chatUnread, chatPreviews, chatSources, chatNames, chatPublicCodes } = useChatStore();
   const [search, setSearch] = useState('');
   const [chatIds, setChatIds] = useState<number[]>([]);
   const [now, setNow] = useState(Date.now());
@@ -88,6 +88,7 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
             preview={chatPreviews[String(id)]}
             source={chatSources[String(id)]}
             name={chatNames[String(id)]}
+            publicCode={chatPublicCodes[String(id)]}
             unread={chatUnread[String(id)] || 0}
             now={now}
             onClick={() => onSelectChat(id)}
@@ -107,6 +108,7 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
             preview={chatPreviews[String(id)]}
             source={chatSources[String(id)]}
             name={chatNames[String(id)]}
+            publicCode={chatPublicCodes[String(id)]}
             unread={chatUnread[String(id)] || 0}
             now={now}
             onClick={() => onSelectChat(id)}
@@ -131,6 +133,7 @@ function ChatItem({
   preview,
   source,
   name,
+  publicCode,
   unread,
   now,
   onClick,
@@ -142,13 +145,17 @@ function ChatItem({
   preview?: string;
   source?: string;
   name?: string;
+  publicCode?: string;
   unread: number;
   now: number;
   onClick: () => void;
 }) {
   const elapsed = timer ? formatElapsedTime(timer) : '...';
   const isTelegram = source === 'telegram';
-  const label = name || `${isTelegram ? 'Telegram' : 'Клиент'} #${chatId}`;
+  const label = name || (isTelegram ? 'Telegram' : 'Клиент');
+  const code = publicCode || `#${chatId}`;
+  // Keep the waiting counter ticking even when a preview is the latest line.
+  void now;
 
   return (
     <ListItemButton
@@ -167,19 +174,35 @@ function ChatItem({
       </ListItemAvatar>
       <ListItemText
         primary={
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 0.5 }}>
             <Typography variant="body2" noWrap sx={{ fontWeight: 600, minWidth: 0 }}>
               {label}
             </Typography>
+            <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: 10, color: 'text.secondary', flexShrink: 0 }}>
+              {code}
+            </Typography>
             {unread > 0 && (
-              <Badge badgeContent={unread > 99 ? '99+' : unread} color="primary" sx={{ ml: 1 }} />
+              <Badge badgeContent={unread > 99 ? '99+' : unread} color="primary" sx={{ ml: 0.5 }} />
             )}
           </Box>
         }
         secondary={
-          <Typography variant="caption" color="text.secondary" noWrap>
-            {preview || elapsed}
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0, flex: 1 }}>
+              {preview || (timer ? 'Ожидание ответа' : 'Новый чат')}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                fontFamily: 'monospace',
+                flexShrink: 0,
+                fontSize: 11,
+                color: isWaiting ? '#b45309' : 'text.secondary',
+              }}
+            >
+              {elapsed}
+            </Typography>
+          </Box>
         }
       />
     </ListItemButton>

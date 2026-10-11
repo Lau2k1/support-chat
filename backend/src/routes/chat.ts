@@ -10,7 +10,9 @@ router.get('/archive', authMiddleware, async (req, res) => {
   const scopeSql = user.role !== 'superadmin' ? ' AND tenant_id = $1' : '';
   const params = user.role !== 'superadmin' ? [user.tenantId] : [];
   const result = await pool.query(
-    `SELECT id, extract(epoch from updated_at) * 1000 as updated_at FROM chats WHERE status = 'closed'${scopeSql} ORDER BY updated_at DESC LIMIT 50`,
+    `SELECT id, extract(epoch from updated_at) * 1000 as updated_at,
+            COALESCE(tenant_id, 0)::text || '_' || id::text AS public_code
+     FROM chats WHERE status = 'closed'${scopeSql} ORDER BY updated_at DESC LIMIT 50`,
     params
   );
   res.json(result.rows);
@@ -22,6 +24,7 @@ router.get('/chats', authMiddleware, async (req, res) => {
     const { status, from, to, limit = '50', offset = '0' } = req.query;
     let sql = `
       SELECT c.id, c.client_id, c.client_name, c.client_device, c.client_region, c.status, c.rating, c.assigned_operator_id,
+             COALESCE(c.tenant_id, 0)::text || '_' || c.id::text AS public_code,
              o.name AS operator_name,
              extract(epoch from c.created_at) * 1000 AS created_at,
              extract(epoch from c.updated_at) * 1000 AS updated_at,
@@ -179,6 +182,43 @@ router.delete('/chats/:chatId/tag/:tagId', authMiddleware, async (req, res) => {
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Tag not assigned to chat' });
     res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+/** Per-tenant tags for the current operator/admin (safe list; only display data). */
+router.get('/tags', authMiddleware, async (req, res) => {
+  const user = (req as AuthenticatedRequest).user!;
+  const scope = user.role !== 'superadmin' ? user.tenantId : null;
+  const result = await pool.query(
+    `SELECT id, name, color FROM tags ${scope === null ? '' : 'WHERE tenant_id = $1'} ORDER BY name`,
+    scope === null ? [] : [scope]
+  );
+  res.json(result.rows);
+});
+
+/** Tags currently attached to one chat (tenant-scoped). */
+router.get('/chats/:chatId/tags', authMiddleware, async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    const chatId = String(req.params.chatId);
+
+    // Verify the caller may see this chat before exposing its tags.
+    const chatCheck = await pool.query('SELECT tenant_id FROM chats WHERE id = $1', [chatId]);
+    if (!chatCheck.rows.length) return res.status(404).json({ error: 'Chat not found' });
+    if (user.role !== 'superadmin' && chatCheck.rows[0].tenant_id !== user.tenantId) {
+      return res.status(404).json({ error: 'Chat not found' });
+    }
+
+    const result = await pool.query(
+      `SELECT t.id, t.name, t.color
+       FROM chat_tags ct JOIN tags t ON t.id = ct.tag_id
+       WHERE ct.chat_id = $1
+       ORDER BY t.name`,
+      [chatId]
+    );
+    res.json(result.rows);
   } catch {
     res.status(500).json({ error: 'DB Error' });
   }
