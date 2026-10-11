@@ -21,6 +21,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { useChatStore } from '@/stores/chatStore';
 import { cannedApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
+import { LIMITS, validateShortcut, validateRequired } from '@/utils/validation';
 import type { CannedResponse } from '@/types';
 
 interface TemplateModalProps {
@@ -54,20 +55,30 @@ export default function TemplateModal({ open, onClose, onInsert }: TemplateModal
   };
 
   const handleSave = async () => {
-    if (!form.shortcut || !form.title || !form.content) return;
+    const shortcutErr = validateShortcut(form.shortcut);
+    if (shortcutErr) { showToast(shortcutErr, 'error'); return; }
+    const titleErr = validateRequired(form.title, 'Название', LIMITS.cannedTitle);
+    if (titleErr) { showToast(titleErr, 'error'); return; }
+    const contentErr = validateRequired(form.content, 'Текст', LIMITS.cannedContent);
+    if (contentErr) { showToast(contentErr, 'error'); return; }
     try {
+      const payload = {
+        shortcut: form.shortcut.trim(),
+        title: form.title.trim(),
+        content: form.content,
+      };
       if (editing) {
-        await cannedApi.update(editing.id, form);
+        await cannedApi.update(editing.id, payload);
       } else {
-        await cannedApi.create(form);
+        await cannedApi.create(payload);
       }
       await loadCanned();
       setFormOpen(false);
       setEditing(null);
       setForm({ shortcut: '', title: '', content: '' });
       showToast('Шаблон сохранён');
-    } catch {
-      showToast('Ошибка сохранения', 'error');
+    } catch (e: any) {
+      showToast(e?.response?.data?.error || 'Ошибка сохранения', 'error');
     }
   };
 
@@ -147,9 +158,37 @@ export default function TemplateModal({ open, onClose, onInsert }: TemplateModal
 
         {formOpen && (
           <Box sx={{ mt: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-            <TextField fullWidth size="small" placeholder="Shortcut (hello)" value={form.shortcut} onChange={(e) => setForm((f) => ({ ...f, shortcut: e.target.value }))} sx={{ mb: 1 }} />
-            <TextField fullWidth size="small" placeholder="Название" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} sx={{ mb: 1 }} />
-            <TextField fullWidth size="small" placeholder="Текст шаблона..." multiline rows={2} value={form.content} onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))} sx={{ mb: 1 }} />
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Shortcut (hello)"
+              value={form.shortcut}
+              onChange={(e) => setForm((f) => ({ ...f, shortcut: e.target.value.replace(/^\//, '') }))}
+              slotProps={{ htmlInput: { maxLength: LIMITS.cannedShortcut } }}
+              helperText="Латиница, цифры, «_» и «-», до 32 символов"
+              sx={{ mb: 1 }}
+            />
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Название"
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              slotProps={{ htmlInput: { maxLength: LIMITS.cannedTitle } }}
+              sx={{ mb: 1 }}
+            />
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Текст шаблона..."
+              multiline
+              rows={2}
+              value={form.content}
+              onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
+              slotProps={{ htmlInput: { maxLength: LIMITS.cannedContent } }}
+              helperText={`${form.content.length}/${LIMITS.cannedContent}`}
+              sx={{ mb: 1 }}
+            />
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button variant="contained" size="small" onClick={handleSave}>Сохранить</Button>
               <Button size="small" onClick={() => { setFormOpen(false); setEditing(null); }}>Отмена</Button>

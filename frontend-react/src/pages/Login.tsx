@@ -3,6 +3,7 @@ import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { Box, Card, TextField, Button, Typography, Alert, Link } from '@mui/material';
 import { authApi } from '@/services/endpoints';
 import { useAuthStore } from '@/stores/authStore';
+import { validateEmail } from '@/utils/validation';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -15,13 +16,18 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    const emailErr = validateEmail(email);
+    if (emailErr) { setError(emailErr); return; }
+    if (!password) { setError('Введите пароль'); return; }
+
     setLoading(true);
     try {
-      const res = await authApi.login(email, password);
+      const res = await authApi.login(email.trim().toLowerCase(), password);
       login(res.data.token);
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Неверные данные');
+      setError(err.response?.data?.error || 'Ошибка входа. Попробуйте ещё раз');
     } finally {
       setLoading(false);
     }

@@ -21,6 +21,7 @@ import { useNavigate } from 'react-router-dom';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { superadminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
+import { LIMITS, isSlug, validateRequired } from '@/utils/validation';
 import type { Tenant } from '@/types';
 
 export default function CrmTenantsPage() {
@@ -57,10 +58,15 @@ export default function CrmTenantsPage() {
   useEffect(() => { load(); }, [load]);
 
   const handleCreate = async () => {
-    if (!name.trim() || !slug.trim()) { showToast('Укажите имя и slug', 'error'); return; }
+    const nameErr = validateRequired(name, 'Название', LIMITS.tenantName);
+    if (nameErr) { showToast(nameErr, 'error'); return; }
+    if (!isSlug(slug)) {
+      showToast('Slug: 2–64 символа, латиница в нижнем регистре, цифры и дефис', 'error');
+      return;
+    }
     setBusy(true);
     try {
-      await superadminApi.createTenant({ name: name.trim(), slug: slug.trim() });
+      await superadminApi.createTenant({ name: name.trim(), slug: slug.trim().toLowerCase() });
       showToast('Тенант создан');
       setName('');
       setSlug('');
@@ -172,6 +178,7 @@ export default function CrmTenantsPage() {
           label="Название"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          slotProps={{ htmlInput: { maxLength: LIMITS.tenantName } }}
           sx={{ width: 260 }}
         />
         <TextField
@@ -180,6 +187,7 @@ export default function CrmTenantsPage() {
           value={slug}
           onChange={(e) => setSlug(e.target.value.toLowerCase())}
           helperText="латиница, цифры, дефис"
+          slotProps={{ htmlInput: { maxLength: 64 } }}
           sx={{ width: 300 }}
         />
         <Button variant="contained" onClick={handleCreate} disabled={busy}>

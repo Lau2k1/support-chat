@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db';
 import { authMiddleware, resolveOperator, AuthenticatedRequest } from '../middleware/auth';
+import { startOfDay, endOfDay } from '../utils/dateRange';
 
 const router = Router();
 
@@ -63,8 +64,8 @@ router.get('/chats', authMiddleware, async (req, res) => {
         params.push(clean[0]);
       }
     }
-    if (from) { sql += ` AND c.created_at >= $${idx++}`; params.push(from); }
-    if (to) { sql += ` AND c.created_at <= $${idx++}`; params.push(to); }
+    if (from) { sql += ` AND c.created_at >= $${idx++}`; params.push(startOfDay(from)); }
+    if (to) { sql += ` AND c.created_at <= $${idx++}`; params.push(endOfDay(to)); }
 
     sql += ` GROUP BY c.id, o.name ORDER BY c.created_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
     params.push(Number(limit), Number(offset));

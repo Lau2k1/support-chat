@@ -16,6 +16,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
+import { useUIStore } from '@/stores/uiStore';
 import { wsManager } from '@/services/ws';
 
 const statusColors = { online: '#4ade80', busy: '#f59e0b', offline: '#94a3b8' };
@@ -25,6 +26,7 @@ export default function TopBar() {
   const { user, isAdmin, isSuperadmin, logout } = useAuthStore();
   const navigate = useNavigate();
   const { openTabs, currentChatId, chatUnread, operatorStatus, setOperatorStatus } = useChatStore();
+  const showConfirm = useUIStore((s) => s.showConfirm);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleStatusChange = (status: 'online' | 'busy' | 'offline') => {
@@ -34,8 +36,14 @@ export default function TopBar() {
   };
 
   const handleLogout = () => {
-    wsManager.disconnect();
-    logout();
+    showConfirm({
+      text: 'Выйти из аккаунта?',
+      confirmLabel: 'Выйти',
+      onConfirm: () => {
+        wsManager.disconnect();
+        logout();
+      },
+    });
   };
 
   return (

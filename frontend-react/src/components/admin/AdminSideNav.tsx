@@ -7,7 +7,11 @@ import FactCheckIcon from '@mui/icons-material/FactCheck';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SendIcon from '@mui/icons-material/Send';
 import ChatIcon from '@mui/icons-material/Chat';
+import LogoutIcon from '@mui/icons-material/Logout';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/stores/authStore';
+import { useUIStore } from '@/stores/uiStore';
+import { wsManager } from '@/services/ws';
 
 type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram';
 
@@ -28,6 +32,19 @@ interface Props {
 
 export default function AdminSideNav({ current, onChange }: Props) {
   const navigate = useNavigate();
+  const logout = useAuthStore((s) => s.logout);
+  const showConfirm = useUIStore((s) => s.showConfirm);
+
+  const handleLogout = () => {
+    showConfirm({
+      text: 'Выйти из админ-панели?',
+      confirmLabel: 'Выйти',
+      onConfirm: () => {
+        wsManager.disconnect();
+        logout();
+      },
+    });
+  };
 
   return (
     <Box
@@ -87,11 +104,27 @@ export default function AdminSideNav({ current, onChange }: Props) {
             color: '#94a3b8',
             cursor: 'pointer',
             fontSize: 12,
-            '&:hover': { color: '#ef4444' },
+            mb: 1.2,
+            '&:hover': { color: '#e2e8f0' },
           }}
         >
           <ChatIcon sx={{ fontSize: 14 }} />
           К операторской
+        </Box>
+        <Box
+          onClick={handleLogout}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            color: '#94a3b8',
+            cursor: 'pointer',
+            fontSize: 12,
+            '&:hover': { color: '#ef4444' },
+          }}
+        >
+          <LogoutIcon sx={{ fontSize: 14 }} />
+          Выйти
         </Box>
       </Box>
     </Box>

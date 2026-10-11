@@ -18,6 +18,7 @@ import {
   findOperatorById,
 } from '../services/chat';
 import { forwardMessageToTelegram } from '../services/telegram';
+import { LIMITS } from '../utils/validate';
 
 function isAuth(ws: ClientWs): boolean {
   return ws.role === 'operator' || ws.role === 'client';
@@ -188,7 +189,19 @@ export function handleConnection(ws: ClientWs) {
 
           const sName = ws.role === 'operator' ? ws.operator!.name : 'Клиент';
           const sId = ws.role === 'operator' ? ws.operator!.id : 0;
-          const mType = (msg as any).message_type || 'text';
+          const allowedTypes = ['text', 'note'] as const;
+          const rawType = (msg as any).message_type;
+          const mType = allowedTypes.includes(rawType) ? rawType : 'text';
+
+          const content = typeof msg.content === 'string' ? msg.content.trim() : '';
+          if (!content) {
+            safeSend(ws, { type: 'chat_error', chatId: cId, error: 'Пустое сообщение' });
+            break;
+          }
+          if (content.length > LIMITS.message) {
+            safeSend(ws, { type: 'chat_error', chatId: cId, error: `Сообщение слишком длинное (максимум ${LIMITS.message} символов)` });
+            break;
+          }
 
           const timeUpdate = await pool.query(
             'UPDATE chats SET updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING extract(epoch from updated_at) * 1000 as updated_at',
@@ -198,7 +211,7 @@ export function handleConnection(ws: ClientWs) {
 
           const res = await pool.query(
             'INSERT INTO messages (chat_id, sender_id, content, message_type) VALUES ($1, $2, $3, $4) RETURNING *, extract(epoch from created_at) * 1000 as created_at',
-            [cId, sId, msg.content, mType]
+            [cId, sId, content, mType]
           );
 
           const out: OutgoingMessage = {

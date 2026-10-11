@@ -2,19 +2,25 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { pool } from '../db';
 import { signToken } from '../middleware/auth';
+import { LIMITS, validEmail, validPassword, validString, firstError } from '../utils/validate';
 
 const router = Router();
+
+const INVITE_RE = /^[A-Fa-f0-9]{8,32}$/;
 
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const result = await pool.query('SELECT * FROM operators WHERE email = $1', [email]);
+    if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
+      return res.status(400).json({ error: 'Укажите email и пароль' });
+    }
+    const result = await pool.query('SELECT * FROM operators WHERE lower(email) = $1', [email.trim().toLowerCase()]);
     const user = result.rows[0];
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ error: 'Неверный email или пароль' });
     }
     if (!user.is_enabled) {
-      return res.status(403).json({ error: 'Account disabled' });
+      return res.status(403).json({ error: 'Аккаунт отключён' });
     }
     const token = signToken(user);
     res.json({ token });
@@ -25,12 +31,15 @@ router.post('/login', async (req, res) => {
 
 router.post('/register', async (req, res) => {
   const { name, email, password, inviteCode } = req.body;
-  if (!name || !email || !password || !inviteCode) {
-    return res.status(400).json({ error: 'All fields are required' });
-  }
-  if (password.length < 6) {
-    return res.status(400).json({ error: 'Password must be at least 6 characters' });
-  }
+  const err = firstError(
+    validString(name, 'Имя', { max: LIMITS.operatorName }),
+    validEmail(email),
+    validPassword(password),
+    typeof inviteCode === 'string' && INVITE_RE.test(inviteCode.trim()) ? null : 'Некорректный инвайт-код'
+  );
+  if (err) return res.status(400).json({ error: err });
+  const normEmail = String(email).trim().toLowerCase();
+  const normCode = String(inviteCode).trim().toUpperCase();
 
   const client = await pool.connect();
   try {
@@ -38,7 +47,7 @@ router.post('/register', async (req, res) => {
 
     const inviteResult = await client.query(
       'SELECT * FROM invite_codes WHERE code = $1 AND used_by IS NULL FOR UPDATE',
-      [inviteCode]
+      [normCode]
     );
     const invite = inviteResult.rows[0];
     if (!invite) {
@@ -54,16 +63,16 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Invite code has expired' });
     }
 
-    const existing = await client.query('SELECT id FROM operators WHERE email = $1', [email]);
+    const existing = await client.query('SELECT id FROM operators WHERE lower(email) = $1', [normEmail]);
     if (existing.rows.length) {
       await client.query('ROLLBACK');
-      return res.status(409).json({ error: 'Email already registered' });
+      return res.status(409).json({ error: 'Email уже зарегистрирован' });
     }
 
     const hash = await bcrypt.hash(password, 10);
     const opResult = await client.query(
       'INSERT INTO operators (name, email, password, role, tenant_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, role, token_version, tenant_id',
-      [name, email, hash, 'operator', invite.tenant_id]
+      [String(name).trim(), normEmail, hash, 'operator', invite.tenant_id]
     );
     const newOp = opResult.rows[0];
 

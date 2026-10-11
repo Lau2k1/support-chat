@@ -3,6 +3,7 @@ import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { Box, Card, TextField, Button, Typography, Alert, Link } from '@mui/material';
 import { authApi } from '@/services/endpoints';
 import { useAuthStore } from '@/stores/authStore';
+import { LIMITS, validateEmail, validatePassword, validateRequired } from '@/utils/validation';
 
 export default function Register() {
   const [name, setName] = useState('');
@@ -19,22 +20,23 @@ export default function Register() {
     e.preventDefault();
     setError('');
 
-    if (!name || !email || !password || !inviteCode) {
-      setError('Заполните все поля');
-      return;
-    }
-    if (password.length < 6) {
-      setError('Пароль должен быть не менее 6 символов');
-      return;
-    }
-    if (password !== password2) {
-      setError('Пароли не совпадают');
-      return;
-    }
+    const nameErr = validateRequired(name, 'Имя', LIMITS.operatorName);
+    if (nameErr) { setError(nameErr); return; }
+    const emailErr = validateEmail(email);
+    if (emailErr) { setError(emailErr); return; }
+    const passErr = validatePassword(password);
+    if (passErr) { setError(passErr); return; }
+    if (password !== password2) { setError('Пароли не совпадают'); return; }
+    if (!inviteCode.trim()) { setError('Введите инвайт-код'); return; }
 
     setLoading(true);
     try {
-      const res = await authApi.register({ name, email, password, inviteCode: inviteCode.toUpperCase() });
+      const res = await authApi.register({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        inviteCode: inviteCode.trim().toUpperCase(),
+      });
       login(res.data.token);
       navigate('/');
     } catch (err: any) {

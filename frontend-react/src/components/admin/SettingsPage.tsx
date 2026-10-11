@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, TextField, Button, Paper } from '@mui/material';
+import { Typography, TextField, Button, Paper } from '@mui/material';
 import { adminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
+import { LIMITS, clampIntInput } from '@/utils/validation';
 import type { Settings } from '@/types';
 
 export default function SettingsPage({ tenantId }: { tenantId?: number } = {}) {
-  const [timeout, setTimeout_] = useState('7');
-  const [welcome, setWelcome] = useState('');
+  const [timeout, setTimeout_] = useState('7');  const [welcome, setWelcome] = useState('');
   const [loading, setLoading] = useState(true);
   const showToast = useUIStore((s) => s.showToast);
 
@@ -23,10 +23,31 @@ export default function SettingsPage({ tenantId }: { tenantId?: number } = {}) {
   }, [showToast, tenantId]);
 
   const handleSave = async () => {
+    const timeoutNum = Number(timeout);
+    if (
+      !Number.isInteger(timeoutNum) ||
+      timeoutNum < LIMITS.chatTimeoutMin ||
+      timeoutNum > LIMITS.chatTimeoutMax
+    ) {
+      showToast(
+        `Время авто-закрытия: целое число ${LIMITS.chatTimeoutMin}–${LIMITS.chatTimeoutMax} минут`,
+        'error'
+      );
+      return;
+    }
+    if (welcome.length > LIMITS.welcomeMessage) {
+      showToast(`Приветственное сообщение: максимум ${LIMITS.welcomeMessage} символов`, 'error');
+      return;
+    }
     try {
-      await adminApi.saveSettings({ chat_timeout_minutes: timeout, welcome_message: welcome }, tenantId);
+      await adminApi.saveSettings(
+        { chat_timeout_minutes: String(timeoutNum), welcome_message: welcome },
+        tenantId
+      );
       showToast('Настройки сохранены');
-    } catch { showToast('Ошибка сохранения', 'error'); }
+    } catch (e: any) {
+      showToast(e?.response?.data?.error || 'Ошибка сохранения', 'error');
+    }
   };
 
   if (loading) return <Typography color="text.secondary">Загрузка...</Typography>;
@@ -40,8 +61,11 @@ export default function SettingsPage({ tenantId }: { tenantId?: number } = {}) {
         label="Время авто-закрытия чатов (минуты)"
         type="number"
         value={timeout}
-        onChange={(e) => setTimeout_(e.target.value)}
-        slotProps={{ htmlInput: { min: 1, max: 60 } }}
+        onChange={(e) =>
+          setTimeout_(clampIntInput(e.target.value, LIMITS.chatTimeoutMin, LIMITS.chatTimeoutMax))
+        }
+        slotProps={{ htmlInput: { min: LIMITS.chatTimeoutMin, max: LIMITS.chatTimeoutMax } }}
+        helperText={`От ${LIMITS.chatTimeoutMin} до ${LIMITS.chatTimeoutMax} минут`}
         sx={{ mb: 2.5 }}
       />
 
@@ -52,6 +76,8 @@ export default function SettingsPage({ tenantId }: { tenantId?: number } = {}) {
         rows={3}
         value={welcome}
         onChange={(e) => setWelcome(e.target.value)}
+        slotProps={{ htmlInput: { maxLength: LIMITS.welcomeMessage } }}
+        helperText={`${welcome.length}/${LIMITS.welcomeMessage} символов`}
         sx={{ mb: 2.5 }}
       />
 

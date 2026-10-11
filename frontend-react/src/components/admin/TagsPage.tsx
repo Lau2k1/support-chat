@@ -19,15 +19,19 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
 import { adminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
+import { LIMITS, isHexColor, validateTagName } from '@/utils/validation';
 import type { Tag } from '@/types';
 
 export default function TagsPage({ tenantId }: { tenantId?: number } = {}) {
   const [tags, setTags] = useState<Tag[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Tag | null>(null);
   const [tagName, setTagName] = useState('');
   const [tagColor, setTagColor] = useState('#007bff');
+  const [error, setError] = useState('');
   const showToast = useUIStore((s) => s.showToast);
   const showConfirm = useUIStore((s) => s.showConfirm);
 
@@ -40,16 +44,41 @@ export default function TagsPage({ tenantId }: { tenantId?: number } = {}) {
 
   useEffect(() => { load(); }, [load]);
 
+  const openCreate = () => {
+    setEditing(null);
+    setTagName('');
+    setTagColor('#007bff');
+    setError('');
+    setModalOpen(true);
+  };
+
+  const openEdit = (tag: Tag) => {
+    setEditing(tag);
+    setTagName(tag.name);
+    setTagColor(tag.color || '#007bff');
+    setError('');
+    setModalOpen(true);
+  };
+
   const handleSave = async () => {
-    if (!tagName.trim()) { showToast('Введите название', 'error'); return; }
+    const nameErr = validateTagName(tagName);
+    if (nameErr) { setError(nameErr); return; }
+    if (!isHexColor(tagColor)) { setError('Цвет: формат #RRGGBB'); return; }
+
     try {
-      await adminApi.createTag({ name: tagName.trim(), color: tagColor }, tenantId);
+      if (editing) {
+        await adminApi.updateTag(editing.id, { name: tagName.trim(), color: tagColor });
+        showToast('Тег обновлён');
+      } else {
+        await adminApi.createTag({ name: tagName.trim(), color: tagColor }, tenantId);
+        showToast('Тег создан');
+      }
       setModalOpen(false);
-      setTagName('');
-      setTagColor('#007bff');
+      setEditing(null);
       load();
-      showToast('Тег создан');
-    } catch { showToast('Ошибка создания', 'error'); }
+    } catch (e: any) {
+      setError(e?.response?.data?.error || 'Ошибка сохранения');
+    }
   };
 
   const handleDelete = (id: number) => {
@@ -72,7 +101,7 @@ export default function TagsPage({ tenantId }: { tenantId?: number } = {}) {
       <Paper sx={{ p: 2.5 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography sx={{ fontWeight: 600, fontSize: 15 }}>Теги</Typography>
-          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={() => setModalOpen(true)}>
+          <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>
             Создать тег
           </Button>
         </Box>
@@ -99,12 +128,24 @@ export default function TagsPage({ tenantId }: { tenantId?: number } = {}) {
                     </Box>
                   </TableCell>
                   <TableCell>
-                    <Button size="small" variant="outlined" color="error" onClick={() => handleDelete(tag.id)}>
-                      Удалить
-                    </Button>
+                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                      <Button size="small" variant="outlined" startIcon={<EditIcon sx={{ fontSize: 15 }} />} onClick={() => openEdit(tag)}>
+                        Изменить
+                      </Button>
+                      <Button size="small" variant="outlined" color="error" onClick={() => handleDelete(tag.id)}>
+                        Удалить
+                      </Button>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))}
+              {tags.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} align="center" sx={{ color: 'text.secondary', py: 4 }}>
+                    Тегов пока нет
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </TableContainer>
@@ -112,7 +153,7 @@ export default function TagsPage({ tenantId }: { tenantId?: number } = {}) {
 
       <Dialog open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          Создать тег
+          {editing ? 'Редактировать тег' : 'Создать тег'}
           <IconButton onClick={() => setModalOpen(false)} size="small"><CloseIcon /></IconButton>
         </DialogTitle>
         <DialogContent>
@@ -120,7 +161,10 @@ export default function TagsPage({ tenantId }: { tenantId?: number } = {}) {
             fullWidth
             label="Название"
             value={tagName}
-            onChange={(e) => setTagName(e.target.value)}
+            onChange={(e) => { setTagName(e.target.value); setError(''); }}
+            error={!!error}
+            helperText={`${tagName.length}/${LIMITS.tagName} символов`}
+            slotProps={{ htmlInput: { maxLength: LIMITS.tagName } }}
             sx={{ mb: 2, mt: 1 }}
           />
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -128,16 +172,17 @@ export default function TagsPage({ tenantId }: { tenantId?: number } = {}) {
               label="Цвет"
               type="color"
               value={tagColor}
-              onChange={(e) => setTagColor(e.target.value)}
+              onChange={(e) => { setTagColor(e.target.value); setError(''); }}
               sx={{ width: 80 }}
               slotProps={{ inputLabel: { shrink: true } }}
             />
             <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: tagColor, border: '1px solid #ccc' }} />
           </Box>
+          {error && <Typography color="error" variant="caption" sx={{ display: 'block', mt: 1 }}>{error}</Typography>}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setModalOpen(false)}>Отмена</Button>
-          <Button variant="contained" onClick={handleSave}>Сохранить</Button>
+          <Button variant="contained" onClick={handleSave} disabled={!tagName.trim()}>{editing ? 'Сохранить' : 'Создать'}</Button>
         </DialogActions>
       </Dialog>
     </>

@@ -98,7 +98,7 @@ export default function ArchiveFilters({ filters, onChange, onReset, tags }: Arc
         </Select>
       </FormControl>
 
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
         <TextField
           size="small"
           type="date"
@@ -106,16 +106,18 @@ export default function ArchiveFilters({ filters, onChange, onReset, tags }: Arc
           value={filters.from}
           onChange={(e) => onChange({ ...filters, from: e.target.value })}
           slotProps={{ inputLabel: { shrink: true } }}
+          sx={{ width: 165 }}
         />
         <TextField
           size="small"
           type="date"
-          label="По"
+          label="По (включительно)"
           value={filters.to}
           onChange={(e) => onChange({ ...filters, to: e.target.value })}
           slotProps={{ inputLabel: { shrink: true } }}
+          sx={{ width: 190 }}
         />
-        <FormControl size="small">
+        <FormControl size="small" sx={{ minWidth: 150 }}>
           <InputLabel>Пресет</InputLabel>
           <Select
             value=""

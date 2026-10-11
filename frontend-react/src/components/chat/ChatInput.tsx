@@ -17,6 +17,7 @@ import { wsManager } from '@/services/ws';
 import { chatApi } from '@/services/endpoints';
 import { useTyping } from '@/hooks/useTyping';
 import { useUIStore } from '@/stores/uiStore';
+import { LIMITS } from '@/utils/validation';
 
 export interface ChatInputApi {
   /** Append a canned-response template to the input and focus it. */
@@ -49,6 +50,10 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
 
   const handleSend = () => {
     if (!text.trim() || !chatId) return;
+    if (text.trim().length > LIMITS.message) {
+      showToast(`Сообщение слишком длинное (максимум ${LIMITS.message} символов)`, 'error');
+      return;
+    }
 
     if (noteMode) {
       wsManager.send({ type: 'message', chatId, content: text.trim(), message_type: 'note' });
@@ -140,6 +145,7 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
         onKeyDown={handleKeyDown}
         inputRef={textInputRef}
         disabled={disabled}
+        slotProps={{ htmlInput: { maxLength: LIMITS.message } }}
         sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
       />
 

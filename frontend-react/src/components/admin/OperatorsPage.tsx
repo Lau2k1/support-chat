@@ -14,10 +14,12 @@ import {
 } from '@mui/material';
 import { adminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
+import { useAuthStore } from '@/stores/authStore';
 import type { Operator } from '@/types';
 
 export default function OperatorsPage({ tenantId }: { tenantId?: number } = {}) {
   const [operators, setOperators] = useState<Operator[]>([]);
+  const isSuperadmin = useAuthStore((s) => s.isSuperadmin);
   const showConfirm = useUIStore((s) => s.showConfirm);
   const showToast = useUIStore((s) => s.showToast);
 
@@ -60,17 +62,19 @@ export default function OperatorsPage({ tenantId }: { tenantId?: number } = {}) 
   };
 
   const handleDelete = (id: number, isAdmin: boolean) => {
-    if (isAdmin) { showToast('Нельзя удалить админа', 'error'); return; }
+    if (isAdmin && !isSuperadmin) { showToast('Нельзя удалить админа', 'error'); return; }
     showConfirm({
-      text: 'Удалить оператора? Это действие необратимо.',
+      text: isAdmin ? 'Удалить администратора? Это действие необратимо.' : 'Удалить оператора? Это действие необратимо.',
       danger: true,
       confirmLabel: 'Удалить',
       onConfirm: async () => {
         try {
           await adminApi.deleteOperator(id);
           load();
-          showToast('Оператор удалён');
-        } catch { showToast('Ошибка удаления', 'error'); }
+          showToast('Пользователь удалён');
+        } catch (e: any) {
+          showToast(e?.response?.data?.error || 'Ошибка удаления', 'error');
+        }
       },
     });
   };
@@ -157,7 +161,7 @@ export default function OperatorsPage({ tenantId }: { tenantId?: number } = {}) 
                       size="small"
                       variant="outlined"
                       color="error"
-                      disabled={op.role === 'admin'}
+                      disabled={op.role === 'admin' && !isSuperadmin}
                       onClick={() => handleDelete(op.id, op.role === 'admin')}
                     >
                       Удалить

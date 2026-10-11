@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useWidgetWs } from './useWidgetWs';
 
+/** Mirrors backend/src/utils/validate.ts LIMITS.message. */
+const MESSAGE_MAX = 4000;
+
 function formatTime(ms: number): string {
   const d = new Date(ms);
   if (isNaN(d.getTime())) return '';
@@ -417,6 +420,7 @@ export default function WidgetChat() {
             onBlur={handleInputBlur}
             onKeyDown={handleKeyDown}
             placeholder="Напишите сообщение..."
+            maxLength={MESSAGE_MAX}
             rows={1}
           />
           <button className="sw-btn-send" onClick={handleSend}>

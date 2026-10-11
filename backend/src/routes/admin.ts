@@ -8,6 +8,16 @@ import {
   AuthenticatedRequest,
 } from '../middleware/auth';
 import { encryptToken, decryptToken, getMe, setWebhook, deleteWebhook } from '../services/telegram';
+import {
+  LIMITS,
+  validColor,
+  validInt,
+  validSlug,
+  validString,
+  validTagName,
+  firstError,
+} from '../utils/validate';
+import { startOfDay, endOfDay } from '../utils/dateRange';
 
 const router = Router();
 router.use(authMiddleware, tenantAdminMiddleware);
@@ -117,22 +127,56 @@ router.put('/operators/:id/role', async (req, res) => {
 });
 
 router.delete('/operators/:id', async (req, res) => {
-  try {
-    const global = isGlobal(req);
-    if (Number(req.params.id) === (req as AuthenticatedRequest).user!.id) return res.status(400).json({ error: 'Cannot delete yourself' });
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid operator id' });
 
-    const opCheck = await pool.query('SELECT role, tenant_id FROM operators WHERE id = $1', [req.params.id]);
-    if (!opCheck.rows.length) return res.status(404).json({ error: 'Operator not found' });
-    if (opCheck.rows[0].role === 'admin' && !global) return res.status(400).json({ error: 'Cannot delete admin' });
-    if (opCheck.rows[0].role === 'superadmin' && !global) return res.status(403).json({ error: 'Cannot delete superadmin' });
-    if (!global && opCheck.rows[0].tenant_id !== (req as AuthenticatedRequest).user!.tenantId) {
+  const global = isGlobal(req);
+  if (id === (req as AuthenticatedRequest).user!.id) {
+    return res.status(400).json({ error: 'Нельзя удалить себя' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const opCheck = await client.query('SELECT role, tenant_id FROM operators WHERE id = $1 FOR UPDATE', [id]);
+    if (!opCheck.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Operator not found' });
+    }
+    const target = opCheck.rows[0];
+    // A superadmin is the account owner — never deletable through this route.
+    if (target.role === 'superadmin') {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Нельзя удалить владельца' });
+    }
+    // Tenant admins may remove their own operators, but not other admins.
+    if (target.role === 'admin' && !global) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Нельзя удалить администратора' });
+    }
+    if (!global && target.tenant_id !== (req as AuthenticatedRequest).user!.tenantId) {
+      await client.query('ROLLBACK');
       return res.status(403).json({ error: 'Operator belongs to another tenant' });
     }
 
-    await pool.query('DELETE FROM operators WHERE id = $1', [req.params.id]);
-    res.json({ ok: true });
-  } catch {
-    res.status(500).json({ error: 'DB Error' });
+    // Dependent rows that don't cascade must be detached first, otherwise the
+    // DELETE fails with a foreign-key violation (the old "silent" delete bug).
+    await client.query('UPDATE chats SET assigned_operator_id = NULL WHERE assigned_operator_id = $1', [id]);
+    await client.query('UPDATE invite_codes SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE invite_codes SET used_by = NULL WHERE used_by = $1', [id]);
+    await client.query('DELETE FROM canned_responses WHERE operator_id = $1', [id]);
+
+    await client.query('DELETE FROM operators WHERE id = $1', [id]);
+    await client.query('COMMIT');
+
+    res.json({ ok: true, id });
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+    console.error('delete operator error:', e);
+    res.status(500).json({ error: 'Не удалось удалить оператора' });
+  } finally {
+    client.release();
   }
 });
 
@@ -311,8 +355,10 @@ router.get('/chats', async (req, res) => {
     if (scope) { sql += ` AND c.tenant_id = $${idx++}`; params.push(scope); }
     if (status) { sql += ` AND c.status = $${idx++}`; params.push(status); }
     if (operator_id) { sql += ` AND c.assigned_operator_id = $${idx++}`; params.push(Number(operator_id)); }
-    if (from) { sql += ` AND c.created_at >= $${idx++}`; params.push(from); }
-    if (to) { sql += ` AND c.created_at <= $${idx++}`; params.push(to); }
+    const fromDate = startOfDay(from);
+    const toDate = endOfDay(to);
+    if (fromDate) { sql += ` AND c.created_at >= $${idx++}`; params.push(fromDate); }
+    if (toDate) { sql += ` AND c.created_at <= $${idx++}`; params.push(toDate); }
 
     sql += ` ORDER BY c.created_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
     params.push(Number(limit), Number(offset));
@@ -348,6 +394,18 @@ router.put('/settings', async (req, res) => {
     if (global && !req.body.tenantId) return res.status(400).json({ error: 'tenantId required for superadmin' });
     const tenantId = global ? Number(req.body.tenantId) : (req as AuthenticatedRequest).user!.tenantId;
     const allowedKeys = ['chat_timeout_minutes', 'welcome_message'];
+    if (req.body.chat_timeout_minutes !== undefined) {
+      const err = validInt(req.body.chat_timeout_minutes, 'Время авто-закрытия', {
+        min: LIMITS.chatTimeoutMin,
+        max: LIMITS.chatTimeoutMax,
+      });
+      if (err) return res.status(400).json({ error: `${err} (минуты)` });
+    }
+    if (req.body.welcome_message !== undefined) {
+      if (typeof req.body.welcome_message !== 'string' || req.body.welcome_message.length > LIMITS.welcomeMessage) {
+        return res.status(400).json({ error: `Приветственное сообщение: максимум ${LIMITS.welcomeMessage} символов` });
+      }
+    }
     for (const [key, value] of Object.entries(req.body)) {
       if (!allowedKeys.includes(key)) continue;
       await pool.query(
@@ -385,19 +443,44 @@ router.post('/tags', async (req, res) => {
   try {
     const global = isGlobal(req);
     const { name, color } = req.body;
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return res.status(400).json({ error: 'Name is required' });
-    }
+    const err = firstError(validTagName(name), validColor(color));
+    if (err) return res.status(400).json({ error: err });
     if (global && !req.body.tenantId) return res.status(400).json({ error: 'tenantId required for superadmin' });
     const tenantId = global ? Number(req.body.tenantId) : (req as AuthenticatedRequest).user!.tenantId;
     const result = await pool.query(
       'INSERT INTO tags (name, color, tenant_id) VALUES ($1, $2, $3) RETURNING id, name, color, created_at, tenant_id',
-      [name.trim(), color || null, tenantId]
+      [String(name).trim(), color || null, tenantId]
     );
     res.status(201).json(result.rows[0]);
   } catch (e: any) {
     if (e.code === '23505') { // unique violation
-      res.status(400).json({ error: 'Tag name already exists in this tenant' });
+      res.status(400).json({ error: 'Тег с таким названием уже существует' });
+    } else {
+      res.status(500).json({ error: 'DB Error' });
+    }
+  }
+});
+
+router.put('/tags/:id', async (req, res) => {
+  try {
+    const global = isGlobal(req);
+    const { name, color } = req.body;
+    const err = firstError(validTagName(name), validColor(color));
+    if (err) return res.status(400).json({ error: err });
+
+    const result = await pool.query(
+      `UPDATE tags SET name = $1, color = $2
+       WHERE id = $3 ${global ? '' : 'AND tenant_id = $4'}
+       RETURNING id, name, color, created_at, tenant_id`,
+      global
+        ? [String(name).trim(), color || null, req.params.id]
+        : [String(name).trim(), color || null, req.params.id, (req as AuthenticatedRequest).user!.tenantId]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Tag not found' });
+    res.json(result.rows[0]);
+  } catch (e: any) {
+    if (e.code === '23505') {
+      res.status(400).json({ error: 'Тег с таким названием уже существует' });
     } else {
       res.status(500).json({ error: 'DB Error' });
     }
@@ -583,13 +666,13 @@ superRouter.get('/tenants', async (_req, res) => {
 superRouter.put('/tenants/:id', async (req, res) => {
   try {
     const { name, operator_limit } = req.body;
-    if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
-      return res.status(400).json({ error: 'Name is required' });
+    if (name !== undefined) {
+      const nameErr = validString(name, 'Название', { max: LIMITS.tenantName });
+      if (nameErr) return res.status(400).json({ error: nameErr });
     }
     if (operator_limit !== undefined && operator_limit !== null) {
-      if (!Number.isInteger(operator_limit) || operator_limit < 0) {
-        return res.status(400).json({ error: 'operator_limit must be a non-negative integer or null' });
-      }
+      const limitErr = validInt(operator_limit, 'Лимит мест', { min: 0 });
+      if (limitErr) return res.status(400).json({ error: limitErr });
     }
     const nextName = name !== undefined ? name.trim() : null;
     const nextLimit = operator_limit === undefined ? '__keep__' : operator_limit;
@@ -693,15 +776,14 @@ superRouter.get('/telegram-bots', async (_req, res) => {
 superRouter.post('/tenants', async (req, res) => {
   try {
     const { name, slug } = req.body;
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      return res.status(400).json({ error: 'Name is required' });
-    }
-    if (!slug || !/^[a-z0-9][a-z0-9-]{1,63}$/.test(slug)) {
-      return res.status(400).json({ error: 'Slug must be 2-64 chars: lowercase latin, digits, hyphens' });
-    }
+    const createErr = firstError(
+      validString(name, 'Название', { max: LIMITS.tenantName }),
+      validSlug(slug)
+    );
+    if (createErr) return res.status(400).json({ error: createErr });
     const result = await pool.query(
       'INSERT INTO tenants (slug, name) VALUES ($1, $2) RETURNING id, slug, name, status, created_at',
-      [slug.toLowerCase(), name.trim()]
+      [String(slug).trim().toLowerCase(), String(name).trim()]
     );
     res.status(201).json(result.rows[0]);
   } catch (e: any) {

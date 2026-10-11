@@ -6,6 +6,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import ChatIcon from '@mui/icons-material/Chat';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+import { useUIStore } from '@/stores/uiStore';
 import { wsManager } from '@/services/ws';
 
 type Page = 'overview' | 'tenants' | 'bots';
@@ -24,10 +25,17 @@ interface Props {
 export default function OwnerSideNav({ current, onChange }: Props) {
   const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
+  const showConfirm = useUIStore((s) => s.showConfirm);
 
   const handleLogout = () => {
-    wsManager.disconnect();
-    logout();
+    showConfirm({
+      text: 'Выйти из кабинета владельца?',
+      confirmLabel: 'Выйти',
+      onConfirm: () => {
+        wsManager.disconnect();
+        logout();
+      },
+    });
   };
 
   return (

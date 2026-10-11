@@ -76,6 +76,8 @@ export const adminApi = {
     api.get<Tag[]>('/admin/tags', { params: tenantId ? { tenantId } : undefined }),
   createTag: (data: { name: string; color?: string }, tenantId?: number) =>
     api.post<Tag>('/admin/tags', tenantId ? { ...data, tenantId } : data),
+  updateTag: (id: number, data: { name: string; color?: string }) =>
+    api.put<Tag>(`/admin/tags/${id}`, data),
   deleteTag: (id: number) =>
     api.delete(`/admin/tags/${id}`),
   getInvites: (tenantId?: number) =>

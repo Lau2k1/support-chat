@@ -14,6 +14,7 @@ import {
 import SendIcon from '@mui/icons-material/Send';
 import { adminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
+import { isTelegramToken } from '@/utils/validation';
 import type { TelegramBot } from '@/types';
 
 export default function TelegramBotPage({ tenantId }: { tenantId?: number } = {}) {
@@ -45,6 +46,10 @@ export default function TelegramBotPage({ tenantId }: { tenantId?: number } = {}
 
   const handleConnect = async () => {
     if (!token.trim()) return;
+    if (!isTelegramToken(token)) {
+      showToast('Неверный формат токена. Пример: 123456789:AA...', 'error');
+      return;
+    }
     setBusy(true);
     try {
       const res = await adminApi.connectTelegramBot(token.trim(), tenantId);
