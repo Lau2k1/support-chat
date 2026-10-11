@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { Readable } from 'stream';
 import { pool } from '../db';
 import {
   broadcastToOperators,
@@ -148,11 +149,31 @@ async function downloadTelegramFile(token: string, fileId: string, originalName?
   }
   const res = await fetch(`${TG_API_BASE}/file/bot${token}/${info.file_path}`);
   if (!res.ok) throw new Error('Failed to download file from Telegram');
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length > MAX_TG_FILE_BYTES) throw new Error('File too large');
+
   const stored = crypto.randomUUID() + safeExt(originalName || info.file_path);
   await fs.promises.mkdir(UPLOADS_DIR, { recursive: true });
-  await fs.promises.writeFile(path.join(UPLOADS_DIR, stored), buf);
+  const dest = path.join(UPLOADS_DIR, stored);
+
+  // SEC-09: stream the body to disk instead of buffering the whole file in memory.
+  if (!res.body) throw new Error('No response body');
+  // DOM ReadableStream → Node Readable (type interop).
+  const nodeStream = Readable.fromWeb(res.body as unknown as Parameters<typeof Readable.fromWeb>[0]);
+  const fileStream = fs.createWriteStream(dest);
+  await new Promise<void>((resolve, reject) => {
+    nodeStream.pipe(fileStream);
+    fileStream.on('finish', resolve);
+    fileStream.on('error', reject);
+    nodeStream.on('error', reject);
+  });
+
+  // SEC-01/09: Telegram's file_size can be absent — enforce the cap on the
+  // actual bytes written too, and remove the file if it exceeds the limit.
+  const { size } = await fs.promises.stat(dest);
+  if (size > MAX_TG_FILE_BYTES) {
+    await fs.promises.unlink(dest).catch(() => {});
+    throw new Error('File too large');
+  }
+
   return `/uploads/${stored}`;
 }
 

@@ -340,7 +340,7 @@
 - [x] **SEC-06** non-root `USER` в `backend/Dockerfile` ✅ (образ собран локально: `uid=1000(node)`); включить ufw на VPS (только 22/80/443) — шаг деплоя.
 - [x] **SEC-07** обновить зависимости ✅ (backend + frontend `npm audit` → **0**; `ts-node-dev` заменён на `tsx`). backend (proxy-addr critical, multer, ws, qs, body-parser), frontend (axios, react-router, form-data, vite, postcss, nanoid, source-map-js); пересобрать и передеплоить.
 - [x] **SEC-08** общий rate-limit на API ✅ (`apiLimiter` 300/15 мин на все API-эндпоинты; `/login`, `/register`, `/upload` сохраняют строгие специализированные лимиты). Лимит на создание чатов уже реализован в SEC-03 (`init_chat`: 5/мин на сокет, 30/мин на IP).
-- [ ] **SEC-09** ограничить размер скачиваемых из Telegram файлов и не буферизовать их целиком (`services/telegram.ts:120-129`).
+- [x] **SEC-09** ограничить размер скачиваемых из Telegram файлов и не буферизовать их целиком ✅ (лимит 20 МБ по `file_size` и по факту; стриминг на диск через `Readable.fromWeb` + `createWriteStream`, файл удаляется при превышении лимита).
 - [ ] **SEC-10** оффсерверные зашифрованные бэкапы (`deploy/backup.sh` — сейчас на том же сервере).
 
 ### 13.3 Низко
