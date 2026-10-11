@@ -1,7 +1,7 @@
 # План исправлений — support-chat
 
 > Активный план работ. Отмечать `[x]` по мере выполнения, добавлять новые пункты по ходу.
-> Последнее обновление: 11.10.2026 (блоки 1–3 закрыты: качество/процесс; мониторинг отложен — см. раздел 12).
+> Последнее обновление: 11.10.2026 (блоки 1–3 закрыты: качество/процесс; мониторинг отложен — раздел 12; добавлен раздел 13 — аудит безопасности).
 
 ---
 
@@ -304,3 +304,65 @@
 | TLS | срок сертификата (Caddy продлевает автоматически) |
 
 Варианты реализации: внешний монитор (Uptime Kuma / UptimeRobot / свой CRM) · cron-скрипт на VPS + уведомление · полный стек Prometheus + Grafana + node_exporter (вероятно, избыточно).
+
+---
+
+## 13. Безопасность — аудит (11.10.2026)
+
+> Полный отчёт: [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md). Ниже — задачи по приоритетам.
+> Роль: senior/архитектор по безопасности. Охват: backend (REST + WS), frontend, виджет, Telegram, БД, Docker/Caddy, зависимости, прод.
+> Правки по этому разделу ещё НЕ вносились — только отчёт и план.
+
+### 13.1 Критично / Высоко
+
+- [ ] **SEC-01 (критично) Stored XSS из Telegram → угон JWT оператора.**
+  `services/telegram.ts:120-130` сохраняет файлы с расширением из имени (`document.file_name` / `audio` / `video`) без allowlist; `/uploads` раздаётся `express.static` как `text/html` (`server.ts:64`), CSP выключен (`server.ts:33-37`). Пользователь TG шлёт боту `pwn.html` → при клике оператора (`MessageList.tsx:93,97`) скрипт исполняется в origin `sct.chat` → кража `localStorage token`.
+  - [ ] allowlist расширений / хранить как `.bin` в `downloadTelegramFile`;
+  - [ ] раздавать `/uploads` как `attachment` (не-image) и `inline` только для проверенных raster-изображений (отдельный контроллер вместо static);
+  - [ ] включить строгую CSP через `helmet.contentSecurityPolicy`;
+  - [ ] вынести JWT из `localStorage` в HttpOnly cookie.
+- [ ] **SEC-02 (высоко) Запись файлов до аутентификации → disk-DoS.**
+  `routes/upload.ts:49` — multer пишет файл раньше `resolveCaller()`; при 401/403 файл не удаляется (до ~300 МБ/мин с одного IP).
+  - [ ] auth/проверка чата перед `upload.single`;
+  - [ ] удалять файл при отказе; TTL-очистка «сирот»;
+  - [ ] обновить `multer`.
+- [ ] **SEC-03 (высоко) WebSocket: нет проверки Origin, `maxPayload`, heartbeat.**
+  `server.ts:86` (`new WebSocketServer({ server })`); `ws/handler.ts:137` — `init_chat` без аутентификации (спам-чаты).
+  - [ ] `maxPayload` (≤64 КБ) + `verifyClient`/Origin по allowlist;
+  - [ ] ping/pong heartbeat;
+  - [ ] rate-limit на `init_chat`.
+
+### 13.2 Средне
+
+- [ ] **SEC-04** парольная политика (мин. ≥8–12, проверка топ-паролей) и запрет дефолта `admin123` в prod (`validate.ts:11`, `seed.ts:12,16,71`).
+- [ ] **SEC-05** в production требовать `TELEGRAM_TOKEN_KEY` без фолбэка на `JWT_SECRET` (`services/telegram.ts:27`).
+- [ ] **SEC-06** non-root `USER` в `backend/Dockerfile`; включить ufw на VPS (только 22/80/443).
+- [ ] **SEC-07** обновить зависимости: backend (`proxy-addr` critical, `multer`, `ws`, `qs`, `body-parser`), frontend (`axios`, `react-router`, `form-data`); пересобрать и передеплоить.
+- [ ] **SEC-08** общий rate-limit на API и лимит на создание чатов (сейчас только `/login`, `/register`, `/upload`).
+- [ ] **SEC-09** ограничить размер скачиваемых из Telegram файлов и не буферизовать их целиком (`services/telegram.ts:120-129`).
+- [ ] **SEC-10** оффсерверные зашифрованные бэкапы (`deploy/backup.sh` — сейчас на том же сервере).
+
+### 13.3 Низко
+
+- [ ] **SEC-11** тайминг-энумерация email на логине (`routes/auth.ts:19`) — сравнение с фиктивным хэшем.
+- [ ] **SEC-12** `/chat-status/:id` без авторизации (`routes/chat.ts:119-122`) — ограничить/убрать.
+- [ ] **SEC-13** зафиксировать `algorithms: ['HS256']` в `jwt.verify` (`middleware/auth.ts:64`).
+- [ ] **SEC-14** согласовать правило понижения равного админа (`routes/admin.ts:117-144`).
+- [ ] **SEC-15** client-token только в заголовке `X-Client-Token`, не в query.
+- [ ] **SEC-16** инвайт-коды 8+ байт (`routes/admin.ts:246`).
+- [ ] **SEC-17** убрать/приглушить детали TG-ошибок в сообщениях панели (`services/telegram.ts:313-331`).
+- [ ] **SEC-18** `TELEGRAM_API_BASE` — валидировать/ограничить (низко).
+
+### 13.4 Инфраструктура / наблюдения
+
+- [ ] **SEC-19** `X-Frame-Options: SAMEORIGIN` конфликтует с iframe-встраиванием виджета (README), а script-вариант не работает кросс-доменно (`window.location.host`). Решить модель встраивания: `frame-ancestors` только для домена клиента + CORS-origin, не убирать защиту глобально.
+- [x] Прод проверен (11.10.2026): наружу только 22/80/443; `3000`/`5432` закрыты; гейты без токена → 401; `POST /api/tg/:id` без секрета → 401; секреты в git отсутствуют.
+
+## Порядок исправлений безопасности (рекомендуемый)
+
+1. **SEC-01** (критично) — XSS/файлы/CSP/токен
+2. **SEC-02** — upload до auth
+3. **SEC-03** — WebSocket
+4. **SEC-07** — зависимости
+5. **SEC-04…10** — средние
+6. **SEC-11…19** — низкие
