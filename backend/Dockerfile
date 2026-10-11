@@ -45,7 +45,11 @@ COPY --from=frontend /app/frontend-react/dist /app/frontend-react/dist
 
 RUN sed -i 's/\r$//' ./docker-entrypoint.sh \
  && chmod +x ./docker-entrypoint.sh \
- && mkdir -p /app/backend/uploads
+ && mkdir -p /app/backend/uploads \
+ && chown -R node:node /app
+
+# SEC-06: run the app as the unprivileged `node` user (uid 1000).
+USER node
 
 EXPOSE 3000
 CMD ["./docker-entrypoint.sh"]

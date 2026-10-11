@@ -8,7 +8,7 @@ export const LIMITS = {
   operatorName: 100,
   tenantName: 200,
   email: 255,
-  passwordMin: 6,
+  passwordMin: 8,
   passwordMax: 128,
   tagName: 30,
   cannedShortcut: 32,
@@ -26,6 +26,20 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,63}$/;
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const SHORTCUT_RE = /^[A-Za-z0-9_-]{1,32}$/;
+
+/**
+ * SEC-04: blocklist of the most common/leaked passwords. Compared lowercased so
+ * `Admin123` is rejected too. Kept small (exact matches) to avoid false positives.
+ */
+export const WEAK_PASSWORDS = new Set([
+  'password', 'password1', 'password12', 'password123', 'passw0rd',
+  '12345678', '123456789', '1234567890', '87654321',
+  'qwerty', 'qwerty123', 'qwertyui', 'qwertyuiop',
+  'admin', 'admin123', 'admin1234', 'administrator',
+  'letmein', 'welcome', 'welcome1', 'iloveyou',
+  'monkey', 'dragon', 'football', 'baseball', 'superman',
+  '11111111', '00000000', 'aaaaaaaa', 'changeme',
+]);
 
 interface StringOpts {
   min?: number;
@@ -55,6 +69,8 @@ export function validPassword(value: unknown): ValidationError {
   if (typeof value !== 'string' || value.length === 0) return 'Пароль: обязательное поле';
   if (value.length < LIMITS.passwordMin) return `Пароль: минимум ${LIMITS.passwordMin} символов`;
   if (value.length > LIMITS.passwordMax) return `Пароль: максимум ${LIMITS.passwordMax} символов`;
+  // SEC-04: reject the most common/leaked passwords.
+  if (WEAK_PASSWORDS.has(value.toLowerCase())) return 'Пароль слишком простой, выберите другой';
   return null;
 }
 

@@ -24,9 +24,17 @@ const UPLOADS_DIR = path.join(__dirname, '../../uploads');
 // ---------------------------------------------------------------------------
 
 function tokenKey(): Buffer {
-  const secret = process.env.TELEGRAM_TOKEN_KEY || process.env.JWT_SECRET;
+  // SEC-05: in production a dedicated TELEGRAM_TOKEN_KEY is required; never fall
+  // back to JWT_SECRET (keeps the encryption key separate from session signing).
+  const isProd = process.env.NODE_ENV === 'production';
+  const dedicated = process.env.TELEGRAM_TOKEN_KEY;
+  const secret = dedicated || (isProd ? undefined : process.env.JWT_SECRET);
   if (!secret) {
-    throw new Error('TELEGRAM_TOKEN_KEY (or JWT_SECRET) is required to store bot tokens');
+    throw new Error(
+      isProd
+        ? 'TELEGRAM_TOKEN_KEY is required in production to store bot tokens'
+        : 'TELEGRAM_TOKEN_KEY (or JWT_SECRET) is required to store bot tokens'
+    );
   }
   // Any-length secret → 32-byte AES key.
   return crypto.createHash('sha256').update(secret).digest();

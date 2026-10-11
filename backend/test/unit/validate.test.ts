@@ -54,11 +54,16 @@ describe('validEmail', () => {
 
 describe('validPassword', () => {
   it('accepts a password within bounds', () => {
-    expect(validPassword('secret1')).toBeNull();
+    expect(validPassword('secret12')).toBeNull();
   });
 
   it('rejects a too-short password', () => {
     expect(validPassword('abc')).toBe(`Пароль: минимум ${LIMITS.passwordMin} символов`);
+  });
+
+  it('rejects a common/weak password (SEC-04)', () => {
+    expect(validPassword('admin123')).toBe('Пароль слишком простой, выберите другой');
+    expect(validPassword('Password123')).toBe('Пароль слишком простой, выберите другой');
   });
 
   it('rejects non strings', () => {

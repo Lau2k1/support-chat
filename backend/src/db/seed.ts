@@ -8,15 +8,23 @@ function env(key: string, fallback: string): string {
 }
 
 async function seed() {
+  const isProd = process.env.NODE_ENV === 'production';
   const adminEmail = env('ADMIN_EMAIL', 'admin@test.com');
-  const adminPassword = process.env.ADMIN_PASSWORD || env('ADMIN_PASSWORD', 'admin123');
   const tenantSlug = env('TENANT_SLUG', 'default');
   const tenantName = env('TENANT_NAME', 'Главный офис');
   const tenantAdminEmail = env('TENANT_ADMIN_EMAIL', '');
-  const tenantAdminPassword = process.env.TENANT_ADMIN_PASSWORD || 'admin123';
 
-  if (!process.env.ADMIN_PASSWORD) {
-    console.warn('ADMIN_PASSWORD not set — using default password. Set it before the first production seed!');
+  // SEC-04: never seed the well-known default password in production.
+  let adminPassword = process.env.ADMIN_PASSWORD || '';
+  if (!adminPassword) {
+    if (isProd) {
+      console.error(
+        'SEC-04: ADMIN_PASSWORD must be set in production — refusing to use the default "admin123" password.'
+      );
+    } else {
+      adminPassword = 'admin123';
+      console.warn('ADMIN_PASSWORD not set — using default "admin123" (development only).');
+    }
   }
 
   try {
@@ -25,13 +33,17 @@ async function seed() {
     if (existing.rows.length) {
       await pool.query("UPDATE operators SET role = 'superadmin', tenant_id = NULL WHERE email = $1", [adminEmail]);
       console.log('Superadmin role ensured for existing operator.');
-    } else {
+    } else if (adminPassword) {
       const hash = await bcrypt.hash(adminPassword, 10);
       await pool.query(
         "INSERT INTO operators (name, email, password, role, tenant_id) VALUES ($1, $2, $3, 'superadmin', NULL)",
         [env('ADMIN_NAME', 'Администратор'), adminEmail, hash]
       );
       console.log(`Seed done: superadmin "${adminEmail}" created.`);
+    } else {
+      // SEC-04: production without ADMIN_PASSWORD — do NOT create an account with
+      // an empty/known password. Set ADMIN_PASSWORD and restart to provision it.
+      console.error('SEC-04: superadmin not created (ADMIN_PASSWORD is not set).');
     }
 
     // 2) Default tenant (also becomes the backfill target for pre-tenant rows).
@@ -66,9 +78,13 @@ async function seed() {
     );
 
     // 6) Optional demo tenant-admin for the default tenant (dev convenience).
-    if (tenantAdminEmail) {
+    const tenantAdminPassword = process.env.TENANT_ADMIN_PASSWORD || (isProd ? '' : 'admin123');
+    if (tenantAdminEmail && isProd && !process.env.TENANT_ADMIN_PASSWORD) {
+      // SEC-04: never set the default password in production.
+      console.warn('SEC-04: skipping tenant admin %s — TENANT_ADMIN_PASSWORD not set.', tenantAdminEmail);
+    } else if (tenantAdminEmail) {
       if (!process.env.TENANT_ADMIN_PASSWORD) {
-        console.warn('TENANT_ADMIN_PASSWORD not set — using default password for the tenant admin.');
+        console.warn('TENANT_ADMIN_PASSWORD not set — using default password for the tenant admin (development only).');
       }
       const tenantExisting = await pool.query('SELECT id FROM operators WHERE email = $1', [tenantAdminEmail]);
       const hash = await bcrypt.hash(tenantAdminPassword, 10);
