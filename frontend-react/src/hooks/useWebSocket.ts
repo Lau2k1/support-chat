@@ -110,6 +110,9 @@ export function useWebSocket() {
           break;
 
         case 'chat_transferred':
+          // The chat now belongs to this operator; the `new_chat` event that
+          // follows (see ws/handler.ts) adds it to the sidebar. Acknowledge it.
+          showToast('Вам передан чат', 'info');
           break;
 
         case 'chat_assigned':

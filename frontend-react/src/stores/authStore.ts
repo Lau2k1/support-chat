@@ -77,13 +77,19 @@ export const useAuthStore = create<AuthState>((set) => {
         return;
       }
       const parsed = parseJwt(t);
+      // Expired token — treat as logged out to avoid silent 401 loops.
+      if (!parsed || (parsed.exp && Date.now() >= parsed.exp * 1000)) {
+        localStorage.removeItem('token');
+        set({ token: null, user: null, isAuthenticated: false, isAdmin: false, isSuperadmin: false, tenantId: null });
+        return;
+      }
       set({
         token: t,
         user: parsed,
-        isAuthenticated: !!parsed,
-        isAdmin: parsed?.role === 'admin' || parsed?.role === 'superadmin',
-        isSuperadmin: parsed?.role === 'superadmin',
-        tenantId: parsed?.tid ?? null,
+        isAuthenticated: true,
+        isAdmin: parsed.role === 'admin' || parsed.role === 'superadmin',
+        isSuperadmin: parsed.role === 'superadmin',
+        tenantId: parsed.tid ?? null,
       });
     },
   };

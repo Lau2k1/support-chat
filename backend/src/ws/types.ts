@@ -13,6 +13,8 @@ export interface ClientWs extends WebSocket {
   operator?: OperatorPayload;
   operatorStatus?: string;
   chatId?: number;
+  /** Tenant a client socket belongs to (set when it joins/creates a chat). */
+  tenantId?: number | null;
 }
 
 export type IncomingMessage =
@@ -43,7 +45,8 @@ export type OutgoingMessage =
   | { type: 'operators_status'; operators: { id: number; name: string; status: 'online' | 'busy' | 'offline' }[] }
   | { type: 'chat_transferred'; chatId: number }
   | { type: 'chat_assigned'; chatId: number; operatorId: number; operatorName: string }
-  | { type: 'operators_offline' };
+  | { type: 'operators_offline' }
+  | { type: 'operators_online' };
 
 export interface ChatRow {
   id: number;

@@ -7,6 +7,11 @@ import { theme } from '@/theme';
 import { router } from '@/router';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import Toast from '@/components/common/Toast';
+import { useAuthStore } from '@/stores/authStore';
+
+// Re-validate the stored token on boot (signature + exp) so an expired session
+// never leaves the app in a half-authenticated state.
+useAuthStore.getState().checkAuth();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

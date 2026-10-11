@@ -18,6 +18,7 @@ import {
   firstError,
 } from '../utils/validate';
 import { startOfDay, endOfDay } from '../utils/dateRange';
+import { getOperatorsWithStatus, type OperatorBusyStatus } from '../services/chat';
 
 const router = Router();
 router.use(authMiddleware, tenantAdminMiddleware);
@@ -56,15 +57,29 @@ router.get('/operators', async (req, res) => {
   try {
     const scope = scopedTenant(req);
     const result = await pool.query(
-      `SELECT o.id, o.name, o.email, o.role, o.is_enabled, o.status, o.tenant_id, t.name AS tenant_name, o.created_at
+      `SELECT o.id, o.name, o.email, o.role, o.is_enabled, o.tenant_id, t.name AS tenant_name, o.created_at
        FROM operators o
        LEFT JOIN tenants t ON t.id = o.tenant_id
        WHERE 1=1 ${scope ? 'AND o.tenant_id = $1' : ''}
        ORDER BY o.id`,
       scope ? [scope] : []
     );
-    res.json(result.rows);
-  } catch {
+
+    // Live status is derived from WS connections / assigned open chats, not
+    // stored in the DB (the operators.status column was removed). Build a
+    // tenant→operator→status map once, then annotate every row.
+    const tenantIds = [...new Set(result.rows.map((r) => r.tenant_id ?? 0))];
+    const statusMaps = new Map<number, Map<number, OperatorBusyStatus>>();
+    for (const tid of tenantIds) {
+      const list = await getOperatorsWithStatus(tid);
+      statusMaps.set(tid, new Map(list.map((o) => [o.id, o.status])));
+    }
+    res.json(result.rows.map((r) => ({
+      ...r,
+      status: statusMaps.get(r.tenant_id ?? 0)?.get(r.id) ?? 'offline',
+    })));
+  } catch (e) {
+    console.error('admin /operators error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -93,7 +108,8 @@ router.put('/operators/:id/toggle', async (req, res) => {
       [newVal, req.params.id]
     );
     res.json({ ...result.rows[0], tenant_id: result.rows[0].tenant_id ?? null });
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -121,7 +137,8 @@ router.put('/operators/:id/role', async (req, res) => {
       [role, req.params.id]
     );
     res.json(result.rows[0]);
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -238,7 +255,8 @@ router.post('/invite-codes', async (req, res) => {
       );
     }
     res.status(201).json({ codes, count: codes.length, tenant_id: tenantId });
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -260,7 +278,8 @@ router.get('/invite-codes', async (req, res) => {
       scope ? [scope] : []
     );
     res.json(result.rows);
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -274,7 +293,8 @@ router.delete('/invite-codes/:id', async (req, res) => {
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Invite code not found or already used' });
     res.json({ ok: true });
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -330,7 +350,8 @@ router.get('/operator-stats', async (req, res) => {
       avg_response_sec: Math.round(Number(r.avg_response_sec)),
       avg_rating: Math.round(Number(r.avg_rating) * 10) / 10,
     })));
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -366,7 +387,8 @@ router.get('/chats', async (req, res) => {
 
     const result = await pool.query(sql, params);
     res.json(result.rows);
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -384,7 +406,8 @@ router.get('/settings', async (req, res) => {
     const settings: Record<string, string> = {};
     result.rows.forEach((r: { key: string; value: string }) => { settings[r.key] = r.value; });
     res.json(settings);
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -418,7 +441,8 @@ router.put('/settings', async (req, res) => {
     const settings: Record<string, string> = {};
     result.rows.forEach((r: { key: string; value: string }) => { settings[r.key] = r.value; });
     res.json(settings);
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -435,7 +459,8 @@ router.get('/tags', async (req, res) => {
       scope ? [scope] : []
     );
     res.json(result.rows);
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -497,7 +522,8 @@ router.delete('/tags/:id', async (req, res) => {
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Tag not found' });
     res.json({ ok: true });
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -529,7 +555,8 @@ router.get('/telegram-bot', async (req, res) => {
     // adds no value (Telegram is configured server-side) and only widens the
     // attack surface. Clients only need to know whether it is configured.
     res.json({ bot, webhook_configured: !!process.env.PUBLIC_BASE_URL });
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -583,7 +610,8 @@ router.put('/telegram-bot', async (req, res) => {
 
     const result = await pool.query('SELECT id, bot_username, is_active, created_at FROM telegram_bots WHERE id = $1', [botId]);
     res.json({ bot: botPublicRow(result.rows[0]), webhook_registered: webhookRegistered, webhook_error: webhookError });
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -612,7 +640,8 @@ router.put('/telegram-bot/toggle', async (req, res) => {
 
     const result = await pool.query('SELECT id, bot_username, is_active, created_at FROM telegram_bots WHERE id = $1', [bot.id]);
     res.json({ bot: botPublicRow(result.rows[0]) });
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -631,7 +660,8 @@ router.delete('/telegram-bot', async (req, res) => {
     }
     await pool.query('DELETE FROM telegram_bots WHERE id = $1', [bot.id]);
     res.json({ ok: true });
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -662,7 +692,8 @@ superRouter.get('/tenants', async (_req, res) => {
       ...r,
       avg_rating: Math.round(Number(r.avg_rating) * 10) / 10,
     })));
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -690,7 +721,8 @@ superRouter.put('/tenants/:id', async (req, res) => {
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Tenant not found' });
     res.json(result.rows[0]);
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -723,7 +755,8 @@ superRouter.post('/tenants/:id/invites', async (req, res) => {
       );
     }
     res.status(201).json({ tenant_id: tenantId, codes, count: codes.length });
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -756,7 +789,8 @@ superRouter.get('/dashboard', async (_req, res) => {
       avg_rating: Math.round(Number(totals.rows[0].avg_rating) * 10) / 10,
       daily: daily.rows,
     });
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -772,7 +806,8 @@ superRouter.get('/telegram-bots', async (_req, res) => {
       ORDER BY tb.created_at DESC
     `);
     res.json(result.rows);
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -812,7 +847,8 @@ superRouter.put('/tenants/:id/status', async (req, res) => {
       await pool.query('UPDATE operators SET is_enabled = true WHERE tenant_id = $1 AND role != $2', [req.params.id, 'superadmin']);
     }
     res.json(result.rows[0]);
-  } catch {
+  } catch (e) {
+    console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });

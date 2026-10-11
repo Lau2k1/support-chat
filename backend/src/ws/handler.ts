@@ -13,6 +13,7 @@ import {
   broadcastToRoomOperators,
   deleteRoom,
   addOperator,
+  addClient,
   getOnlineOperators,
   broadcastOperatorsStatus,
   findOperatorById,
@@ -150,6 +151,11 @@ export function handleConnection(ws: ClientWs) {
             break;
           }
 
+          // Register the client socket for this tenant so it receives live
+          // operators online/offline updates (even before a chat exists).
+          ws.tenantId = tenant.id;
+          addClient(ws, tenant.id);
+
           const onlineOps = getOnlineOperators(tenant.id);
           if (onlineOps.length === 0) {
             safeSend(ws, { type: 'operators_offline' });
@@ -157,7 +163,7 @@ export function handleConnection(ws: ClientWs) {
           }
           const clientToken = crypto.randomUUID();
           const res = await pool.query(
-            "INSERT INTO chats (client_id, status, client_token, tenant_id, source, updated_at) VALUES ((SELECT COALESCE(MAX(client_id), 0) + 1 FROM chats), 'open', $1, $2, 'widget', CURRENT_TIMESTAMP) RETURNING id, extract(epoch from updated_at) * 1000 as updated_at, COALESCE(tenant_id, 0)::text || '_' || id::text AS public_code",
+            "INSERT INTO chats (status, client_token, tenant_id, source, updated_at) VALUES ('open', $1, $2, 'widget', CURRENT_TIMESTAMP) RETURNING id, extract(epoch from updated_at) * 1000 as updated_at, COALESCE(tenant_id, 0)::text || '_' || id::text AS public_code",
             [clientToken, tenant.id]
           );
           const chat = res.rows[0];
@@ -180,7 +186,7 @@ export function handleConnection(ws: ClientWs) {
             // A client may only (re)join a chat it can prove ownership of.
             const token = typeof msg.token === 'string' ? msg.token : '';
             const chatCheck = await pool.query(
-              'SELECT status, client_token FROM chats WHERE id = $1',
+              'SELECT status, client_token, tenant_id FROM chats WHERE id = $1',
               [cId]
             );
             const chat = chatCheck.rows[0];
@@ -194,6 +200,10 @@ export function handleConnection(ws: ClientWs) {
             }
             ws.role = 'client';
             ws.chatId = cId;
+            if (chat.tenant_id) {
+              ws.tenantId = chat.tenant_id;
+              addClient(ws, chat.tenant_id);
+            }
             joinRoom(cId, ws);
             break;
           }

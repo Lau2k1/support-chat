@@ -231,8 +231,8 @@ export async function handleTelegramUpdate(botId: number, update: unknown): Prom
     chatId = chatRes.rows[0].id;
   } else {
     const ins = await pool.query(
-      `INSERT INTO chats (client_id, status, tenant_id, source, external_id, client_name, updated_at)
-       VALUES ((SELECT COALESCE(MAX(client_id), 0) + 1 FROM chats), 'open', $1, 'telegram', $2, $3, CURRENT_TIMESTAMP)
+      `INSERT INTO chats (status, tenant_id, source, external_id, client_name, updated_at)
+       VALUES ('open', $1, 'telegram', $2, $3, CURRENT_TIMESTAMP)
        RETURNING id, extract(epoch from updated_at) * 1000 as updated_at,
                  COALESCE(tenant_id, 0)::text || '_' || id::text AS public_code`,
       [bot.tenant_id, externalId, name]

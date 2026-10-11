@@ -10,7 +10,7 @@ router.get('/chats', authMiddleware, async (req, res) => {
     const user = (req as AuthenticatedRequest).user!;
     const { status, from, to, limit = '50', offset = '0' } = req.query;
     let sql = `
-      SELECT c.id, c.client_id, c.client_name, c.client_device, c.client_region, c.status, c.rating, c.assigned_operator_id,
+      SELECT c.id, c.client_id, c.client_name, c.status, c.rating, c.assigned_operator_id,
              COALESCE(c.tenant_id, 0)::text || '_' || c.id::text AS public_code,
              o.name AS operator_name,
              extract(epoch from c.created_at) * 1000 AS created_at,
@@ -150,7 +150,8 @@ router.put('/chats/:chatId/tag', authMiddleware, async (req, res) => {
       [chatId, tagId]
     );
     res.json({ ok: true });
-  } catch {
+  } catch (e) {
+    console.error('chat route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -169,7 +170,8 @@ router.delete('/chats/:chatId/tag/:tagId', authMiddleware, async (req, res) => {
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Tag not assigned to chat' });
     res.json({ ok: true });
-  } catch {
+  } catch (e) {
+    console.error('chat route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });
@@ -206,7 +208,8 @@ router.get('/chats/:chatId/tags', authMiddleware, async (req, res) => {
       [chatId]
     );
     res.json(result.rows);
-  } catch {
+  } catch (e) {
+    console.error('chat route error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });

@@ -10,7 +10,6 @@ import {
   Chip,
   Button,
 } from '@mui/material';
-import ChatIcon from '@mui/icons-material/Chat';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useNavigate } from 'react-router-dom';
@@ -23,9 +22,9 @@ const statusColors = { online: '#4ade80', busy: '#f59e0b', offline: '#94a3b8' };
 const statusLabels = { online: 'Онлайн', busy: 'Занят', offline: 'Оффлайн' };
 
 export default function TopBar() {
-  const { user, isAdmin, isSuperadmin, logout } = useAuthStore();
+  const { isAdmin, isSuperadmin, logout } = useAuthStore();
   const navigate = useNavigate();
-  const { openTabs, currentChatId, chatUnread, chatPublicCodes, operatorStatus, setOperatorStatus } = useChatStore();
+  const { openTabs, currentChatId, chatPublicCodes, operatorStatus, setOperatorStatus } = useChatStore();
   const showConfirm = useUIStore((s) => s.showConfirm);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 

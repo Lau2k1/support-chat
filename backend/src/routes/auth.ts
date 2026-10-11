@@ -24,7 +24,8 @@ router.post('/login', async (req, res) => {
     }
     const token = signToken(user);
     res.json({ token });
-  } catch {
+  } catch (e) {
+    console.error('Login error:', e);
     res.status(500).json({ error: 'DB Error' });
   }
 });

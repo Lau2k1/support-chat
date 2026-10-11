@@ -66,8 +66,6 @@ export interface Chat {
   client_id: number;
   public_code?: string;
   client_name?: string;
-  client_device?: string;
-  client_region?: string;
   status: 'open' | 'closed';
   rating?: number;
   assigned_operator_id?: number;

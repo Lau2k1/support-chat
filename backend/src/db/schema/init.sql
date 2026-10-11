@@ -21,7 +21,6 @@ CREATE TABLE IF NOT EXISTS operators (
     name VARCHAR(100) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
-    status VARCHAR(20) DEFAULT 'online',
     role VARCHAR(20) DEFAULT 'operator',
     is_enabled BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -35,6 +34,8 @@ ALTER TABLE operators ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DE
 -- Multitenancy: superadmin has tenant_id NULL; everyone else belongs to a tenant.
 ALTER TABLE operators ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
 CREATE INDEX IF NOT EXISTS idx_operators_tenant ON operators(tenant_id);
+-- Legacy: operator status is derived at runtime from live WS connections, not stored.
+ALTER TABLE operators DROP COLUMN IF EXISTS status;
 
 CREATE TABLE IF NOT EXISTS chats (
     id SERIAL PRIMARY KEY,
@@ -47,13 +48,21 @@ CREATE TABLE IF NOT EXISTS chats (
 );
 
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS client_name VARCHAR(255);
-ALTER TABLE chats ADD COLUMN IF NOT EXISTS client_device VARCHAR(255);
-ALTER TABLE chats ADD COLUMN IF NOT EXISTS client_region VARCHAR(255);
+-- Legacy columns that were never populated — drop them.
+ALTER TABLE chats DROP COLUMN IF EXISTS client_device;
+ALTER TABLE chats DROP COLUMN IF EXISTS client_region;
 -- Opaque secret issued on chat creation; proves a websocket/REST caller owns this chat.
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS client_token UUID;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_chats_client_token ON chats(client_token) WHERE client_token IS NOT NULL;
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
 CREATE INDEX IF NOT EXISTS idx_chats_tenant ON chats(tenant_id);
+-- Race-free per-chat client number. Previously computed as MAX(client_id)+1
+-- (collisions under concurrent inserts); now a dedicated sequence.
+CREATE SEQUENCE IF NOT EXISTS chats_client_id_seq;
+ALTER TABLE chats ALTER COLUMN client_id SET DEFAULT nextval('chats_client_id_seq');
+SELECT setval('chats_client_id_seq',
+              GREATEST((SELECT COALESCE(MAX(client_id), 0) FROM chats),
+                       (SELECT COALESCE(MAX(id), 0) FROM chats)));
 
 CREATE TABLE IF NOT EXISTS messages (
     id SERIAL PRIMARY KEY,

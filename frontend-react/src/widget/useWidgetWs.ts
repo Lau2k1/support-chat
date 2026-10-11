@@ -27,7 +27,8 @@ type WsInMsg =
   | { type: 'typingStop'; chatId: number }
   | { type: 'chat_closed'; chatId: number }
   | { type: 'chat_error'; chatId?: number; error: string }
-  | { type: 'operators_offline' };
+  | { type: 'operators_offline' }
+  | { type: 'operators_online' };
 
 interface WidgetWsState {
   chatId: number | null;
@@ -195,6 +196,10 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
 
       case 'operators_offline':
         setState((s) => ({ ...s, operatorsOffline: true }));
+        break;
+
+      case 'operators_online':
+        setState((s) => ({ ...s, operatorsOffline: false }));
         break;
     }
   }, []);

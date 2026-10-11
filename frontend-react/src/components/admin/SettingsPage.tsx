@@ -3,10 +3,10 @@ import { Typography, TextField, Button, Paper } from '@mui/material';
 import { adminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
 import { LIMITS, clampIntInput } from '@/utils/validation';
-import type { Settings } from '@/types';
 
 export default function SettingsPage({ tenantId }: { tenantId?: number } = {}) {
-  const [timeout, setTimeout_] = useState('7');  const [welcome, setWelcome] = useState('');
+  const [timeout, setTimeout_] = useState('7');
+  const [welcome, setWelcome] = useState('');
   const [loading, setLoading] = useState(true);
   const showToast = useUIStore((s) => s.showToast);
 

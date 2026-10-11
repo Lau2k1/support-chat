@@ -6,6 +6,9 @@ import { ClientWs, OutgoingMessage } from '../ws/types';
 // under key 0 and may serve every tenant ("owner can jump in").
 const operatorGroups = new Map<number, Set<ClientWs>>();
 const rooms = new Map<number, Set<ClientWs>>();
+// Client sockets grouped by tenant, so the widget can be told live when
+// operators go online/offline (previously only operators were notified).
+const clientGroups = new Map<number, Set<ClientWs>>();
 
 function groupKey(ws: ClientWs): number {
   return ws.operator?.tenantId ?? 0;
@@ -32,11 +35,19 @@ export function addOperator(ws: ClientWs) {
   operatorGroups.get(key)!.add(ws);
 }
 
+export function addClient(ws: ClientWs, tenantId: number) {
+  if (!clientGroups.has(tenantId)) {
+    clientGroups.set(tenantId, new Set());
+  }
+  clientGroups.get(tenantId)!.add(ws);
+}
+
 export function removeConnection(ws: ClientWs) {
   operatorGroups.get(groupKey(ws))?.delete(ws);
   // Purge the socket from every room, not just ws.chatId, so no stale
   // memberships are left behind (operators may join several chats).
   rooms.forEach((members) => members.delete(ws));
+  clientGroups.forEach((members) => members.delete(ws));
 }
 
 /** All operator sockets that may interact with the given tenant. */
@@ -123,6 +134,16 @@ export async function broadcastOperatorsStatus(tenantId: number) {
   const list = await getOperatorsWithStatus(tenantId);
   for (const op of iterOperatorsFor(tenantId)) {
     safeSend(op, { type: 'operators_status', operators: list });
+  }
+  // Also inform this tenant's widgets so they can show a live
+  // "operators online/offline" state without polling.
+  const clients = clientGroups.get(tenantId);
+  if (clients && clients.size) {
+    const hasOnline = list.some((o) => o.status !== 'offline');
+    const payload: OutgoingMessage = hasOnline
+      ? { type: 'operators_online' }
+      : { type: 'operators_offline' };
+    for (const c of clients) safeSend(c, payload);
   }
 }
 
