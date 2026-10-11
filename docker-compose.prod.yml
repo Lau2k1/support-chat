@@ -55,7 +55,9 @@ services:
       # First-run seed (idempotent). Set RUN_SEED=true for the first boot only.
       RUN_SEED: ${RUN_SEED:-false}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      # SEC-04: only needed for the very first seed. Remove from deploy/.env after
+      # the superadmin exists — the running app never needs it again.
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_NAME: ${ADMIN_NAME:-Администратор}
       TENANT_SLUG: ${TENANT_SLUG:-default}
       TENANT_NAME: ${TENANT_NAME:-Главный офис}
