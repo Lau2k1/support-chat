@@ -339,7 +339,7 @@
 - [x] **SEC-05** в production требовать `TELEGRAM_TOKEN_KEY` без фолбэка на `JWT_SECRET` ✅ (`services/telegram.ts` `tokenKey()`; на проде `TELEGRAM_TOKEN_KEY` уже задан — фолбэк ни на что не влиял).
 - [x] **SEC-06** non-root `USER` в `backend/Dockerfile` ✅ (образ собран локально: `uid=1000(node)`); включить ufw на VPS (только 22/80/443) — шаг деплоя.
 - [x] **SEC-07** обновить зависимости ✅ (backend + frontend `npm audit` → **0**; `ts-node-dev` заменён на `tsx`). backend (proxy-addr critical, multer, ws, qs, body-parser), frontend (axios, react-router, form-data, vite, postcss, nanoid, source-map-js); пересобрать и передеплоить.
-- [ ] **SEC-08** общий rate-limit на API и лимит на создание чатов (сейчас только `/login`, `/register`, `/upload`).
+- [x] **SEC-08** общий rate-limit на API ✅ (`apiLimiter` 300/15 мин на все API-эндпоинты; `/login`, `/register`, `/upload` сохраняют строгие специализированные лимиты). Лимит на создание чатов уже реализован в SEC-03 (`init_chat`: 5/мин на сокет, 30/мин на IP).
 - [ ] **SEC-09** ограничить размер скачиваемых из Telegram файлов и не буферизовать их целиком (`services/telegram.ts:120-129`).
 - [ ] **SEC-10** оффсерверные зашифрованные бэкапы (`deploy/backup.sh` — сейчас на том же сервере).
 

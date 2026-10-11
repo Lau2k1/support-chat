@@ -76,6 +76,16 @@ app.use('/login', authLimiter);
 app.use('/register', authLimiter);
 app.use('/upload', uploadLimiter);
 
+// SEC-08: general API rate limit — abuse protection for every API endpoint.
+// /login, /register and /upload keep their stricter dedicated limits above.
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.API_RATE_LIMIT_MAX) || 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много запросов, попробуйте позже' },
+});
+
 // Liveness probe for Docker/orchestrators (no auth, not rate-limited).
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
@@ -115,10 +125,10 @@ app.get('/uploads/:name', (req, res) => {
   });
 });
 
-app.use(authRoutes);
-app.use(chatRoutes);
-app.use(cannedRoutes);
-app.use(uploadRoutes);
+app.use(apiLimiter, authRoutes);
+app.use(apiLimiter, chatRoutes);
+app.use(apiLimiter, cannedRoutes);
+app.use(apiLimiter, uploadRoutes);
 
 // SPA pages (client-side routes) must be served before the authenticated admin routers —
 // otherwise /admin would hit authMiddleware and return 401 JSON instead of index.html.
@@ -126,9 +136,9 @@ app.get(['/login', '/register', '/operator', '/admin', '/crm'], (_req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
-app.use('/admin', adminRoutes);
-app.use('/superadmin', superRouter);
-app.use('/api/tg', telegramRoutes);
+app.use('/admin', apiLimiter, adminRoutes);
+app.use('/superadmin', apiLimiter, superRouter);
+app.use('/api/tg', apiLimiter, telegramRoutes);
 
 app.get('{*path}', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
