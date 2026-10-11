@@ -59,6 +59,32 @@ npm run dev                          # http://localhost:5173 (Vite, прокси
 
 Роль определяется из JWT (`tid`, `role`); жёсткое разделение «снизу вверх»: оператор → админ тенанта → владелец.
 
+## Встраивание виджета
+
+Виджет — отдельная страница `widget.html` (собирается вместе с панелями). Тенант задаётся
+параметром `?tenant=<slug>` в URL или атрибутом `data-tenant` на теге скрипта.
+
+**Вариант 1 — iframe (рекомендуется):**
+
+```html
+<iframe
+  src="https://sct.chat/widget.html?tenant=acme"
+  title="Чат поддержки"
+  style="position:fixed;right:20px;bottom:20px;width:380px;height:620px;border:0;z-index:9999"
+></iframe>
+```
+
+`acme` — это `slug` тенанта из CRM владельца.
+
+**Вариант 2 — модуль в своей разметке** (нужен свой контейнер; домен сайта — в `CORS_ORIGINS`):
+
+```html
+<div id="widget-root"></div>
+<script type="module" src="https://sct.chat/assets/widget-<hash>.js" data-tenant="acme"></script>
+```
+
+Актуальное имя файла с хэшем смотрите в `frontend-react/dist/widget.html` после сборки.
+
 ## Порты
 
 | Порт | Где          | Назначение                          |
@@ -92,15 +118,36 @@ support-chat/
 └── PLAN.md                  # план работ и статус
 ```
 
-## Тесты (смоук)
+## Тесты и качество
+
+Юнит-тесты (Vitest) — чистые утилиты, без БД:
 
 ```bash
 cd backend
-node test/ws-smoke.cjs          # WS: токены, рассылки, назначение оператора
-node test/fixes-smoke.cjs       # багрепорт №1: FK-удаление, теги, фильтр дат, валидация
-node test/features-smoke.cjs    # пакет №2: webhook, назначение, public_code, теги
-node test/crm-smoke.cjs         # CRM: роли, квоты, инвайты
+npm test                        # vitest run (dateRange, validate)
 ```
+
+Смоук-тесты (нужен запущенный backend на :3000 и сидированная БД):
+
+```bash
+cd backend
+node test/ws-smoke.cjs                 # WS: токены, рассылки, назначение оператора
+node test/fixes-smoke.cjs              # багрепорт №1: FK-удаление, теги, фильтр дат, валидация
+node test/features-smoke.cjs           # пакет №2: webhook, назначение, public_code, теги
+node test/crm-smoke.cjs                # CRM: роли, квоты, инвайты
+node test/crm-tenant-detail-smoke.cjs  # CRM: скоуп по tenantId, изоляция
+node test/e2e.cjs                      # все смоуки подряд
+```
+
+Линтер и форматирование (ESLint flat config + Prettier в каждом пакете), запуск из корня:
+
+```bash
+npm run lint                    # eslint в backend и frontend-react
+npm run format                  # prettier --write
+```
+
+> `/login` и `/register` ограничены (по умолчанию 20 запросов / 15 мин на IP). Для полного
+> `test/e2e.cjs` поднимите лимит: `AUTH_RATE_LIMIT_MAX=1000 npm run dev`.
 
 ## Деплой
 

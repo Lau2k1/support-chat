@@ -10,8 +10,8 @@
 - [x] Закоммитить untracked: `frontend-react/` целиком, `backend/src/routes/admin.ts`, `docker-compose.yml`, `.gitignore` (4 коммита: chore / backend / frontend / docs)
 - [x] Проверить `.gitignore`: `dist/`, `uploads/`, `.env`, `**/.env`, `node_modules/` игнорируются (подтверждено `git check-ignore`)
 - [x] Корень: удалён рассинхронизированный `package-lock.json` + корневой `node_modules` (package.json остаётся `{}`); npm workspaces — опционально позже
-- [ ] Решить судьбу легаси: `backend/create-db.js` (закоммичен как есть, дублирует compose — кандидат на удаление), `backend/dist/` (в .gitignore, но устарел — пересобрать)
-- [ ] (опц.) Добавить `.gitattributes` (`* text=auto eol=lf`) — убрать CRLF-шум в предупреждениях git
+- [x] Легаси: `backend/create-db.js` удалён; `backend/dist/` пересобран (`npm run build`) — обрабатывается в разделе 5
+- [x] Добавлен `.gitattributes` (`* text=auto eol=lf`, CRLF для `.bat/.cmd/.ps1`, бинарь) — CRLF-шум убран
 - [x] Запушить локальные коммиты в `origin/main` (ветка синхронизирована)
 
 ---
@@ -60,22 +60,22 @@
 ## 3. Недоработки бэкенда
 
 - [x] `assigned_operator_id` пишется при назначении (`claimChat`, `ws/handler.ts:74`) и при `transfer_chat` (`ws/handler.ts:385`) — `/admin/operator-stats` и фильтр `/admin/chats?operator_id` работают
-- [ ] `client_id = MAX+1` (`ws/handler.ts:70`) → `INSERT ... RETURNING id` (устранение гонки)
-- [ ] Пустые `catch {}` → логирование (console/pino)
+- [x] `client_id` — гонка устранена: заведена последовательность `chats_client_id_seq`, колонка получила `DEFAULT nextval(...)` (`init.sql`); INSERT-ы больше не считают `MAX(client_id)+1`
+- [x] Тихие `catch {}` → логирование: `console.error` добавлен в `routes/chat.ts`, `routes/admin.ts`, `routes/auth.ts`; осознанные best-effort (ROLLBACK, webhook, невалидный токен) оставлены с комментариями
 - [x] Интерполяция `CHAT_TIMEOUT_MINUTES` в SQL → значение читается из `settings` тенанта, env — только fallback (`services/chat.ts:178`)
-- [ ] Мёртвые колонки: `chats.client_device`/`client_region` (выбираются в `routes/chat.ts:26`, но не используются), `operators.status` — либо начать использовать, либо удалить из `init.sql` (`client_name` уже используется для Telegram)
-- [ ] Убрать неиспользуемый `export { upload }` (`routes/upload.ts:109`)
-- [ ] Мёртвый endpoint `GET /archive` — либо подключить фронту, либо удалить
+- [x] Мёртвые колонки удалены: `chats.client_device`/`client_region` и `operators.status` вычищены из `init.sql` (`DROP COLUMN IF EXISTS`) и из кода; живой статус оператора теперь вычисляется в `/admin/operators` из WS-соединений
+- [x] Убран неиспользуемый `export { upload }` (`routes/upload.ts`)
+- [x] Мёртвый endpoint `GET /archive` удалён (`routes/chat.ts`)
 
 ---
 
 ## 4. Недоработки фронтенда
 
-- [ ] Необработанные WS-события: `chat_created`, `messageRead`, `operators_offline` (оператор), пустой `break` у `chat_transferred` (`hooks/useWebSocket.ts`)
-- [ ] Виджет не узнаёт об оффлайне операторов: `operators_status` рассылается только операторам → дублировать в комнату клиента
+- [x] WS-события: `chat_transferred` обрабатывается (toast «Вам передан чат»); `chat_created`/`operators_offline` — клиентские события (обрабатываются виджетом, оператор их не получает)
+- [x] Виджет узнаёт о статусе операторов: бэкенд рассылает `operators_offline`/`operators_online` в комнаты клиентов тенанта (`services/chat.ts`, `addClient`/`clientGroups`), виджет обрабатывает
 - [x] `RightPanel.tsx`: карточки шаблонов вызывают `onInsertTemplate` (`RightPanel.tsx:80`) — клик вставляет текст в поле ввода
-- [ ] Дубль импорта `MessageList` как `MessageListArchive` (`OperatorDashboard.tsx:25`)
-- [ ] `authStore.checkAuth` нигде не вызывается (JWT уже несёт `exp`, см. 1.3) — включить проверку при загрузке приложения
+- [x] Дубль импорта `MessageList` устранён (`OperatorDashboard.tsx`)
+- [x] `authStore.checkAuth` вызывается при старте приложения (`main.tsx`); добавлена проверка `exp` — просроченный токен очищается
 - [ ] `userId`/`activeChatId` виджета — сейчас `localStorage`, ОК
 - [x] **`parseJwt` на base64url** (`authStore.ts`): `atob` падал на части токенов (`-`/`_`, паддинг, кириллица в имени) → пользователь считался неаутентифицированным и падал на `/login`. Нормализуем base64url + паддинг + UTF-8 (`decodeURIComponent`). Найдено при проверке роли оператора
 
@@ -83,21 +83,21 @@
 
 ## 5. Мёртвый код и зависимости
 
-- [ ] Удалить неиспользуемые пакеты: `@tanstack/react-query` (только провайдер в `main.tsx`), `react-hook-form`, `zod`, `@hookform/resolvers` — либо начать использовать
-- [ ] Перенести `@types/*` из `dependencies` в `devDependencies` (`frontend-react/package.json`)
-- [ ] Удалить неиспользуемый экспорт `getChatStatus` (`removeTag`/`rateChat` уже используются операторским UI) — или подключить
-- [ ] Проверить `noUnusedLocals/noUnusedParameters` во фронтовом tsconfig — включить
+- [x] Удалены неиспользуемые пакеты: `@tanstack/react-query` (провайдер убран из `main.tsx`), `react-hook-form`, `zod`, `@hookform/resolvers`
+- [x] `@types/*` перенесены в `devDependencies` (`frontend-react/package.json`)
+- [x] Удалён неиспользуемый экспорт `getChatStatus` (`services/endpoints.ts`)
+- [x] Включены `noUnusedLocals`/`noUnusedParameters` во фронтовом tsconfig (все места поправлены, `tsc` чист)
 
 ---
 
 ## 6. Качество и процесс
 
-- [ ] README в корне: назначение, стек, запуск (`docker compose up -d` → `migrate` → `seed` → `dev`), порты, структура
-- [ ] Тесты: минимум — vitest/jest на критичные места (auth middleware, ws handler — 1.1, `routes/chat.ts` фильтры)
-- [ ] ESLint + Prettier во фронт (сейчас нет вообще) и бэк (есть eslint? проверить)
-- [ ] Скрипты-обёртки в корне (`dev`, `build`, `migrate`) или npm workspaces
-- [ ] `.env.example` в `backend/` (имена переменных без значений)
-- [ ] E2E-смоук: поднять стек, прогнать сценарий «клиент открыл чат → оператор ответил → файл → закрытие»
+- [x] README в корне: назначение, стек, запуск, порты, структура, встраивание виджета, тесты
+- [x] Тесты: Vitest (`backend/test/unit` — `dateRange`, `validate`), интеграционные смоуки + единый раннер `test/e2e.cjs`
+- [x] ESLint (flat config) + Prettier в обоих пакетах; скрипты `lint`/`format`
+- [x] Скрипты-обёртки в корне (`dev:*`, `build`, `migrate`, `seed`, `lint`, `format`, `test`, `test:e2e`) — делегируют в пакеты
+- [x] `.env.example` в `backend/` (имена переменных без значений)
+- [x] E2E: `test/e2e.cjs` прогоняет все смоуки подряд (лимит auth поднимается через `AUTH_RATE_LIMIT_MAX`)
 
 ---
 
@@ -147,7 +147,7 @@
 
 ### 7.5 Идентификация тенанта в виджете
 - [x] **Вариант 2 выбран**: `<script ... data-tenant="acme">` в сниппете встраивания. Виджет читает `document.querySelector('script[data-tenant]')` и шлёт slug в `init_chat`. Поддомены (вариант 1) можно добавить позже как альтернативу
-- [ ] (отложено) README/документация сниппета встраивания для клиентов (раздел 6)
+- [x] README/документация сниппета встраивания: раздел «Встраивание виджета» (iframe `?tenant=<slug>` и модуль с `data-tenant`); `getTenantSlug` читает `?tenant=`
 
 ---
 

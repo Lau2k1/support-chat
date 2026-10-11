@@ -1,0 +1,15 @@
+# Build output and dependencies
+node_modules
+dist
+build
+coverage
+
+# Lockfiles are managed by npm, not formatted
+package-lock.json
+
+# Docs and infra
+*.md
+deploy/.env
+
+# Uploaded user files
+backend/uploads

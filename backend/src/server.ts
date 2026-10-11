@@ -41,9 +41,10 @@ app.use(cors({
 app.use(express.json());
 
 // Basic rate limits (abuse protection). Tune when real numbers are known.
+// Raise AUTH_RATE_LIMIT_MAX for local/smoke runs that issue many logins.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много попыток, попробуйте позже' },

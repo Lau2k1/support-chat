@@ -5,6 +5,10 @@ import { useEffect, useRef, useCallback, useState } from 'react';
  * `<script src="/assets/widget.js" data-tenant="acme"></script>`.
  */
 function getTenantSlug(): string {
+  // Explicit ?tenant= (iframe / direct page embed) takes precedence over the
+  // placeholder script tag baked into widget.html.
+  const fromUrl = new URLSearchParams(window.location.search).get('tenant')?.trim();
+  if (fromUrl) return fromUrl;
   const el = document.querySelector('script[data-tenant]');
   return el?.getAttribute('data-tenant')?.trim() ?? '';
 }

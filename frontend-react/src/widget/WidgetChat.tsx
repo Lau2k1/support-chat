@@ -446,5 +446,7 @@ function playNotifySound() {
     gain.connect(ctx.destination);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.3);
-  } catch {}
+  } catch {
+    // WebAudio can throw if the context is blocked before a user gesture — ignore.
+  }
 }
