@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only ./src/server.ts",
+    "dev": "tsx watch ./src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "migrate": "node -e \"require('dotenv').config();const{Pool}=require('pg');const fs=require('fs');const p=new Pool({host:process.env.DB_HOST,port:+process.env.DB_PORT,user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME});const sql=fs.readFileSync('./src/db/schema/init.sql','utf8');p.query(sql).then(()=>{console.log('Migration done');p.end()}).catch(e=>{console.error(e);p.end()})\"",
-    "seed": "ts-node-dev --transpile-only ./src/db/seed.ts",
+    "seed": "tsx ./src/db/seed.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.ts\"",
@@ -44,7 +44,7 @@
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.13.0",
     "prettier": "^3.9.10",
-    "ts-node-dev": "^2.0.0",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1",
     "vitest": "^5.0.3"
