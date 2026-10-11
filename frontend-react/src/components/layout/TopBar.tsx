@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import LogoutIcon from '@mui/icons-material/Logout';
+import KeyIcon from '@mui/icons-material/Key';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
@@ -26,6 +27,7 @@ export default function TopBar() {
   const navigate = useNavigate();
   const { openTabs, currentChatId, chatPublicCodes, operatorStatus, setOperatorStatus } = useChatStore();
   const showConfirm = useUIStore((s) => s.showConfirm);
+  const showChangePassword = useUIStore((s) => s.showChangePassword);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleStatusChange = (status: 'online' | 'busy' | 'offline') => {
@@ -130,6 +132,10 @@ export default function TopBar() {
             <Typography sx={{ fontSize: 11, fontWeight: 600, ml: 0.5 }}>Админ</Typography>
           </IconButton>
         )}
+
+        <IconButton size="small" onClick={showChangePassword} title="Сменить пароль">
+          <KeyIcon fontSize="small" />
+        </IconButton>
 
         <IconButton size="small" onClick={handleLogout} title="Выйти">
           <LogoutIcon fontSize="small" />

@@ -121,4 +121,58 @@ router.post('/logout', (_req, res) => {
   res.json({ ok: true });
 });
 
+/**
+ * Self-service password change. Requires the current password (proves the session
+ * owner is present, not just a stolen cookie). On success every previously issued
+ * token is invalidated via token_version, and a fresh session is issued to THIS
+ * client so other devices are logged out without logging the user out here.
+ */
+router.post('/me/password', authMiddleware, async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    const { currentPassword, newPassword } = (req.body ?? {}) as {
+      currentPassword?: unknown;
+      newPassword?: unknown;
+    };
+
+    if (typeof currentPassword !== 'string' || currentPassword.length === 0) {
+      return res.status(400).json({ error: 'Укажите текущий пароль' });
+    }
+    const policyError = validPassword(newPassword);
+    if (policyError) return res.status(400).json({ error: policyError });
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ error: 'Новый пароль должен отличаться от текущего' });
+    }
+
+    const current = await pool.query('SELECT password FROM operators WHERE id = $1', [user.id]);
+    const row = current.rows[0];
+    if (!row) return res.status(404).json({ error: 'Оператор не найден' });
+
+    const ok = await bcrypt.compare(currentPassword, row.password);
+    if (!ok) return res.status(401).json({ error: 'Неверный текущий пароль' });
+
+    const hash = await bcrypt.hash(String(newPassword), 10);
+    const updated = await pool.query(
+      'UPDATE operators SET password = $1, token_version = token_version + 1 WHERE id = $2 RETURNING id, name, role, token_version, tenant_id',
+      [hash, user.id]
+    );
+    const u = updated.rows[0];
+
+    // Re-issue the cookie with the bumped token_version so this session survives.
+    const token = signToken({
+      id: u.id,
+      name: u.name,
+      role: u.role,
+      token_version: u.token_version,
+      tenant_id: u.tenant_id,
+    });
+    res.cookie(AUTH_COOKIE, token, authCookieOptions());
+    console.log(`Password changed for operator id=${user.id}`);
+    res.json({ token });
+  } catch (e) {
+    console.error('Change password error:', e);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
 export default router;

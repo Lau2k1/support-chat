@@ -4,9 +4,10 @@
 // non-zero on the first failure. Each suite is a standalone script so it can
 // also be run on its own (see README).
 //
-// NOTE: /login and /register are rate-limited (default 20 req / 15 min per IP).
-// A full run easily exceeds that, so start the dev server with a raised limit:
-//   AUTH_RATE_LIMIT_MAX=1000 npm run dev
+// NOTE: /login, /register, /upload, password changes and the general API are
+// rate-limited (defaults 20 / 30 / 10 / 300 per window, per IP). A full run
+// easily exceeds them, so start the dev server with raised limits:
+//   AUTH_RATE_LIMIT_MAX=1000 API_RATE_LIMIT_MAX=1000 PASSWORD_RATE_LIMIT_MAX=1000 npm run dev
 // (or run this once against a freshly restarted server).
 const { spawnSync } = require('child_process');
 const path = require('path');
@@ -15,6 +16,7 @@ const HTTP = process.env.SMOKE_HTTP || 'http://localhost:3000';
 
 const suites = [
   'ws-smoke.cjs',
+  'password-smoke.cjs',
   'fixes-smoke.cjs',
   'features-smoke.cjs',
   'crm-smoke.cjs',

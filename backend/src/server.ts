@@ -76,9 +76,18 @@ const authLimiter = rateLimit({
   message: { error: 'Слишком много попыток, попробуйте позже' },
 });
 const uploadLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
+// Stricter limit for password changes (guards against guessing the current password).
+const passwordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.PASSWORD_RATE_LIMIT_MAX) || 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много попыток, попробуйте позже' },
+});
 app.use('/login', authLimiter);
 app.use('/register', authLimiter);
 app.use('/upload', uploadLimiter);
+app.use('/me/password', passwordLimiter);
 
 // SEC-08: general API rate limit — abuse protection for every API endpoint.
 // /login, /register and /upload keep their stricter dedicated limits above.

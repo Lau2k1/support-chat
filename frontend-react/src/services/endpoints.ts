@@ -22,6 +22,8 @@ export const authApi = {
     api.post<{ token: string }>('/login', { email, password }),
   register: (data: { name: string; email: string; password: string; inviteCode: string }) =>
     api.post<{ token: string }>('/register', data),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api.post<{ token: string }>('/me/password', { currentPassword, newPassword }),
 };
 
 export const chatApi = {

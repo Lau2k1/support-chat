@@ -4,6 +4,7 @@ import DomainIcon from '@mui/icons-material/Domain';
 import SendIcon from '@mui/icons-material/Send';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ChatIcon from '@mui/icons-material/Chat';
+import KeyIcon from '@mui/icons-material/Key';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -26,6 +27,7 @@ export default function OwnerSideNav({ current, onChange }: Props) {
   const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
   const showConfirm = useUIStore((s) => s.showConfirm);
+  const showChangePassword = useUIStore((s) => s.showChangePassword);
 
   const handleLogout = () => {
     showConfirm({
@@ -102,6 +104,22 @@ export default function OwnerSideNav({ current, onChange }: Props) {
         >
           <ChatIcon sx={{ fontSize: 14 }} />
           К операторской
+        </Box>
+        <Box
+          onClick={showChangePassword}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            color: '#9ca3af',
+            cursor: 'pointer',
+            fontSize: 12,
+            mb: 1.2,
+            '&:hover': { color: '#f3f4f6' },
+          }}
+        >
+          <KeyIcon sx={{ fontSize: 14 }} />
+          Сменить пароль
         </Box>
         <Box
           onClick={handleLogout}

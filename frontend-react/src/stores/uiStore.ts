@@ -10,15 +10,19 @@ type ConfirmOptions = {
 interface UIState {
   confirmDialog: ConfirmOptions | null;
   toast: { message: string; severity: 'success' | 'error' | 'info' | 'warning' } | null;
+  changePasswordOpen: boolean;
   showConfirm: (options: ConfirmOptions) => void;
   hideConfirm: () => void;
   showToast: (message: string, severity?: 'success' | 'error' | 'info' | 'warning') => void;
   hideToast: () => void;
+  showChangePassword: () => void;
+  hideChangePassword: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
   confirmDialog: null,
   toast: null,
+  changePasswordOpen: false,
 
   showConfirm: (options) => set({ confirmDialog: options }),
   hideConfirm: () => set({ confirmDialog: null }),
@@ -28,4 +32,7 @@ export const useUIStore = create<UIState>((set) => ({
     setTimeout(() => set({ toast: null }), 3000);
   },
   hideToast: () => set({ toast: null }),
+
+  showChangePassword: () => set({ changePasswordOpen: true }),
+  hideChangePassword: () => set({ changePasswordOpen: false }),
 }));
