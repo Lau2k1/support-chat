@@ -9,6 +9,7 @@ export type WsIncomingMessage =
   | { type: 'typingStop'; chatId: number; senderId: number }
   | { type: 'messageRead'; chatId: number; messageId: number; readerId: number }
   | { type: 'chat_closed'; chatId: number; reason?: string }
+  | { type: 'chat_error'; chatId?: number; error: string }
   | { type: 'operators_status'; operators: import('.').OnlineOperator[] }
   | { type: 'chat_transferred'; chatId: number }
   | { type: 'chat_assigned'; chatId: number; operatorId: number; operatorName: string }

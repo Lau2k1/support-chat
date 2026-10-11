@@ -60,8 +60,67 @@ export function getOnlineOperators(tenantId: number): { id: number; name: string
   return result;
 }
 
-export function broadcastOperatorsStatus(tenantId: number) {
-  const list = getOnlineOperators(tenantId);
+export type OperatorBusyStatus = 'online' | 'busy' | 'offline';
+
+/**
+ * Полный список операторов тенанта с производным статусом:
+ * - offline  — нет живого WS-соединения или вручную «офлайн»;
+ * - busy     — соединён и занят (вручную «занят» или имеет назначенные открытые чаты);
+ * - online   — свободен и готов принять чат.
+ * Нужно для корректного отображения статусов в модалке передачи чата
+ * ("на занятых и офлайн нельзя переводить").
+ */
+export async function getOperatorsWithStatus(
+  tenantId: number
+): Promise<{ id: number; name: string; status: OperatorBusyStatus }[]> {
+  // Суперадмин не привязан к тенанту: показываем только живые соединения.
+  if (tenantId === 0) {
+    const result: { id: number; name: string; status: OperatorBusyStatus }[] = [];
+    for (const op of operatorGroups.get(0) ?? []) {
+      if (!op.operator) continue;
+      result.push({
+        id: op.operator.id,
+        name: op.operator.name,
+        status:
+          op.operatorStatus === 'offline'
+            ? 'offline'
+            : op.operatorStatus === 'busy'
+              ? 'busy'
+              : 'online',
+      });
+    }
+    return result;
+  }
+
+  const ops = await pool.query(
+    'SELECT id, name FROM operators WHERE tenant_id = $1 AND is_enabled = TRUE ORDER BY name',
+    [tenantId]
+  );
+  const busyRes = await pool.query(
+    `SELECT assigned_operator_id, COUNT(*)::int AS n
+     FROM chats
+     WHERE status = 'open' AND tenant_id = $1 AND assigned_operator_id IS NOT NULL
+     GROUP BY assigned_operator_id`,
+    [tenantId]
+  );
+  const busyCounts = new Map<number, number>();
+  for (const r of busyRes.rows) busyCounts.set(Number(r.assigned_operator_id), Number(r.n));
+
+  return ops.rows.map((o) => {
+    const id = Number(o.id);
+    const socket = findOperatorById(id, tenantId);
+    const status: OperatorBusyStatus =
+      !socket || socket.operatorStatus === 'offline'
+        ? 'offline'
+        : socket.operatorStatus === 'busy' || (busyCounts.get(id) || 0) > 0
+          ? 'busy'
+          : 'online';
+    return { id, name: o.name, status };
+  });
+}
+
+export async function broadcastOperatorsStatus(tenantId: number) {
+  const list = await getOperatorsWithStatus(tenantId);
   for (const op of iterOperatorsFor(tenantId)) {
     safeSend(op, { type: 'operators_status', operators: list });
   }

@@ -29,11 +29,13 @@ interface ChatInputProps {
   chatId: number | null;
   onOpenTemplates: () => void;
   onOpenTagSelector: () => void;
+  /** Read-only mode (observing another operator's chat): sending is disabled. */
+  readOnly?: boolean;
   /** Imperative handle used to insert templates without touching the DOM. */
   apiRef?: React.Ref<ChatInputApi> | null;
 }
 
-export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, apiRef }: ChatInputProps) {
+export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, readOnly, apiRef }: ChatInputProps) {
   const [text, setText] = useState('');
   const [quickAnchor, setQuickAnchor] = useState<HTMLElement | null>(null);
   const { noteMode, setNoteMode, cannedResponses } = useChatStore();
@@ -100,7 +102,8 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
     e.target.value = '';
   };
 
-  const disabled = !chatId;
+  const disabled = !chatId || readOnly;
+  const placeholder = readOnly ? 'Режим наблюдения — отправка недоступна' : noteMode ? 'Внутренняя заметка...' : 'Сообщение... (/ для быстрых ответов)';
 
   return (
     <Box
@@ -117,11 +120,12 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
     >
       <input type="file" ref={fileInputRef} onChange={handleFileUpload} hidden accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.txt" />
 
-      <ToggleButtonGroup size="small" value={noteMode ? 'note' : ''} exclusive>
+      <ToggleButtonGroup size="small" value={noteMode ? 'note' : ''} exclusive disabled={disabled}>
         <ToggleButton
           value="note"
           size="small"
           selected={noteMode}
+          disabled={disabled}
           onClick={() => setNoteMode(!noteMode)}
           sx={{ px: 1, fontSize: 12, fontWeight: 600, border: '1px solid', borderColor: 'divider' }}
         >
@@ -143,7 +147,7 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
       <TextField
         fullWidth
         size="small"
-        placeholder={noteMode ? 'Внутренняя заметка...' : 'Сообщение... (/ для быстрых ответов)'}
+        placeholder={placeholder}
         value={text}
         onChange={(e) => {
           setText(e.target.value);

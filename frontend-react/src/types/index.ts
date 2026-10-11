@@ -167,6 +167,8 @@ export interface AdminChat {
 export interface OnlineOperator {
   id: number;
   name: string;
+  /** Derived: online (free) / busy (has assigned chats) / offline. */
+  status?: 'online' | 'busy' | 'offline';
 }
 
 export interface ArchiveFilters {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import {
   Box,
   TextField,
@@ -11,7 +11,9 @@ import {
   Badge,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import { useChatStore } from '@/stores/chatStore';
+import { useAuthStore } from '@/stores/authStore';
 import { formatElapsedTime } from '@/utils/format';
 
 interface ChatSidebarProps {
@@ -19,8 +21,11 @@ interface ChatSidebarProps {
   currentChatId: number | null;
 }
 
+type Group = 'waiting' | 'distributed' | 'mine';
+
 export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebarProps) {
-  const { chatTimers, chatUnread, chatPreviews, chatSources, chatNames, chatPublicCodes } = useChatStore();
+  const { chatTimers, chatUnread, chatPreviews, chatSources, chatNames, chatPublicCodes, chatAssignees } = useChatStore();
+  const myId = useAuthStore((s) => s.user?.id ?? null);
   const [search, setSearch] = useState('');
   const [chatIds, setChatIds] = useState<number[]>([]);
   const [now, setNow] = useState(Date.now());
@@ -41,14 +46,23 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
     String(id).includes(search.toLowerCase())
   );
 
-  const waitingIds = filtered.filter((id) => {
-    const timer = chatTimers[String(id)];
-    if (!timer) return false;
-    const diff = Math.floor((now - timer) / 1000);
-    return diff >= 60 && id !== currentChatId;
-  });
+  // Group assignments:
+  // - waiting:     chat has no operator yet (anyone may pick it up);
+  // - distributed: chat belongs to another operator (observer view);
+  // - mine:        chat belongs to the current operator.
+  const groups: Record<Group, number[]> = { waiting: [], distributed: [], mine: [] };
+  for (const id of filtered) {
+    const assignee = chatAssignees[String(id)];
+    let g: Group = 'waiting';
+    if (assignee) g = assignee.id === myId ? 'mine' : 'distributed';
+    groups[g].push(id);
+  }
 
-  const activeIds = filtered.filter((id) => !waitingIds.includes(id));
+  const groupMeta: { key: Group; title: string }[] = [
+    { key: 'distributed', title: 'Распределённые' },
+    { key: 'waiting', title: 'Ожидающие' },
+    { key: 'mine', title: 'Мои' },
+  ];
 
   return (
     <Box
@@ -73,47 +87,34 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
       </Box>
 
       <List sx={{ flex: 1, overflowY: 'auto', p: 0 }}>
-        {waitingIds.length > 0 && (
-          <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>
-            Ожидающие
-          </Typography>
-        )}
-        {waitingIds.map((id) => (
-          <ChatItem
-            key={id}
-            chatId={id}
-            isActive={id === currentChatId}
-            isWaiting
-            timer={chatTimers[String(id)]}
-            preview={chatPreviews[String(id)]}
-            source={chatSources[String(id)]}
-            name={chatNames[String(id)]}
-            publicCode={chatPublicCodes[String(id)]}
-            unread={chatUnread[String(id)] || 0}
-            now={now}
-            onClick={() => onSelectChat(id)}
-          />
-        ))}
-
-        <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>
-          Активные
-        </Typography>
-        {activeIds.map((id) => (
-          <ChatItem
-            key={id}
-            chatId={id}
-            isActive={id === currentChatId}
-            isWaiting={false}
-            timer={chatTimers[String(id)]}
-            preview={chatPreviews[String(id)]}
-            source={chatSources[String(id)]}
-            name={chatNames[String(id)]}
-            publicCode={chatPublicCodes[String(id)]}
-            unread={chatUnread[String(id)] || 0}
-            now={now}
-            onClick={() => onSelectChat(id)}
-          />
-        ))}
+        {groupMeta.map(({ key, title }) => {
+          const ids = groups[key];
+          if (ids.length === 0) return null;
+          return (
+            <Fragment key={key}>
+              <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 0.5, fontWeight: 600, textTransform: 'uppercase', display: 'block' }}>
+                {title}
+              </Typography>
+              {ids.map((id) => (
+                <ChatItem
+                  key={id}
+                  chatId={id}
+                  isActive={id === currentChatId}
+                  group={key}
+                  assignee={chatAssignees[String(id)]}
+                  timer={chatTimers[String(id)]}
+                  preview={chatPreviews[String(id)]}
+                  source={chatSources[String(id)]}
+                  name={chatNames[String(id)]}
+                  publicCode={chatPublicCodes[String(id)]}
+                  unread={chatUnread[String(id)] || 0}
+                  now={now}
+                  onClick={() => onSelectChat(id)}
+                />
+              ))}
+            </Fragment>
+          );
+        })}
 
         {filtered.length === 0 && (
           <Typography color="text.secondary" sx={{ p: 2, textAlign: 'center', fontSize: 13 }}>
@@ -128,7 +129,8 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
 function ChatItem({
   chatId,
   isActive,
-  isWaiting,
+  group,
+  assignee,
   timer,
   preview,
   source,
@@ -140,7 +142,8 @@ function ChatItem({
 }: {
   chatId: number;
   isActive: boolean;
-  isWaiting: boolean;
+  group: Group;
+  assignee?: { id: number; name: string };
   timer?: number;
   preview?: string;
   source?: string;
@@ -157,12 +160,20 @@ function ChatItem({
   // Keep the waiting counter ticking even when a preview is the latest line.
   void now;
 
+  const isWaiting = group === 'waiting';
+  const isObserver = group === 'distributed';
+  const borderColor = isWaiting ? '#f59e0b' : isObserver ? '#0284c7' : isActive ? '#007bff' : 'transparent';
+
+  const secondaryLine = isObserver
+    ? `Наблюдение · оператор ${assignee?.name || ''}`
+    : preview || (timer ? 'Ожидание ответа' : 'Новый чат');
+
   return (
     <ListItemButton
       onClick={onClick}
       selected={isActive}
       sx={{
-        borderLeft: isWaiting ? '3px solid #f59e0b' : isActive ? '3px solid #007bff' : '3px solid transparent',
+        borderLeft: `3px solid ${borderColor}`,
         bgcolor: isWaiting ? '#fffbeb' : undefined,
         '&.Mui-selected': { bgcolor: '#eff6ff' },
       }}
@@ -188,9 +199,16 @@ function ChatItem({
         }
         secondary={
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-            <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0, flex: 1 }}>
-              {preview || (timer ? 'Ожидание ответа' : 'Новый чат')}
-            </Typography>
+            {isObserver ? (
+              <Typography variant="caption" noWrap sx={{ minWidth: 0, flex: 1, color: '#0369a1', display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                <VisibilityIcon sx={{ fontSize: 11 }} />
+                {secondaryLine}
+              </Typography>
+            ) : (
+              <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0, flex: 1 }}>
+                {secondaryLine}
+              </Typography>
+            )}
             <Typography
               variant="caption"
               sx={{

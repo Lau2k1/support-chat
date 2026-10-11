@@ -40,7 +40,7 @@ export type OutgoingMessage =
   | { type: 'typingStop'; chatId: number; senderId: number }
   | { type: 'messageRead'; chatId: number; messageId: number; readerId: number }
   | { type: 'chat_closed'; chatId: number; reason?: string }
-  | { type: 'operators_status'; operators: { id: number; name: string }[] }
+  | { type: 'operators_status'; operators: { id: number; name: string; status: 'online' | 'busy' | 'offline' }[] }
   | { type: 'chat_transferred'; chatId: number }
   | { type: 'chat_assigned'; chatId: number; operatorId: number; operatorName: string }
   | { type: 'operators_offline' };

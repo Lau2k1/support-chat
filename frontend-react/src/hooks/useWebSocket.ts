@@ -2,6 +2,7 @@ import { useEffect, useCallback } from 'react';
 import { wsManager } from '@/services/ws';
 import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useUIStore } from '@/stores/uiStore';
 import { playNewChatSound, playMessageSound } from '@/utils/audio';
 import type { WsIncomingMessage } from '@/types/ws';
 
@@ -20,6 +21,7 @@ export function useWebSocket() {
     setOnlineOperators,
     currentChatId,
   } = useChatStore();  const { logout } = useAuthStore();
+  const showToast = useUIStore((s) => s.showToast);
 
   const handleMessage = useCallback(
     (data: WsIncomingMessage) => {
@@ -91,6 +93,10 @@ export function useWebSocket() {
           }
           break;
 
+        case 'chat_error':
+          showToast(data.error, 'error');
+          break;
+
         case 'operators_status':
           setOnlineOperators(data.operators);
           break;
@@ -111,7 +117,7 @@ export function useWebSocket() {
           break;
       }
     },
-    [addMessage, setChatTimer, incrementUnread, setPreview, setChatSource, setChatName, setChatPublicCode, setChatAssignee, setTyping, setOnlineOperators, currentChatId, setCurrentChat, logout]
+    [addMessage, setChatTimer, incrementUnread, setPreview, setChatSource, setChatName, setChatPublicCode, setChatAssignee, setTyping, setOnlineOperators, currentChatId, setCurrentChat, logout, showToast]
   );
 
   useEffect(() => {

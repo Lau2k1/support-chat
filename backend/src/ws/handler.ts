@@ -113,7 +113,7 @@ export function handleConnection(ws: ClientWs) {
             break;
           }
           addOperator(ws);
-          broadcastOperatorsStatus(scopeKey(ws));
+          await broadcastOperatorsStatus(scopeKey(ws));
           // Always hand the operator the current open chats on first join,
           // regardless of the order in which operator_status arrives.
           const active = await pool.query(
@@ -217,6 +217,8 @@ export function handleConnection(ws: ClientWs) {
             const claim = await claimChat(cId, ws.operator);
             if (claim.assigned) {
               announceAssignment(cId, ws.operator, claim.tenantId ?? chatCheck.rows[0].tenant_id);
+              // The claiming operator just became "busy" — refresh statuses.
+              await broadcastOperatorsStatus(claim.tenantId ?? chatCheck.rows[0].tenant_id);
             }
           }
           break;
@@ -232,6 +234,22 @@ export function handleConnection(ws: ClientWs) {
             break;
           }
           if (access !== 'open') break;
+
+          // Observer rule: a chat already assigned to another operator may be
+          // watched (read-only), but not answered — ownership only moves by an
+          // explicit transfer. Superadmins may always jump in.
+          if (ws.role === 'operator' && ws.operator && ws.operator.role !== 'superadmin') {
+            const ownerRes = await pool.query('SELECT assigned_operator_id FROM chats WHERE id = $1', [cId]);
+            const ownerId = ownerRes.rows[0]?.assigned_operator_id ?? null;
+            if (ownerId != null && ownerId !== ws.operator.id) {
+              safeSend(ws, {
+                type: 'chat_error',
+                chatId: cId,
+                error: 'Чат закреплён за другим оператором — доступен только режим наблюдения',
+              });
+              break;
+            }
+          }
 
           // A reply also claims the chat (covers the case where the operator
           // sends without explicitly opening, e.g. from a notification).
@@ -318,7 +336,7 @@ export function handleConnection(ws: ClientWs) {
         case 'operator_status': {
           if (ws.role !== 'operator') break;
           ws.operatorStatus = msg.status;
-          broadcastOperatorsStatus(scopeKey(ws));
+          await broadcastOperatorsStatus(scopeKey(ws));
           // No need to re-send init_operator here: operator_join already
           // hands the operator the full open-chat list on every login (F5-safe).
           break;
@@ -335,14 +353,38 @@ export function handleConnection(ws: ClientWs) {
           const targetOp = findOperatorById(Number((msg as any).targetOperatorId), chatTenantId);
           if (!targetOp) break;
 
-          removeConnection(ws);
+          // Override prevention: only a free (online) operator may receive a
+          // chat. Busy operators are already handling assigned open chats, and
+          // offline operators have no live connection.
+          const targetOperatorId = targetOp.operator!.id;
+          if (targetOperatorId === ws.operator!.id) {
+            safeSend(ws, { type: 'chat_error', chatId: tChatId, error: 'Чат уже закреплён за вами' });
+            break;
+          }
+          if (targetOp.operatorStatus === 'offline') {
+            safeSend(ws, { type: 'chat_error', chatId: tChatId, error: 'Оператор офлайн — перевод недоступен' });
+            break;
+          }
+          const busyRes = await pool.query(
+            `SELECT COUNT(*)::int AS n FROM chats
+             WHERE status = 'open' AND tenant_id = $1 AND assigned_operator_id = $2`,
+            [chatTenantId, targetOperatorId]
+          );
+          if (targetOp.operatorStatus === 'busy' || (busyRes.rows[0]?.n ?? 0) > 0) {
+            safeSend(ws, { type: 'chat_error', chatId: tChatId, error: 'Оператор занят другим чатом' });
+            break;
+          }
+
+          // The sender keeps observing the chat (read-only) — do NOT detach the
+          // connection from the operator group, or it would stop receiving
+          // team-wide events (chat_assigned, status updates).
           joinRoom(tChatId, targetOp);
           targetOp.chatId = tChatId;
 
           // Ownership moves with the chat.
-          await pool.query('UPDATE chats SET assigned_operator_id = $1 WHERE id = $2', [targetOp.operator!.id, tChatId]);
+          await pool.query('UPDATE chats SET assigned_operator_id = $1 WHERE id = $2', [targetOperatorId, tChatId]);
           broadcastToOperators(
-            { type: 'chat_assigned', chatId: tChatId, operatorId: targetOp.operator!.id, operatorName: targetOp.operator!.name },
+            { type: 'chat_assigned', chatId: tChatId, operatorId: targetOperatorId, operatorName: targetOp.operator!.name },
             chatTenantId
           );
 
@@ -370,6 +412,9 @@ export function handleConnection(ws: ClientWs) {
             const ci = chatInfo.rows[0];
             safeSend(targetOp, { type: 'new_chat', chatId: tChatId, public_code: ci.public_code, client_name: ci.client_name ?? null, updated_at: ci.updated_at, assigned_operator_id: ci.assigned_operator_id, operator_name: ci.operator_name });
           }
+
+          // Both parties' busy-status changed — refresh the transfer modal list.
+          await broadcastOperatorsStatus(chatTenantId);
           break;
         }
 
@@ -387,6 +432,8 @@ export function handleConnection(ws: ClientWs) {
           broadcastToOperators(closeMsg, tenantId);
           broadcastToRoom(cId, closeMsg);
           deleteRoom(cId);
+          // The owner just freed up — refresh operator statuses.
+          await broadcastOperatorsStatus(tenantId);
           break;
         }
       }
@@ -397,5 +444,9 @@ export function handleConnection(ws: ClientWs) {
 
   ws.on('close', () => {
     removeConnection(ws);
+    // Another operator went offline — refresh statuses for the tenant.
+    if (ws.role === 'operator' && ws.operator) {
+      broadcastOperatorsStatus(scopeKey(ws)).catch((e) => console.error('Status refresh failed:', e));
+    }
   });
 }

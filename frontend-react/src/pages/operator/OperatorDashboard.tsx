@@ -13,6 +13,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import CloseIcon from '@mui/icons-material/Close';
 import LabelIcon from '@mui/icons-material/Label';
 import SendIcon from '@mui/icons-material/Send';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import TopBar from '@/components/layout/TopBar';
 import SideNav from '@/components/layout/SideNav';
 import ChatSidebar from '@/components/chat/ChatSidebar';
@@ -26,6 +27,7 @@ import ArchiveFiltersComponent from '@/components/archive/ArchiveFilters';
 import ArchiveList from '@/components/archive/ArchiveList';
 import MessageListArchive from '@/components/chat/MessageList';
 import { useChatStore } from '@/stores/chatStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { wsManager } from '@/services/ws';
@@ -157,12 +159,17 @@ function ChatsView({
   const chatNames = useChatStore((s) => s.chatNames);
   const chatPublicCodes = useChatStore((s) => s.chatPublicCodes);
   const chatTags = useChatStore((s) => s.chatTags);
+  const chatAssignees = useChatStore((s) => s.chatAssignees);
   const setChatTags = useChatStore((s) => s.setChatTags);
+  const myId = useAuthStore((s) => s.user?.id ?? null);
   const source = currentChatId ? chatSources[String(currentChatId)] : undefined;
   const chatName = currentChatId ? chatNames[String(currentChatId)] : undefined;
   const isTelegram = source === 'telegram';
   const publicCode = currentChatId ? (chatPublicCodes[String(currentChatId)] || `#${currentChatId}`) : '';
   const currentTags = currentChatId ? chatTags[String(currentChatId)] || [] : [];
+  const assignee = currentChatId ? chatAssignees[String(currentChatId)] : undefined;
+  // A chat owned by another operator may be watched, but not answered.
+  const isObserver = !!assignee && assignee.id !== myId;
 
   // Load the tags attached to the open chat (they are not part of init_operator).
   useEffect(() => {
@@ -245,9 +252,11 @@ function ChatsView({
               <Button size="small" variant="outlined" startIcon={<SwapHorizIcon />} onClick={onOpenTransfer}>
                 Передать
               </Button>
-              <Button size="small" variant="outlined" color="error" startIcon={<CloseIcon />} onClick={() => onCloseChat(currentChatId)}>
-                Закрыть
-              </Button>
+              {!isObserver && (
+                <Button size="small" variant="outlined" color="error" startIcon={<CloseIcon />} onClick={() => onCloseChat(currentChatId)}>
+                  Закрыть
+                </Button>
+              )}
               <IconButton size="small" onClick={onToggleRightPanel}>
                 <InfoIcon fontSize="small" />
               </IconButton>
@@ -257,8 +266,28 @@ function ChatsView({
 
         {currentChatId ? (
           <>
+            {isObserver && (
+              <Box
+                sx={{
+                  px: 2,
+                  py: 0.75,
+                  bgcolor: '#f0f9ff',
+                  borderBottom: '1px solid',
+                  borderColor: '#bae6fd',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  flexShrink: 0,
+                }}
+              >
+                <VisibilityIcon sx={{ fontSize: 15, color: '#0284c7' }} />
+                <Typography variant="caption" sx={{ fontWeight: 600, color: '#0369a1' }}>
+                  Режим наблюдения — чат оператора {assignee?.name}. Отправка сообщений недоступна.
+                </Typography>
+              </Box>
+            )}
             <MessageList messages={messages} chatId={currentChatId} />
-            <ChatInput chatId={currentChatId} onOpenTemplates={onOpenTemplates} onOpenTagSelector={onOpenTagSelector} apiRef={chatInputRef} />
+            <ChatInput chatId={currentChatId} onOpenTemplates={onOpenTemplates} onOpenTagSelector={onOpenTagSelector} readOnly={isObserver} apiRef={chatInputRef} />
           </>
         ) : (
           <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary' }}>
