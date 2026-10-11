@@ -11,6 +11,69 @@ const SECRET: string = secret;
 
 export const TOKEN_TTL: jwt.SignOptions['expiresIn'] = (process.env.JWT_EXPIRES_IN || '12h') as jwt.SignOptions['expiresIn'];
 
+/** Name of the HttpOnly cookie that carries the session JWT. */
+export const AUTH_COOKIE = 'sc_token';
+
+/** Minimal cookie-header parser (no extra dependency needed). */
+export function parseCookies(header?: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!header) return out;
+  for (const part of header.split(';')) {
+    const i = part.indexOf('=');
+    if (i < 0) continue;
+    const key = part.slice(0, i).trim();
+    if (!key) continue;
+    let value = part.slice(i + 1).trim();
+    try {
+      value = decodeURIComponent(value);
+    } catch {
+      /* keep raw value */
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+/**
+ * Extracts the session JWT from either the `Authorization: Bearer` header or the
+ * HttpOnly auth cookie. Bearer stays supported for API clients and smoke tests.
+ */
+export function tokenFromRequest(req: { headers: Record<string, unknown> }): string | null {
+  const header = req.headers['authorization'];
+  if (typeof header === 'string' && header.startsWith('Bearer ')) {
+    const bearer = header.slice('Bearer '.length).trim();
+    if (bearer) return bearer;
+  }
+  const rawCookie = req.headers['cookie'];
+  const cookies = parseCookies(typeof rawCookie === 'string' ? rawCookie : undefined);
+  return cookies[AUTH_COOKIE] || null;
+}
+
+/** Cookie max-age derived from JWT_EXPIRES_IN (falls back to 12h). */
+export function tokenTtlMs(): number {
+  const raw = String(process.env.JWT_EXPIRES_IN || '12h').trim();
+  const m = /^(\d+)\s*([smhd])?$/.exec(raw);
+  if (!m) return 12 * 60 * 60 * 1000;
+  const n = Number(m[1]);
+  const unit = m[2] || 's';
+  const mult = unit === 's' ? 1000 : unit === 'm' ? 60_000 : unit === 'h' ? 3_600_000 : 86_400_000;
+  return n * mult;
+}
+
+/**
+ * SEC-01: the session JWT is stored in an HttpOnly cookie so XSS cannot read it.
+ * SameSite=Lax blocks cross-site POSTs (CSRF) while keeping top-level GET nav.
+ */
+export function authCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    path: '/',
+    maxAge: tokenTtlMs(),
+  };
+}
+
 export type OperatorRole = 'superadmin' | 'admin' | 'operator';
 
 export interface AuthUser {
@@ -79,12 +142,12 @@ export async function resolveOperator(token: string): Promise<AuthUser | null> {
 }
 
 export async function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const token = tokenFromRequest(req as unknown as { headers: Record<string, unknown> });
+  if (!token) {
     return res.status(401).json({ error: 'No token provided' });
   }
   try {
-    const user = await resolveOperator(authHeader.slice('Bearer '.length));
+    const user = await resolveOperator(token);
     if (!user) return res.status(401).json({ error: 'Invalid token' });
     (req as AuthenticatedRequest).user = user;
     next();

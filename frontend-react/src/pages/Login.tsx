@@ -23,8 +23,8 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const res = await authApi.login(email.trim().toLowerCase(), password);
-      login(res.data.token);
+      await authApi.login(email.trim().toLowerCase(), password);
+      await login();
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Ошибка входа. Попробуйте ещё раз');

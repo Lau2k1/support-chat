@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { pool } from '../db';
-import { signToken } from '../middleware/auth';
+import {
+  signToken,
+  authMiddleware,
+  authCookieOptions,
+  AUTH_COOKIE,
+  type AuthenticatedRequest,
+} from '../middleware/auth';
 import { LIMITS, validEmail, validPassword, validString, firstError } from '../utils/validate';
 
 const router = Router();
@@ -23,6 +29,9 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ error: 'Аккаунт отключён' });
     }
     const token = signToken(user);
+    // SEC-01: session lives in an HttpOnly cookie (XSS cannot read it); the token
+    // is still returned for API clients / smoke tests that prefer Bearer auth.
+    res.cookie(AUTH_COOKIE, token, authCookieOptions());
     res.json({ token });
   } catch (e) {
     console.error('Login error:', e);
@@ -85,6 +94,7 @@ router.post('/register', async (req, res) => {
     await client.query('COMMIT');
 
     const token = signToken(newOp);
+    res.cookie(AUTH_COOKIE, token, authCookieOptions());
     res.status(201).json({ token });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -93,6 +103,18 @@ router.post('/register', async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+/** Current operator profile (used by the SPA to rehydrate after a reload). */
+router.get('/me', authMiddleware, (req, res) => {
+  const user = (req as AuthenticatedRequest).user!;
+  res.json({ id: user.id, name: user.name, role: user.role, tenantId: user.tenantId });
+});
+
+/** Clears the session cookie. Idempotent (works even without a valid session). */
+router.post('/logout', (_req, res) => {
+  res.clearCookie(AUTH_COOKIE, { path: '/' });
+  res.json({ ok: true });
 });
 
 export default router;

@@ -1,96 +1,73 @@
 import { create } from 'zustand';
-import type { JwtPayload } from '@/types';
 
-function parseJwt(token: string): JwtPayload | null {
+/** Shape returned by GET /me (the JWT itself lives in an HttpOnly cookie). */
+export interface CurrentUser {
+  id: number;
+  name: string;
+  role: 'superadmin' | 'admin' | 'operator';
+  tenantId: number | null;
+}
+
+interface AuthState {
+  user: CurrentUser | null;
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+  isSuperadmin: boolean;
+  tenantId: number | null;
+  /** True once the initial /me probe finished (prevents a /login bounce on reload). */
+  authReady: boolean;
+  /** Re-reads the session from the cookie after a successful login/register. */
+  login: () => Promise<void>;
+  logout: () => Promise<void>;
+  checkAuth: () => Promise<void>;
+}
+
+function derive(user: CurrentUser | null) {
+  return {
+    user,
+    isAuthenticated: !!user,
+    isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
+    isSuperadmin: user?.role === 'superadmin',
+    tenantId: user?.tenantId ?? null,
+  };
+}
+
+async function fetchMe(): Promise<CurrentUser | null> {
   try {
-    const segment = token.split('.')[1];
-    // JWT uses base64url (no padding, -/_ instead of +/). atob() needs standard base64 with padding.
-    const base64 = segment.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
-    const binary = atob(padded);
-    // atob() yields a binary (latin1) string; re-decode UTF-8 so non-ASCII names survive.
-    const json = decodeURIComponent(
-      binary
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(json);
+    const res = await fetch('/me', { credentials: 'same-origin' });
+    if (!res.ok) return null;
+    return (await res.json()) as CurrentUser;
   } catch {
     return null;
   }
 }
 
-interface AuthState {
-  token: string | null;
-  user: JwtPayload | null;
-  isAuthenticated: boolean;
-  isAdmin: boolean;
-  isSuperadmin: boolean;
-  tenantId: number | null;
-  login: (token: string) => void;
-  logout: () => void;
-  checkAuth: () => void;
-}
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  isAuthenticated: false,
+  isAdmin: false,
+  isSuperadmin: false,
+  tenantId: null,
+  authReady: false,
 
-export const useAuthStore = create<AuthState>((set) => {
-  const token = localStorage.getItem('token');
-  const user = token ? parseJwt(token) : null;
+  // Called right after a successful /login or /register (cookie already set by the API).
+  login: async () => {
+    const user = await fetchMe();
+    set({ ...derive(user), authReady: true });
+  },
 
-  return {
-    token,
-    user,
-    isAuthenticated: !!user,
-    isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
-    isSuperadmin: user?.role === 'superadmin',
-    tenantId: user?.tid ?? null,
+  logout: async () => {
+    // Clear local state first so the UI redirects immediately, then drop the cookie.
+    set({ ...derive(null), authReady: true });
+    try {
+      await fetch('/logout', { method: 'POST', credentials: 'same-origin' });
+    } catch {
+      /* ignore network errors while logging out */
+    }
+  },
 
-    login: (newToken: string) => {
-      localStorage.setItem('token', newToken);
-      const parsed = parseJwt(newToken);
-      set({
-        token: newToken,
-        user: parsed,
-        isAuthenticated: !!parsed,
-        isAdmin: parsed?.role === 'admin' || parsed?.role === 'superadmin',
-        isSuperadmin: parsed?.role === 'superadmin',
-        tenantId: parsed?.tid ?? null,
-      });
-    },
-
-    logout: () => {
-      localStorage.removeItem('token');
-      set({
-        token: null,
-        user: null,
-        isAuthenticated: false,
-        isAdmin: false,
-        isSuperadmin: false,
-        tenantId: null,
-      });
-    },
-
-    checkAuth: () => {
-      const t = localStorage.getItem('token');
-      if (!t) {
-        set({ token: null, user: null, isAuthenticated: false, isAdmin: false, isSuperadmin: false, tenantId: null });
-        return;
-      }
-      const parsed = parseJwt(t);
-      // Expired token — treat as logged out to avoid silent 401 loops.
-      if (!parsed || (parsed.exp && Date.now() >= parsed.exp * 1000)) {
-        localStorage.removeItem('token');
-        set({ token: null, user: null, isAuthenticated: false, isAdmin: false, isSuperadmin: false, tenantId: null });
-        return;
-      }
-      set({
-        token: t,
-        user: parsed,
-        isAuthenticated: true,
-        isAdmin: parsed.role === 'admin' || parsed.role === 'superadmin',
-        isSuperadmin: parsed.role === 'superadmin',
-        tenantId: parsed.tid ?? null,
-      });
-    },
-  };
-});
+  checkAuth: async () => {
+    const user = await fetchMe();
+    set({ ...derive(user), authReady: true });
+  },
+}));

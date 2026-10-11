@@ -8,7 +8,13 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, requireAdmin, requireSuperadmin }: ProtectedRouteProps) {
-  const { isAuthenticated, isAdmin, isSuperadmin } = useAuthStore();
+  const { isAuthenticated, isAdmin, isSuperadmin, authReady } = useAuthStore();
+
+  // Wait for the initial /me probe before deciding: otherwise a page reload
+  // would briefly look unauthenticated and bounce the user to /login.
+  if (!authReady) {
+    return null;
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

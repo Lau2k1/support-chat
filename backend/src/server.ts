@@ -14,6 +14,7 @@ import uploadRoutes from './routes/upload';
 import adminRoutes, { superRouter } from './routes/admin';
 import telegramRoutes from './routes/telegram';
 import { handleConnection } from './ws/handler';
+import type { ClientWs } from './ws/types';
 import { startAutoCloseTimer } from './services/chat';
 
 const app = express();
@@ -31,12 +32,32 @@ if (isProd && !allowedOrigins) {
 }
 
 app.use(helmet({
-  contentSecurityPolicy: false,
+  // SEC-01: re-enable CSP. Inline styles are required by MUI/emotion; scripts stay
+  // same-origin only, so an injected inline <script> cannot execute.
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'self'"],
+      ...(isProd ? { upgradeInsecureRequests: [] } : {}),
+    },
+  },
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // /uploads images are loaded from client sites
   crossOriginEmbedderPolicy: false,
 }));
 app.use(cors({
   origin: allowedOrigins ?? (isProd ? false : true),
+  // Session now travels in a cookie; allow credentialed cross-origin requests
+  // only for explicitly whitelisted origins.
+  credentials: true,
 }));
 app.use(express.json());
 
@@ -61,7 +82,37 @@ app.get('/health', (_req, res) => {
 
 const frontendPath = path.join(__dirname, '../../frontend-react/dist');
 app.use(express.static(frontendPath));
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// SEC-01: uploads are served through an explicit controller (not express.static),
+// so a file's content type can never make the browser execute it. Only raster
+// images are inlined; everything else is forced to download as an opaque binary.
+const UPLOADS_DIR = path.join(__dirname, '../uploads');
+const INLINE_IMAGE_TYPES: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+};
+const UPLOAD_NAME_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[a-z0-9]{1,8}$/i;
+app.get('/uploads/:name', (req, res) => {
+  const name = String(req.params.name || '');
+  if (!UPLOAD_NAME_RE.test(name)) return res.status(404).end();
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
+  const inlineType = INLINE_IMAGE_TYPES[path.extname(name).toLowerCase()];
+  if (inlineType) {
+    res.setHeader('Content-Type', inlineType);
+    res.setHeader('Content-Disposition', `inline; filename="${name}"`);
+  } else {
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+  }
+  res.sendFile(path.join(UPLOADS_DIR, name), (err) => {
+    if (err && !res.headersSent) res.status(404).end();
+  });
+});
 
 app.use(authRoutes);
 app.use(chatRoutes);
@@ -85,7 +136,7 @@ app.get('{*path}', (_req, res) => {
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-wss.on('connection', handleConnection);
+wss.on('connection', (socket, req) => handleConnection(socket as ClientWs, req));
 
 startAutoCloseTimer(wss);
 

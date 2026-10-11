@@ -1,7 +1,8 @@
 import crypto from 'crypto';
 import ws from 'ws';
+import type { IncomingMessage as HttpIncomingMessage } from 'http';
 import { pool } from '../db';
-import { resolveOperator } from '../middleware/auth';
+import { resolveOperator, tokenFromRequest } from '../middleware/auth';
 import { ClientWs, IncomingMessage, OutgoingMessage, OperatorPayload } from './types';
 import {
   safeSend,
@@ -90,7 +91,26 @@ function announceAssignment(chatId: number, operator: OperatorPayload, tenantId:
   );
 }
 
-export function handleConnection(ws: ClientWs) {
+export function handleConnection(ws: ClientWs, req?: HttpIncomingMessage) {
+  // SEC-01: authenticate operators straight from the HttpOnly session cookie sent
+  // on the WS handshake, so the browser never has to expose the JWT to JS. The
+  // legacy `auth` message below stays supported for API clients / smoke tests.
+  if (req) {
+    const token = tokenFromRequest({ headers: req.headers as Record<string, unknown> });
+    if (token) {
+      resolveOperator(token)
+        .then((operator) => {
+          if (!operator) return;
+          ws.operator = operator;
+          ws.role = 'operator';
+          safeSend(ws, { type: 'auth_ok' });
+        })
+        .catch(() => {
+          /* ignore — socket simply stays unauthenticated */
+        });
+    }
+  }
+
   ws.on('message', async (rawData: ws.Data) => {
     try {
       const msg: IncomingMessage = JSON.parse(rawData.toString());

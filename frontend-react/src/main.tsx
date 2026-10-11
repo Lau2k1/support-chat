@@ -9,8 +9,8 @@ import ConfirmDialog from '@/components/common/ConfirmDialog';
 import Toast from '@/components/common/Toast';
 import { useAuthStore } from '@/stores/authStore';
 
-// Re-validate the stored token on boot (signature + exp) so an expired session
-// never leaves the app in a half-authenticated state.
+// Probe the session cookie on boot so an expired session never leaves the app in
+// a half-authenticated state (ProtectedRoute waits for `authReady`).
 useAuthStore.getState().checkAuth();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

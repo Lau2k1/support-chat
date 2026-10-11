@@ -20,10 +20,8 @@ class WsManager {
 
     this.ws.onopen = () => {
       this.reconnectDelay = 1000;
-      const token = localStorage.getItem('token');
-      if (token) {
-        this.send({ type: 'auth', token });
-      }
+      // SEC-01: operators are authenticated from the HttpOnly session cookie on
+      // the handshake; the server replies with `auth_ok`. Nothing to send here.
     };
 
     this.ws.onmessage = (event) => {

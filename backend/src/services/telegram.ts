@@ -117,13 +117,32 @@ async function sendMedia(
   if (!data.ok) throw new Error(data.description || `Telegram API error (${res.status})`);
 }
 
+// SEC-01: files coming from Telegram keep only a whitelisted, inert extension.
+// Anything else (including `.html`/`.svg`) is stored as `.bin`, so it can never
+// be served as executable HTML/SVG from our origin (stored-XSS prevention).
+const SAFE_TG_EXT = new Set([
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp',
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  '.txt', '.csv', '.rtf',
+  '.ogg', '.oga', '.mp3', '.m4a', '.wav', '.mp4', '.webm', '.mov',
+]);
+const MAX_TG_FILE_BYTES = 20 * 1024 * 1024;
+
+function safeExt(name?: string | null): string {
+  const ext = (name ? path.extname(name) : '').toLowerCase();
+  return SAFE_TG_EXT.has(ext) ? ext : '.bin';
+}
+
 async function downloadTelegramFile(token: string, fileId: string, originalName?: string): Promise<string> {
-  const info = await callApi<{ file_path: string }>(token, 'getFile', { file_id: fileId });
+  const info = await callApi<{ file_path: string; file_size?: number }>(token, 'getFile', { file_id: fileId });
+  if (info.file_size && info.file_size > MAX_TG_FILE_BYTES) {
+    throw new Error('File too large');
+  }
   const res = await fetch(`${TG_API_BASE}/file/bot${token}/${info.file_path}`);
   if (!res.ok) throw new Error('Failed to download file from Telegram');
   const buf = Buffer.from(await res.arrayBuffer());
-  const ext = (originalName ? path.extname(originalName) : path.extname(info.file_path)) || '';
-  const stored = crypto.randomUUID() + ext;
+  if (buf.length > MAX_TG_FILE_BYTES) throw new Error('File too large');
+  const stored = crypto.randomUUID() + safeExt(originalName || info.file_path);
   await fs.promises.mkdir(UPLOADS_DIR, { recursive: true });
   await fs.promises.writeFile(path.join(UPLOADS_DIR, stored), buf);
   return `/uploads/${stored}`;

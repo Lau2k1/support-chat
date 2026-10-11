@@ -31,13 +31,13 @@ export default function Register() {
 
     setLoading(true);
     try {
-      const res = await authApi.register({
+      await authApi.register({
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password,
         inviteCode: inviteCode.trim().toUpperCase(),
       });
-      login(res.data.token);
+      await login();
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Ошибка регистрации');
