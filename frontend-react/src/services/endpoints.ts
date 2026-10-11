@@ -55,9 +55,9 @@ export const statsApi = {
 
 export const cannedApi = {
   getAll: () => api.get<CannedResponse[]>('/canned-responses'),
-  create: (data: { shortcut: string; title: string; content: string }) =>
+  create: (data: { shortcut?: string; title: string; content: string; category?: string }) =>
     api.post<CannedResponse>('/canned-responses', data),
-  update: (id: number, data: { shortcut?: string; title?: string; content?: string }) =>
+  update: (id: number, data: { shortcut?: string; title?: string; content?: string; category?: string }) =>
     api.put<CannedResponse>(`/canned-responses/${id}`, data),
   delete: (id: number) =>
     api.delete(`/canned-responses/${id}`),

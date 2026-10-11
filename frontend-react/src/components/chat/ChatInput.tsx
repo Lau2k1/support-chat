@@ -18,6 +18,7 @@ import { chatApi } from '@/services/endpoints';
 import { useTyping } from '@/hooks/useTyping';
 import { useUIStore } from '@/stores/uiStore';
 import { LIMITS } from '@/utils/validation';
+import QuickRepliesMenu from '@/components/chat/QuickRepliesMenu';
 
 export interface ChatInputApi {
   /** Append a canned-response template to the input and focus it. */
@@ -34,6 +35,7 @@ interface ChatInputProps {
 
 export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, apiRef }: ChatInputProps) {
   const [text, setText] = useState('');
+  const [quickAnchor, setQuickAnchor] = useState<HTMLElement | null>(null);
   const { noteMode, setNoteMode, cannedResponses } = useChatStore();
   const { handleTyping, stopTyping } = useTyping();
   const showToast = useUIStore((s) => s.showToast);
@@ -47,6 +49,11 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
       window.setTimeout(() => textInputRef.current?.focus(), 0);
     },
   }));
+
+  const insertQuick = (content: string) => {
+    setText((prev) => (prev ? `${prev}\n${content}` : content));
+    window.setTimeout(() => textInputRef.current?.focus(), 0);
+  };
 
   const handleSend = () => {
     if (!text.trim() || !chatId) return;
@@ -126,7 +133,7 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
       <IconButton size="small" onClick={() => fileInputRef.current?.click()} disabled={disabled}>
         <AttachFileIcon fontSize="small" />
       </IconButton>
-      <IconButton size="small" onClick={onOpenTemplates} disabled={disabled}>
+      <IconButton size="small" onClick={(e) => setQuickAnchor(e.currentTarget)} disabled={disabled} title="Быстрые ответы">
         <QuickreplyIcon fontSize="small" />
       </IconButton>
       <IconButton size="small" onClick={onOpenTagSelector} disabled={disabled}>
@@ -136,7 +143,7 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
       <TextField
         fullWidth
         size="small"
-        placeholder={noteMode ? 'Внутренняя заметка...' : 'Сообщение... (/ для шаблонов)'}
+        placeholder={noteMode ? 'Внутренняя заметка...' : 'Сообщение... (/ для быстрых ответов)'}
         value={text}
         onChange={(e) => {
           setText(e.target.value);
@@ -158,6 +165,17 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
       >
         Отправить
       </Button>
+
+      <QuickRepliesMenu
+        open={Boolean(quickAnchor)}
+        anchorEl={quickAnchor}
+        onClose={() => setQuickAnchor(null)}
+        onInsert={insertQuick}
+        onManage={() => {
+          setQuickAnchor(null);
+          onOpenTemplates();
+        }}
+      />
     </Box>
   );
 }

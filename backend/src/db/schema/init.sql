@@ -80,6 +80,8 @@ CREATE TABLE IF NOT EXISTS canned_responses (
 );
 
 ALTER TABLE canned_responses ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
+-- Quick replies (2026-10): category groups variants by operator ("Быстрые ответы").
+ALTER TABLE canned_responses ADD COLUMN IF NOT EXISTS category VARCHAR(100) NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_canned_responses_operator ON canned_responses(operator_id);
 CREATE INDEX IF NOT EXISTS idx_canned_responses_tenant ON canned_responses(tenant_id);
 

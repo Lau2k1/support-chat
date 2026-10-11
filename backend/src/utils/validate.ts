@@ -14,6 +14,7 @@ export const LIMITS = {
   cannedShortcut: 32,
   cannedTitle: 200,
   cannedContent: 4000,
+  cannedCategory: 100,
   message: 4000,
   welcomeMessage: 1000,
   chatTimeoutMin: 1,

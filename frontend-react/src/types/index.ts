@@ -104,6 +104,8 @@ export interface CannedResponse {
   shortcut: string;
   title: string;
   content: string;
+  /** Quick-replies group. Empty string = "Без категории". */
+  category: string;
 }
 
 export interface InviteCode {

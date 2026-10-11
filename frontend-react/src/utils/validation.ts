@@ -11,6 +11,7 @@ export const LIMITS = {
   cannedShortcut: 32,
   cannedTitle: 200,
   cannedContent: 4000,
+  cannedCategory: 100,
   message: 4000,
   welcomeMessage: 1000,
   chatTimeoutMin: 1,
@@ -64,6 +65,10 @@ export function validateTagName(value: string): string | null {
 export function validateShortcut(value: string): string | null {
   if (!isShortcut(value)) return 'Shortcut: латиница, цифры, «_» и «-», до 32 символов';
   return null;
+}
+
+export function validateCategory(value: string): string | null {
+  return validateRequired(value, 'Категория', LIMITS.cannedCategory);
 }
 
 /** Clamps a numeric input to an integer range, returning '' for empty input. */
