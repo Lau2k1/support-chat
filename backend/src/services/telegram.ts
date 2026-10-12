@@ -8,6 +8,7 @@ import {
   broadcastToOnlineOperators,
 } from './chat';
 import type { OutgoingMessage } from '../ws/types';
+import { normalizeTgApiBase } from '../utils/tgApiBase';
 
 /**
  * Telegram integration (PLAN section 9).
@@ -19,23 +20,7 @@ import type { OutgoingMessage } from '../ws/types';
 
 // SEC-18: validate TELEGRAM_API_BASE — must be a URL, and https-only in
 // production (prevents SSRF to internal services and protects bot tokens).
-function normalizeTgApiBase(): string {
-  const raw = (process.env.TELEGRAM_API_BASE || 'https://api.telegram.org').trim().replace(/\/$/, '');
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    throw new Error('TELEGRAM_API_BASE must be a valid URL');
-  }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-    throw new Error('TELEGRAM_API_BASE must use http(s)');
-  }
-  if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') {
-    throw new Error('TELEGRAM_API_BASE must use https in production');
-  }
-  return url.toString();
-}
-const TG_API_BASE = normalizeTgApiBase();
+const TG_API_BASE = normalizeTgApiBase(process.env.TELEGRAM_API_BASE, process.env.NODE_ENV);
 const UPLOADS_DIR = path.join(__dirname, '../../uploads');
 
 // ---------------------------------------------------------------------------
