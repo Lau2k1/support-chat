@@ -52,6 +52,8 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
       CORS_ORIGINS: ${CORS_ORIGINS}
       CHAT_TIMEOUT_MINUTES: ${CHAT_TIMEOUT_MINUTES:-7}
+      # SEC-08: general API requests allowed per IP per 15 min (default 1000).
+      API_RATE_LIMIT_MAX: ${API_RATE_LIMIT_MAX:-1000}
       # First-run seed (idempotent). Set RUN_SEED=true for the first boot only.
       RUN_SEED: ${RUN_SEED:-false}
       ADMIN_EMAIL: ${ADMIN_EMAIL}

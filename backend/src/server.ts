@@ -91,9 +91,11 @@ app.use('/me/password', passwordLimiter);
 
 // SEC-08: general API rate limit — abuse protection for every API endpoint.
 // /login, /register and /upload keep their stricter dedicated limits above.
+// 1000 / 15 min is comfortable for a human operator (the SPA makes a handful of
+// requests per page view) while still throttling scripted abuse.
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.API_RATE_LIMIT_MAX) || 300,
+  max: Number(process.env.API_RATE_LIMIT_MAX) || 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много запросов, попробуйте позже' },
@@ -165,10 +167,16 @@ app.get('/uploads/:name', (req, res) => {
   });
 });
 
-app.use(apiLimiter, authRoutes);
-app.use(apiLimiter, chatRoutes);
-app.use(apiLimiter, cannedRoutes);
-app.use(apiLimiter, uploadRoutes);
+// SEC-08: mount the general limit ONCE. Attaching it to every router meant a
+// single request consumed a hit per layer (and a non-matching route — e.g. a SPA
+// page load — burned four), so ordinary panel use tripped "too many requests".
+// Static assets, /health, /widget.html and /uploads are served earlier, above
+// this point, and are intentionally not rate-limited here.
+app.use(apiLimiter);
+app.use(authRoutes);
+app.use(chatRoutes);
+app.use(cannedRoutes);
+app.use(uploadRoutes);
 
 // SPA pages (client-side routes) must be served before the authenticated admin routers —
 // otherwise /admin would hit authMiddleware and return 401 JSON instead of index.html.
@@ -176,9 +184,9 @@ app.get(['/login', '/register', '/operator', '/admin', '/crm'], (_req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
-app.use('/admin', apiLimiter, adminRoutes);
-app.use('/superadmin', apiLimiter, superRouter);
-app.use('/api/tg', apiLimiter, telegramRoutes);
+app.use('/admin', adminRoutes);
+app.use('/superadmin', superRouter);
+app.use('/api/tg', telegramRoutes);
 
 app.get('{*path}', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
