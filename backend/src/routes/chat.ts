@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../db';
-import { authMiddleware, resolveOperator, AuthenticatedRequest } from '../middleware/auth';
+import { authMiddleware, resolveOperator, tokenFromRequest, AuthenticatedRequest } from '../middleware/auth';
 import { startOfDay, endOfDay } from '../utils/dateRange';
 
 const router = Router();
@@ -85,13 +85,15 @@ router.get('/messages/:chatId', async (req, res) => {
     return res.status(404).json({ error: 'Chat not found' });
   }
 
-  // Two ways in: a valid operator token, or the opaque client token issued
+  // Two ways in: a valid operator session, or the opaque client token issued
   // when the chat was created (proves the caller owns this chat).
+  // SEC-01: the operator session travels in an HttpOnly cookie for the panel
+  // (Bearer stays supported for API clients). Reading only the Authorization
+  // header here broke every cookie-authenticated panel request with a 401.
   // SEC-15: the client token is accepted ONLY via the X-Client-Token header —
   // never in the query string (it would leak into logs, Referer, and history).
-  const authHeader = req.headers.authorization;
-  const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
-  const operator = bearer ? await resolveOperator(bearer) : null;
+  const token = tokenFromRequest(req as unknown as { headers: Record<string, unknown> });
+  const operator = token ? await resolveOperator(token) : null;
 
   if (operator && operator.role !== 'superadmin' && chatRes.rows[0].tenant_id !== operator.tenantId) {
     return res.status(403).json({ error: 'Chat belongs to another tenant' });

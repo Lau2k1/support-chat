@@ -38,7 +38,11 @@ async function login(email, password) {
     body: JSON.stringify({ email, password }),
   });
   const body = await res.json();
-  return { ok: res.status === 200, token: body.token };
+  // SEC-01: /login also sets the HttpOnly session cookie; the panel uses it
+  // (not the Bearer token) for every follow-up request.
+  const setCookie = res.headers.get('set-cookie') || '';
+  const cookie = setCookie.split(';')[0];
+  return { ok: res.status === 200, token: body.token, cookie };
 }
 
 const results = [];
@@ -116,6 +120,33 @@ function check(name, ok, extra = '') {
   // SEC-15: the client token in the query string must no longer be accepted.
   const msgsQuery = await fetch(`${HTTP}/messages/${chatId}?token=${encodeURIComponent(created.token)}`);
   check('REST messages via query token rejected (SEC-15)', msgsQuery.status === 401);
+
+  // SEC-01 regression: the operator panel authenticates with the HttpOnly
+  // session cookie, not a Bearer header. Opening a chat has to return 200 for
+  // every staff role — a 401 here forced the SPA to log the user out.
+  const opCookie = ta.cookie.split(';')[0];
+  const msgsOpCookie = await fetch(`${HTTP}/messages/${chatId}`, { headers: { cookie: opCookie } });
+  const msgsOpBody = await msgsOpCookie.json();
+  check(
+    'operator opens messages via session cookie',
+    msgsOpCookie.status === 200 && Array.isArray(msgsOpBody) && msgsOpBody.length >= 1,
+    `status=${msgsOpCookie.status}`
+  );
+
+  const msgsOpBearer = await fetch(`${HTTP}/messages/${chatId}`, {
+    headers: { Authorization: 'Bearer ' + ta.token },
+  });
+  check('operator opens messages via Bearer (still supported)', msgsOpBearer.status === 200);
+
+  const saCookie = sa.cookie.split(';')[0];
+  const msgsSaCookie = await fetch(`${HTTP}/messages/${chatId}`, { headers: { cookie: saCookie } });
+  check('superadmin opens messages via session cookie', msgsSaCookie.status === 200, `status=${msgsSaCookie.status}`);
+
+  // A stale/garbage cookie must never be treated as a valid session.
+  const msgsBadCookie = await fetch(`${HTTP}/messages/${chatId}`, {
+    headers: { cookie: 'sc_token=not-a-jwt' },
+  });
+  check('invalid session cookie -> 401', msgsBadCookie.status === 401, `status=${msgsBadCookie.status}`);
 
   // SEC-12: /chat-status requires the client token.
   const statusNoTok = await fetch(`${HTTP}/chat-status/${chatId}`);
