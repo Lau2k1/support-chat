@@ -116,9 +116,8 @@ export default function TicketTemplateBuilder({
   };
 
   const saveField = () => {
-    if (!currentField.label?.trim() && currentField.type !== 'divider') {
-      if (currentField.type !== 'title' && currentField.type !== 'divider') return;
-    }
+    const needsLabel = currentField.type !== 'divider' && currentField.type !== 'title';
+    if (!currentField.label?.trim() && needsLabel) return;
     const field: TicketField = {
       id: currentField.id || createFieldId(),
       type: (currentField.type as TicketFieldType) || 'text',

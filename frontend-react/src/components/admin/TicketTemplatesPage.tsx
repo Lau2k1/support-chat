@@ -251,7 +251,7 @@ export default function TicketTemplatesPage() {
               {previewTpl.description}
             </Typography>
           )}
-          <Stack spacing={2}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {(previewTpl?.schema?.fields || []).map((f) => (
               <Box key={f.id}>
                 {f.type === 'divider' ? (
@@ -284,7 +284,7 @@ export default function TicketTemplatesPage() {
                 Поля отсутствуют
               </Typography>
             )}
-          </Stack>
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPreviewOpen(false)}>Закрыть</Button>
