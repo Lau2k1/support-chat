@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { pool } from '../db';
 import {
   signToken,
@@ -13,6 +14,40 @@ import { LIMITS, validEmail, validPassword, validString, firstError } from '../u
 const router = Router();
 
 const INVITE_RE = /^[A-Fa-f0-9]{8,32}$/;
+
+const TRANSLIT: Record<string, string> = {
+  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i',
+  й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't',
+  у: 'u', ф: 'f', х: 'h', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '',
+  э: 'e', ю: 'yu', я: 'ya',
+};
+
+/** Builds an URL-safe tenant slug from a (possibly Cyrillic) company name. */
+function slugifyTenant(input: string): string {
+  const s = input
+    .trim()
+    .toLowerCase()
+    .split('')
+    .map((ch) => TRANSLIT[ch] ?? ch)
+    .join('')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+  return s;
+}
+
+/** Unique slug for a new self-registered tenant. */
+async function uniqueTenantSlug(client: { query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }> }, name: string): Promise<string> {
+  let base = slugifyTenant(name);
+  if (base.length < 2) base = `tenant-${crypto.randomBytes(3).toString('hex')}`;
+  let candidate = base;
+  for (let i = 0; i < 22; i++) {
+    const exists = await client.query('SELECT 1 FROM tenants WHERE slug = $1', [candidate]);
+    if (!exists.rows.length) return candidate;
+    candidate = `${base}-${crypto.randomBytes(2).toString('hex')}`;
+  }
+  return `tenant-${crypto.randomBytes(6).toString('hex')}`;
+}
 
 router.post('/login', async (req, res) => {
   try {
@@ -44,38 +79,28 @@ router.post('/login', async (req, res) => {
 });
 
 router.post('/register', async (req, res) => {
-  const { name, email, password, inviteCode } = req.body;
+  const { name, email, password, inviteCode, company } = req.body ?? {};
+  // Two flows share this endpoint:
+  //  - with an invite code → an operator joins an existing tenant;
+  //  - without one → a client self-registers and becomes the admin of a NEW tenant.
+  const hasInvite = typeof inviteCode === 'string' && inviteCode.trim().length > 0;
+  const companyStr = typeof company === 'string' ? company.trim() : '';
+
   const err = firstError(
     validString(name, 'Имя', { max: LIMITS.operatorName }),
     validEmail(email),
     validPassword(password),
-    typeof inviteCode === 'string' && INVITE_RE.test(inviteCode.trim()) ? null : 'Некорректный инвайт-код'
+    hasInvite && !INVITE_RE.test(String(inviteCode).trim()) ? 'Некорректный инвайт-код' : null,
+    !hasInvite && companyStr.length > LIMITS.tenantName
+      ? `Название компании: максимум ${LIMITS.tenantName} символов`
+      : null
   );
   if (err) return res.status(400).json({ error: err });
   const normEmail = String(email).trim().toLowerCase();
-  const normCode = String(inviteCode).trim().toUpperCase();
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
-    const inviteResult = await client.query(
-      'SELECT * FROM invite_codes WHERE code = $1 AND used_by IS NULL FOR UPDATE',
-      [normCode]
-    );
-    const invite = inviteResult.rows[0];
-    if (!invite) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Invalid or already used invite code' });
-    }
-    if (!invite.tenant_id) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Invite code has no tenant' });
-    }
-    if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Invite code has expired' });
-    }
 
     const existing = await client.query('SELECT id FROM operators WHERE lower(email) = $1', [normEmail]);
     if (existing.rows.length) {
@@ -83,26 +108,77 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ error: 'Email уже зарегистрирован' });
     }
 
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(String(password), 10);
+
+    // ---- Operator joins an existing tenant by invite code ----
+    if (hasInvite) {
+      const normCode = String(inviteCode).trim().toUpperCase();
+      const inviteResult = await client.query(
+        'SELECT * FROM invite_codes WHERE code = $1 AND used_by IS NULL FOR UPDATE',
+        [normCode]
+      );
+      const invite = inviteResult.rows[0];
+      if (!invite) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Неверный или уже использованный инвайт-код' });
+      }
+      if (!invite.tenant_id) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Инвайт-код не привязан к аккаунту' });
+      }
+      if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Инвайт-код истёк' });
+      }
+
+      const opResult = await client.query(
+        'INSERT INTO operators (name, email, password, role, tenant_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, role, token_version, tenant_id',
+        [String(name).trim(), normEmail, hash, 'operator', invite.tenant_id]
+      );
+      const newOp = opResult.rows[0];
+      await client.query(
+        'UPDATE invite_codes SET used_by = $1, used_at = CURRENT_TIMESTAMP WHERE id = $2',
+        [newOp.id, invite.id]
+      );
+      await client.query('COMMIT');
+
+      const token = signToken(newOp);
+      res.cookie(AUTH_COOKIE, token, authCookieOptions());
+      return res.status(201).json({ token, role: 'operator' });
+    }
+
+    // ---- Client self-registers: create a fresh (unpaid) tenant + admin ----
+    const tenantName = (companyStr || String(name).trim()).slice(0, LIMITS.tenantName);
+    const slug = await uniqueTenantSlug(client, tenantName);
+    const tenantRes = await client.query(
+      "INSERT INTO tenants (slug, name, status, billing_status) VALUES ($1, $2, 'active', 'unpaid') RETURNING id",
+      [slug, tenantName]
+    );
+    const tenantId: number = tenantRes.rows[0].id;
+
+    // Per-tenant defaults so the widget/panels work as soon as the tenant pays.
+    await client.query(
+      `INSERT INTO settings (tenant_id, key, value) VALUES
+         ($1, 'chat_timeout_minutes', $2),
+         ($1, 'welcome_message', 'Здравствуйте! Чем могу помочь?'),
+         ($1, 'widget_origins', '[]')
+       ON CONFLICT (tenant_id, key) DO NOTHING`,
+      [tenantId, String(process.env.CHAT_TIMEOUT_MINUTES || 7)]
+    );
+
     const opResult = await client.query(
       'INSERT INTO operators (name, email, password, role, tenant_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, role, token_version, tenant_id',
-      [String(name).trim(), normEmail, hash, 'operator', invite.tenant_id]
+      [String(name).trim(), normEmail, hash, 'admin', tenantId]
     );
     const newOp = opResult.rows[0];
-
-    await client.query(
-      'UPDATE invite_codes SET used_by = $1, used_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [newOp.id, invite.id]
-    );
-
     await client.query('COMMIT');
 
     const token = signToken(newOp);
     res.cookie(AUTH_COOKIE, token, authCookieOptions());
-    res.status(201).json({ token });
-  } catch (err) {
+    return res.status(201).json({ token, role: 'admin', tenantId });
+  } catch (e) {
     await client.query('ROLLBACK');
-    console.error('Register error:', err);
+    console.error('Register error:', e);
     res.status(500).json({ error: 'Registration failed' });
   } finally {
     client.release();
@@ -112,7 +188,17 @@ router.post('/register', async (req, res) => {
 /** Current operator profile (used by the SPA to rehydrate after a reload). */
 router.get('/me', authMiddleware, (req, res) => {
   const user = (req as AuthenticatedRequest).user!;
-  res.json({ id: user.id, name: user.name, role: user.role, tenantId: user.tenantId });
+  res.json({
+    id: user.id,
+    name: user.name,
+    role: user.role,
+    tenantId: user.tenantId,
+    billing: {
+      active: user.tenantActive,
+      status: user.tenantBillingStatus ?? null,
+      paidUntil: user.tenantPaidUntil ?? null,
+    },
+  });
 });
 
 /** Clears the session cookie. Idempotent (works even without a valid session). */

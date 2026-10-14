@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import { pool } from '../db';
+import { isActiveBilling } from '../services/billing';
 
 const secret = process.env.JWT_SECRET;
 if (!secret) {
@@ -82,6 +83,11 @@ export interface AuthUser {
   role: OperatorRole;
   /** Tenant the operator belongs to. The superadmin belongs to none (null). */
   tenantId: number | null;
+  /** Whether the tenant has paid an active subscription (superadmin: always true). */
+  tenantActive: boolean;
+  /** Raw billing state of the tenant (for the panel's paywall banner). */
+  tenantBillingStatus?: string | null;
+  tenantPaidUntil?: string | null;
 }
 
 export interface JwtPayload {
@@ -133,14 +139,43 @@ export async function resolveOperator(token: string): Promise<AuthUser | null> {
   if (!payload?.id) return null;
 
   const result = await pool.query(
-    'SELECT id, name, role, is_enabled, token_version, tenant_id FROM operators WHERE id = $1',
+    `SELECT o.id, o.name, o.role, o.is_enabled, o.token_version, o.tenant_id,
+            t.billing_status, t.paid_until
+     FROM operators o
+     LEFT JOIN tenants t ON t.id = o.tenant_id
+     WHERE o.id = $1`,
     [payload.id]
   );
   const op = result.rows[0];
   if (!op || !op.is_enabled) return null;
   if (Number(payload.tv ?? 0) !== Number(op.token_version)) return null;
 
-  return { id: op.id, name: op.name, role: op.role, tenantId: op.tenant_id ?? null };
+  const tenantId: number | null = op.tenant_id ?? null;
+  const paidUntil = op.paid_until ? new Date(op.paid_until).toISOString() : null;
+  // The superadmin owns no tenant and is never gated. A tenant is usable only
+  // while its subscription is active (see services/billing.ts).
+  const tenantActive = tenantId === null ? true : isActiveBilling(op.billing_status, op.paid_until);
+
+  return {
+    id: op.id,
+    name: op.name,
+    role: op.role,
+    tenantId,
+    tenantActive,
+    tenantBillingStatus: op.billing_status ?? null,
+    tenantPaidUntil: paidUntil,
+  };
+}
+
+/**
+ * Paths that stay reachable while a tenant is unpaid: the billing section itself,
+ * session/profile actions (login, logout, password change) and the owner CRM.
+ */
+const UNPAID_EXEMPT_PREFIXES = ['/billing', '/superadmin', '/me', '/logout', '/login', '/register'];
+
+function isUnpaidExempt(originalUrl: string): boolean {
+  const path = originalUrl.split('?')[0];
+  return UNPAID_EXEMPT_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
 }
 
 export async function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -152,6 +187,21 @@ export async function authMiddleware(req: express.Request, res: express.Response
     const user = await resolveOperator(token);
     if (!user) return res.status(401).json({ error: 'Invalid token' });
     (req as AuthenticatedRequest).user = user;
+
+    // Billing gate: an unpaid tenant can read everything ("видеть функционал"),
+    // but any state-changing call is rejected until it pays a plan.
+    if (
+      user.role !== 'superadmin' &&
+      user.tenantId !== null &&
+      !user.tenantActive &&
+      req.method !== 'GET' &&
+      req.method !== 'HEAD' &&
+      req.method !== 'OPTIONS' &&
+      !isUnpaidExempt(req.originalUrl)
+    ) {
+      return res.status(402).json({ error: 'Функции доступны после оплаты тарифа', code: 'PAYMENT_REQUIRED' });
+    }
+
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid token' });

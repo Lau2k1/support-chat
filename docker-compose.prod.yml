@@ -69,6 +69,14 @@ services:
       TENANT_NAME: ${TENANT_NAME:-Главный офис}
       TENANT_ADMIN_EMAIL: ${TENANT_ADMIN_EMAIL:-}
       TENANT_ADMIN_PASSWORD: ${TENANT_ADMIN_PASSWORD:-}
+      # Billing: Crypto Pay API (CryptoBot) token. When empty, online payment is
+      # disabled and the owner confirms payments manually from the CRM.
+      CRYPTOBOT_TOKEN: ${CRYPTOBOT_TOKEN:-}
+      CRYPTOBOT_API_BASE: ${CRYPTOBOT_API_BASE:-https://pay.crypt.bot/api}
+      # "fiat" (amount in CRYPTOBOT_FIAT, default USD) or "crypto" (CRYPTOBOT_ASSET).
+      CRYPTOBOT_CURRENCY_TYPE: ${CRYPTOBOT_CURRENCY_TYPE:-fiat}
+      CRYPTOBOT_FIAT: ${CRYPTOBOT_FIAT:-USD}
+      CRYPTOBOT_ASSET: ${CRYPTOBOT_ASSET:-USDT}
     volumes:
       - uploads:/app/backend/uploads
     healthcheck:

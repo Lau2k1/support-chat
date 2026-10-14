@@ -15,15 +15,35 @@ import type {
   Tenant,
   CrmDashboard,
   TelegramBot,
+  BillingOverview,
+  PromoQuote,
+  CheckoutResult,
+  Payment,
+  CrmPayment,
+  PromoCode,
+  PromoInput,
 } from '@/types';
 
 export const authApi = {
   login: (email: string, password: string) =>
     api.post<{ token: string }>('/login', { email, password }),
-  register: (data: { name: string; email: string; password: string; inviteCode: string }) =>
-    api.post<{ token: string }>('/register', data),
+  /** Without inviteCode → self-signup admin (creates a new tenant); with it → operator. */
+  register: (data: { name: string; email: string; password: string; inviteCode?: string; company?: string }) =>
+    api.post<{ token: string; role: string }>('/register', data),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.post<{ token: string }>('/me/password', { currentPassword, newPassword }),
+};
+
+export const billingApi = {
+  get: () => api.get<BillingOverview>('/billing'),
+  validatePromo: (code: string, planCode: string) =>
+    api.post<PromoQuote>('/billing/promo/validate', { code, planCode }),
+  checkout: (planCode: string, promoCode?: string) =>
+    api.post<CheckoutResult>('/billing/checkout', { planCode, promoCode: promoCode || undefined }),
+  syncPayment: (id: number) =>
+    api.post<{ status: Payment['status'] }>(`/billing/payments/${id}/sync`),
+  cancelPayment: (id: number) =>
+    api.post<{ ok: boolean }>(`/billing/payments/${id}/cancel`),
 };
 
 export const chatApi = {
@@ -118,4 +138,20 @@ export const superadminApi = {
     api.post<InviteBatch>(`/superadmin/tenants/${id}/invites`, data),
   getDashboard: () => api.get<CrmDashboard>('/superadmin/dashboard'),
   getTelegramBots: () => api.get<TelegramBot[]>('/superadmin/telegram-bots'),
+
+  // Billing: payments + manual confirmation.
+  getPayments: () => api.get<CrmPayment[]>('/superadmin/payments'),
+  confirmPayment: (id: number) =>
+    api.post<{ ok: boolean; alreadyPaid?: boolean }>(`/superadmin/payments/${id}/confirm`),
+  cancelPayment: (id: number) =>
+    api.post<{ ok: boolean }>(`/superadmin/payments/${id}/cancel`),
+
+  // Promo codes.
+  getPromoCodes: () => api.get<PromoCode[]>('/superadmin/promo-codes'),
+  createPromoCode: (data: PromoInput) =>
+    api.post<PromoCode>('/superadmin/promo-codes', data),
+  updatePromoCode: (id: number, data: PromoInput) =>
+    api.put<PromoCode>(`/superadmin/promo-codes/${id}`, data),
+  deletePromoCode: (id: number) =>
+    api.delete<{ ok: boolean }>(`/superadmin/promo-codes/${id}`),
 };

@@ -54,7 +54,13 @@ nano deploy/.env
 - `POSTGRES_PASSWORD` — надёжный;
 - `CORS_ORIGINS` — ваш домен, домен панелей (и домены клиентов, встраивающих виджет);
 - `ADMIN_EMAIL` / `ADMIN_PASSWORD` — владелец платформы (суперадмин);
+- `CRYPTOBOT_TOKEN` — токен Crypto Pay API (CryptoBot) для онлайн-оплаты тарифов.
+  Если пусто, онлайн-оплата выключена, а владелец подтверждает платежи вручную в CRM;
 - для **первого** запуска: `RUN_SEED=true`.
+
+> Вебхук CryptoBot укажите в настройках приложения: `https://<DOMAIN>/api/cryptobot/webhook`.
+> `CRYPTOBOT_CURRENCY_TYPE=fiat` (по умолчанию, `CRYPTOBOT_FIAT=USD`) или `crypto` с
+> `CRYPTOBOT_ASSET=USDT`.
 
 > `deploy/.env` в `.gitignore` — секреты не попадают в репозиторий.
 

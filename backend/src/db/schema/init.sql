@@ -178,3 +178,94 @@ CREATE TABLE IF NOT EXISTS telegram_users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_telegram_users_unique ON telegram_users(tenant_id, tg_user_id);
+
+-- ---------------------------------------------------------------------------
+-- Billing (2026-10). Self-service signup: a client creates its own tenant and
+-- becomes its admin. The tenant starts 'unpaid' — it can log in and browse the
+-- whole panel, but every state-changing action is blocked until it pays a plan
+-- (enforced in middleware/auth.ts + routes/billing.ts). Paying the plan unlocks
+-- the tenant and lets its admin issue operator invite codes.
+-- ---------------------------------------------------------------------------
+
+-- Plan catalog. price_cents IS NULL = "цена по запросу" (the Custom plan), which
+-- is not purchasable online. Seeded here (idempotent) so it ships with a deploy
+-- even when RUN_SEED=false.
+CREATE TABLE IF NOT EXISTS plans (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    price_cents INTEGER,
+    operator_limit INTEGER,
+    description TEXT NOT NULL DEFAULT '',
+    features JSONB NOT NULL DEFAULT '[]'::jsonb,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO plans (code, name, price_cents, operator_limit, description, features, sort_order, is_active) VALUES
+  ('start', 'Старт', 899, 3, 'Для небольшого сервиса на старте',
+   '["Виджет на сайт и Telegram-бот","Автораспределение чатов","Файлы, история и оценки","Статистика и аудит","Изоляция данных по брендам"]'::jsonb, 1, true),
+  ('pro', 'Профи', 1399, 10, 'Для растущего VPN-сервиса',
+   '["Виджет на сайт и Telegram-бот","Автораспределение чатов","Файлы, история и оценки","Статистика и аудит","Изоляция данных по брендам"]'::jsonb, 2, true),
+  ('business', 'Бизнес', 1999, 30, 'Для сети сервисов и команд',
+   '["Виджет на сайт и Telegram-бот","Автораспределение чатов","Файлы, история и оценки","Статистика и аудит","Изоляция данных по брендам"]'::jsonb, 3, true),
+  ('custom', 'Custom', NULL, NULL, 'Большие объёмы, SLA и white-label',
+   '["Всё из «Бизнес»","Операторы без лимита","Персональный SLA","Помощь с миграцией","Индивидуальные доработки"]'::jsonb, 4, true)
+ON CONFLICT (code) DO UPDATE SET
+  name = EXCLUDED.name,
+  price_cents = EXCLUDED.price_cents,
+  operator_limit = EXCLUDED.operator_limit,
+  description = EXCLUDED.description,
+  features = EXCLUDED.features,
+  sort_order = EXCLUDED.sort_order;
+
+-- Tenant billing state. Existing tenants (created before this feature) are
+-- grandfathered as 'active' by the ADD COLUMN default; the default is then
+-- switched to 'unpaid' so newly registered tenants start locked.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS billing_status VARCHAR(20) NOT NULL DEFAULT 'active';
+ALTER TABLE tenants ALTER COLUMN billing_status SET DEFAULT 'unpaid';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS plan_id INTEGER REFERENCES plans(id);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS paid_until TIMESTAMP;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS billing_updated_at TIMESTAMP;
+
+CREATE INDEX IF NOT EXISTS idx_tenants_billing_status ON tenants(billing_status);
+
+-- Promo codes created by the platform owner in the CRM. discount_type 'percent'
+-- (0..100) or 'fixed' (USD cents). max_activations NULL = unlimited.
+CREATE TABLE IF NOT EXISTS promo_codes (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(32) UNIQUE NOT NULL,
+    discount_type VARCHAR(10) NOT NULL,
+    discount_value INTEGER NOT NULL,
+    max_activations INTEGER,
+    used_count INTEGER NOT NULL DEFAULT 0,
+    valid_from TIMESTAMP,
+    valid_until TIMESTAMP,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by INTEGER REFERENCES operators(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Payment / invoice records for tenant subscriptions.
+CREATE TABLE IF NOT EXISTS payments (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    plan_id INTEGER REFERENCES plans(id),
+    base_cents INTEGER NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    promo_code_id INTEGER REFERENCES promo_codes(id) ON DELETE SET NULL,
+    discount_type VARCHAR(10),
+    discount_value INTEGER,
+    method VARCHAR(20) NOT NULL DEFAULT 'cryptobot',
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    provider_invoice_id VARCHAR(100),
+    pay_url TEXT,
+    period_days INTEGER NOT NULL DEFAULT 30,
+    confirmed_by INTEGER REFERENCES operators(id),
+    paid_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_payments_tenant ON payments(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_provider_invoice ON payments(provider_invoice_id) WHERE provider_invoice_id IS NOT NULL;

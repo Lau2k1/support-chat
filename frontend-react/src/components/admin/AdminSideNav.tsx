@@ -9,12 +9,13 @@ import SendIcon from '@mui/icons-material/Send';
 import ChatIcon from '@mui/icons-material/Chat';
 import LogoutIcon from '@mui/icons-material/Logout';
 import KeyIcon from '@mui/icons-material/Key';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { wsManager } from '@/services/ws';
 
-type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram';
+type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'billing';
 
 const items: { page: Page; icon: React.ReactNode; label: string }[] = [
   { page: 'operators', icon: <PeopleIcon fontSize="small" />, label: 'Операторы' },
@@ -24,6 +25,7 @@ const items: { page: Page; icon: React.ReactNode; label: string }[] = [
   { page: 'telegram', icon: <SendIcon fontSize="small" />, label: 'Telegram-бот' },
   { page: 'settings', icon: <SettingsIcon fontSize="small" />, label: 'Настройки' },
   { page: 'tags', icon: <LabelIcon fontSize="small" />, label: 'Теги' },
+  { page: 'billing', icon: <CreditCardIcon fontSize="small" />, label: 'Оплата' },
 ];
 
 interface Props {

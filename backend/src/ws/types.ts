@@ -6,6 +6,8 @@ export interface OperatorPayload {
   role: string;
   /** Superadmin has no tenant (null). */
   tenantId: number | null;
+  /** Whether the operator's tenant has an active (paid) subscription. */
+  tenantActive?: boolean;
 }
 
 export interface ClientWs extends WebSocket {
@@ -15,6 +17,8 @@ export interface ClientWs extends WebSocket {
   chatId?: number;
   /** Tenant a client socket belongs to (set when it joins/creates a chat). */
   tenantId?: number | null;
+  /** Whether the socket's tenant is allowed to use the product (paid). */
+  tenantActive?: boolean;
   /** SEC-03: liveness flag for the ping/pong heartbeat. */
   isAlive?: boolean;
   /** SEC-03: client IP (from X-Forwarded-For) for per-IP rate limiting. */

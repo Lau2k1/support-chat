@@ -55,6 +55,10 @@ async function seed() {
     const tenantId: number = tenantRes.rows[0].id;
     console.log(`Default tenant "${tenantName}" (${tenantSlug}) id=${tenantId}`);
 
+    // Billing: the seeded/demo tenant is a platform-owned tenant and stays active
+    // (self-registered tenants start as 'unpaid' and must pay a plan).
+    await pool.query("UPDATE tenants SET billing_status = 'active' WHERE slug = $1", [tenantSlug]);
+
     // 3) Backfill anything created before multitenancy into the default tenant.
     await pool.query('UPDATE operators SET tenant_id = $1 WHERE tenant_id IS NULL AND role != $2', [tenantId, 'superadmin']);
     await pool.query('UPDATE chats SET tenant_id = $1 WHERE tenant_id IS NULL', [tenantId]);

@@ -11,6 +11,9 @@ export interface Tenant {
   slug: string;
   name: string;
   status: 'active' | 'suspended';
+  billing_status?: 'active' | 'unpaid';
+  plan_name?: string | null;
+  paid_until?: string | null;
   created_at?: string;
   operator_limit?: number | null;
   operators_count?: number;
@@ -176,4 +179,110 @@ export interface ArchiveFilters {
   from: string;
   to: string;
   tagIds: number[];
+}
+
+// --------------------------- Billing ---------------------------
+
+export interface Plan {
+  id: number;
+  code: string;
+  name: string;
+  /** Price in USD cents; null = "цена по запросу" (Custom). */
+  price_cents: number | null;
+  operator_limit: number | null;
+  description: string;
+  features: string[];
+  sort_order: number;
+  is_active: boolean;
+}
+
+export interface Payment {
+  id: number;
+  plan_id: number | null;
+  base_cents: number;
+  amount_cents: number;
+  promo_code_id?: number | null;
+  discount_type?: 'percent' | 'fixed' | null;
+  discount_value?: number | null;
+  method: string;
+  status: 'pending' | 'paid' | 'failed' | 'cancelled';
+  pay_url?: string | null;
+  provider_invoice_id?: string | null;
+  period_days: number;
+  paid_at?: string | null;
+  created_at: string;
+}
+
+/** Payment row as returned by the owner CRM (joined with tenant/plan/promo). */
+export interface CrmPayment extends Payment {
+  tenant_id: number;
+  tenant_name: string;
+  tenant_slug: string;
+  plan_name?: string | null;
+  plan_code?: string | null;
+  promo_code?: string | null;
+}
+
+export interface PromoCode {
+  id: number;
+  code: string;
+  discount_type: 'percent' | 'fixed';
+  discount_value: number;
+  max_activations: number | null;
+  used_count: number;
+  valid_from: string | null;
+  valid_until: string | null;
+  is_active: boolean;
+  created_at: string;
+  created_by_name?: string | null;
+}
+
+export interface BillingInfo {
+  status: string;
+  paidUntil: string | null;
+  planId: number | null;
+  planCode: string | null;
+  planName: string | null;
+  operatorLimit: number | null;
+  active: boolean;
+}
+
+export interface BillingOverview {
+  billing: BillingInfo | null;
+  plans: Plan[];
+  payments: Payment[];
+  providerConfigured: boolean;
+}
+
+export interface PromoQuote {
+  valid: boolean;
+  error?: string;
+  code?: string;
+  discountType?: 'percent' | 'fixed';
+  discountValue?: number;
+  baseCents?: number;
+  discountCents?: number;
+  amountCents?: number;
+}
+
+export interface CheckoutResult {
+  free: boolean;
+  payment: Payment;
+  baseCents: number;
+  discountCents: number;
+  amountCents: number;
+  payUrl: string | null;
+  providerConfigured?: boolean;
+  message?: string;
+}
+
+/** Payload for creating/updating a promo code in the CRM. */
+export interface PromoInput {
+  code?: string;
+  discountType: 'percent' | 'fixed';
+  discountValue: number;
+  maxActivations?: number | null;
+  validFrom?: string | null;
+  validUntil?: string | null;
+  isActive?: boolean;
 }

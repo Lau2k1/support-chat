@@ -6,6 +6,11 @@ export interface CurrentUser {
   name: string;
   role: 'superadmin' | 'admin' | 'operator';
   tenantId: number | null;
+  billing?: {
+    active: boolean;
+    status: string | null;
+    paidUntil: string | null;
+  };
 }
 
 interface AuthState {
@@ -14,12 +19,16 @@ interface AuthState {
   isAdmin: boolean;
   isSuperadmin: boolean;
   tenantId: number | null;
+  /** False while the tenant has an unpaid subscription (superadmin: always true). */
+  billingActive: boolean;
   /** True once the initial /me probe finished (prevents a /login bounce on reload). */
   authReady: boolean;
   /** Re-reads the session from the cookie after a successful login/register. */
   login: () => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  /** Re-reads /me (used after a payment to refresh the paywall state). */
+  refresh: () => Promise<void>;
 }
 
 function derive(user: CurrentUser | null) {
@@ -29,6 +38,8 @@ function derive(user: CurrentUser | null) {
     isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
     isSuperadmin: user?.role === 'superadmin',
     tenantId: user?.tenantId ?? null,
+    // Default to true so a legacy /me payload never flashes the paywall.
+    billingActive: user ? (user.billing?.active ?? true) : false,
   };
 }
 
@@ -48,6 +59,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAdmin: false,
   isSuperadmin: false,
   tenantId: null,
+  billingActive: false,
   authReady: false,
 
   // Called right after a successful /login or /register (cookie already set by the API).
@@ -69,5 +81,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   checkAuth: async () => {
     const user = await fetchMe();
     set({ ...derive(user), authReady: true });
+  },
+
+  refresh: async () => {
+    const user = await fetchMe();
+    set({ ...derive(user) });
   },
 }));

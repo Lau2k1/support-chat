@@ -9,6 +9,7 @@ import { broadcastToRoom } from '../services/chat';
 import { forwardMessageToTelegram } from '../services/telegram';
 import { signFileUrl } from '../utils/signedUrl';
 import { UPLOADS_DIR, tenantRelPath } from '../utils/uploadPaths';
+import { isActiveBilling } from '../services/billing';
 import type { OutgoingMessage } from '../ws/types';
 
 const upload = multer({
@@ -73,7 +74,12 @@ async function authorizeUpload(req: UploadRequest, res: Response, next: NextFunc
       return;
     }
 
-    const chatCheck = await pool.query('SELECT status, tenant_id FROM chats WHERE id = $1', [chatId]);
+    const chatCheck = await pool.query(
+      `SELECT c.status, c.tenant_id, t.billing_status, t.paid_until
+       FROM chats c LEFT JOIN tenants t ON t.id = c.tenant_id
+       WHERE c.id = $1`,
+      [chatId]
+    );
     const chat = chatCheck.rows[0];
     if (!chat || chat.status === 'closed') {
       res.status(404).json({ error: 'Chat not found or closed' });
@@ -87,6 +93,12 @@ async function authorizeUpload(req: UploadRequest, res: Response, next: NextFunc
     }
     if (operator && operator.role !== 'superadmin' && chat.tenant_id !== operator.tenantId) {
       res.status(403).json({ error: 'Chat belongs to another tenant' });
+      return;
+    }
+    // Billing gate: no uploads for a tenant without an active subscription
+    // (the superadmin is exempt). Checked before multer writes to disk.
+    if (operator?.role !== 'superadmin' && !isActiveBilling(chat.billing_status, chat.paid_until)) {
+      res.status(402).json({ error: 'Функции доступны после оплаты тарифа', code: 'PAYMENT_REQUIRED' });
       return;
     }
 

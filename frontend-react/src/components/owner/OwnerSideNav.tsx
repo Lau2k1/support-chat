@@ -5,16 +5,20 @@ import SendIcon from '@mui/icons-material/Send';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ChatIcon from '@mui/icons-material/Chat';
 import KeyIcon from '@mui/icons-material/Key';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { wsManager } from '@/services/ws';
 
-type Page = 'overview' | 'tenants' | 'bots';
+type Page = 'overview' | 'tenants' | 'bots' | 'payments' | 'promo';
 
 const items: { page: Page; icon: React.ReactNode; label: string }[] = [
   { page: 'overview', icon: <DashboardIcon fontSize="small" />, label: 'Обзор' },
   { page: 'tenants', icon: <DomainIcon fontSize="small" />, label: 'Тенанты & инвайты' },
+  { page: 'payments', icon: <ReceiptLongIcon fontSize="small" />, label: 'Платежи' },
+  { page: 'promo', icon: <LocalOfferIcon fontSize="small" />, label: 'Промокоды' },
   { page: 'bots', icon: <SendIcon fontSize="small" />, label: 'Telegram-боты' },
 ];
 

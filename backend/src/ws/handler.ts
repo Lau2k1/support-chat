@@ -23,6 +23,7 @@ import {
 import { forwardMessageToTelegram } from '../services/telegram';
 import { signFileUrl } from '../utils/signedUrl';
 import { LIMITS } from '../utils/validate';
+import { isActiveBilling } from '../services/billing';
 
 // ---------------------------------------------------------------------------
 // SEC-03: abuse protection for `init_chat` (each call creates a DB chat row).
@@ -71,6 +72,31 @@ function allowInitChat(ws: ClientWs): boolean {
 function isAuth(ws: ClientWs): boolean {
   return ws.role === 'operator' || ws.role === 'client';
 }
+
+/**
+ * Whether a socket's tenant is currently allowed to use the product (paid
+ * subscription). Cached on the socket; tenants with no billing rows (legacy)
+ * stay usable.
+ */
+async function tenantIsActive(tenantId: number | null | undefined): Promise<boolean> {
+  if (tenantId === null || tenantId === undefined) return true;
+  const r = await pool.query('SELECT billing_status, paid_until FROM tenants WHERE id = $1', [tenantId]);
+  const t = r.rows[0];
+  if (!t) return false;
+  return isActiveBilling(t.billing_status, t.paid_until);
+}
+
+/** Billing gate for message-sending actions. */
+async function socketMayUse(ws: ClientWs): Promise<boolean> {
+  if (ws.role === 'operator') {
+    if (ws.operator?.role === 'superadmin') return true;
+    return ws.operator?.tenantActive !== false;
+  }
+  if (ws.tenantActive === undefined) ws.tenantActive = await tenantIsActive(ws.tenantId);
+  return ws.tenantActive;
+}
+
+const PAYMENT_REQUIRED_MSG = 'Функции недоступны до оплаты тарифа';
 
 /**
  * Resolves the chat a WS action applies to.
@@ -214,7 +240,7 @@ export function handleConnection(ws: ClientWs, req?: HttpIncomingMessage) {
             safeSend(ws, { type: 'chat_error', chatId: undefined, error: 'Идентификатор тенанта не указан' });
             break;
           }
-          const tenantRes = await pool.query('SELECT id, status FROM tenants WHERE slug = $1', [tenantSlug]);
+          const tenantRes = await pool.query('SELECT id, status, billing_status, paid_until FROM tenants WHERE slug = $1', [tenantSlug]);
           const tenant = tenantRes.rows[0];
           if (!tenant) {
             safeSend(ws, { type: 'chat_error', chatId: undefined, error: 'Тенант не найден' });
@@ -224,6 +250,11 @@ export function handleConnection(ws: ClientWs, req?: HttpIncomingMessage) {
             safeSend(ws, { type: 'chat_error', chatId: undefined, error: 'Поддержка приостановлена' });
             break;
           }
+          if (!isActiveBilling(tenant.billing_status, tenant.paid_until)) {
+            safeSend(ws, { type: 'chat_error', chatId: undefined, error: 'Поддержка временно недоступна' });
+            break;
+          }
+          ws.tenantActive = true;
 
           // Register the client socket for this tenant so it receives live
           // operators online/offline updates (even before a chat exists).
@@ -326,6 +357,10 @@ export function handleConnection(ws: ClientWs, req?: HttpIncomingMessage) {
 
         case 'message': {
           if (!isAuth(ws)) break;
+          if (!(await socketMayUse(ws))) {
+            safeSend(ws, { type: 'chat_error', chatId: resolveTargetChatId(ws, msg.chatId) ?? undefined, error: PAYMENT_REQUIRED_MSG });
+            break;
+          }
           const cId = resolveTargetChatId(ws, msg.chatId);
           if (cId === null) break;
           const access = await chatAccess(ws, cId);
@@ -444,6 +479,10 @@ export function handleConnection(ws: ClientWs, req?: HttpIncomingMessage) {
 
         case 'transfer_chat': {
           if (ws.role !== 'operator') break;
+          if (!(await socketMayUse(ws))) {
+            safeSend(ws, { type: 'chat_error', chatId: Number(msg.chatId) || undefined, error: PAYMENT_REQUIRED_MSG });
+            break;
+          }
           const tChatId = Number(msg.chatId);
           if (!Number.isInteger(tChatId) || tChatId <= 0) break;
           if ((await chatAccess(ws, tChatId)) !== 'open') break;

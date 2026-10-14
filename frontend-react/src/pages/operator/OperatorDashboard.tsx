@@ -25,6 +25,7 @@ import TransferModal from '@/components/chat/TransferModal';
 import TagSelectorModal from '@/components/chat/TagSelectorModal';
 import ArchiveFiltersComponent from '@/components/archive/ArchiveFilters';
 import ArchiveList from '@/components/archive/ArchiveList';
+import PaywallBanner from '@/components/common/PaywallBanner';
 import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -45,6 +46,7 @@ export default function OperatorDashboard() {
 
   const { currentChatId, messages, setCurrentChat, addTab, setMessages, setAllTags, setCannedResponses, setUnread } = useChatStore();
   const showConfirm = useUIStore((s) => s.showConfirm);
+  const billingActive = useAuthStore((s) => s.billingActive);
 
   useWebSocket();
 
@@ -95,6 +97,7 @@ export default function OperatorDashboard() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <TopBar />
+      {!billingActive && <PaywallBanner />}
       <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <SideNav currentView={currentView} onViewChange={setCurrentView} />
 
@@ -161,6 +164,7 @@ function ChatsView({
   const chatAssignees = useChatStore((s) => s.chatAssignees);
   const setChatTags = useChatStore((s) => s.setChatTags);
   const myId = useAuthStore((s) => s.user?.id ?? null);
+  const billingActive = useAuthStore((s) => s.billingActive);
   const source = currentChatId ? chatSources[String(currentChatId)] : undefined;
   const chatName = currentChatId ? chatNames[String(currentChatId)] : undefined;
   const isTelegram = source === 'telegram';
@@ -286,7 +290,7 @@ function ChatsView({
               </Box>
             )}
             <MessageList messages={messages} chatId={currentChatId} />
-            <ChatInput chatId={currentChatId} onOpenTemplates={onOpenTemplates} onOpenTagSelector={onOpenTagSelector} readOnly={isObserver} apiRef={chatInputRef} />
+            <ChatInput chatId={currentChatId} onOpenTemplates={onOpenTemplates} onOpenTagSelector={onOpenTagSelector} readOnly={isObserver || !billingActive} apiRef={chatInputRef} />
           </>
         ) : (
           <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary' }}>

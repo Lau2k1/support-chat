@@ -19,6 +19,7 @@ import {
 } from '../utils/validate';
 import { startOfDay, endOfDay } from '../utils/dateRange';
 import { getOperatorsWithStatus, type OperatorBusyStatus } from '../services/chat';
+import { markPaymentPaid } from '../services/billing';
 
 const router = Router();
 router.use(authMiddleware, tenantAdminMiddleware);
@@ -917,6 +918,184 @@ superRouter.delete('/tenants/:id', async (req, res) => {
     res.status(500).json({ error: 'DB Error' });
   } finally {
     client.release();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Superadmin: promo codes (CRM)
+// ---------------------------------------------------------------------------
+
+const PROMO_FIELDS =
+  'id, code, discount_type, discount_value, max_activations, used_count, valid_from, valid_until, is_active, created_at';
+
+function parsePromoInput(body: any): { value?: Record<string, unknown>; error?: string } {
+  const discountType = body?.discountType;
+  const discountValue = Number(body?.discountValue);
+  if (!['percent', 'fixed'].includes(discountType)) return { error: 'Тип скидки: percent или fixed' };
+  if (!Number.isInteger(discountValue) || discountValue <= 0) return { error: 'Значение скидки — целое число больше 0' };
+  if (discountType === 'percent' && discountValue > 100) return { error: 'Процент скидки: от 1 до 100' };
+  if (discountType === 'fixed' && discountValue > 1000000) return { error: 'Скидка: максимум 10000 $' };
+
+  let maxActivations: number | null = null;
+  if (body?.maxActivations !== undefined && body?.maxActivations !== null && body?.maxActivations !== '') {
+    maxActivations = Number(body.maxActivations);
+    if (!Number.isInteger(maxActivations) || maxActivations < 1) return { error: 'Лимит активаций — целое число больше 0 или пусто' };
+  }
+
+  const parseDate = (v: unknown): string | null | undefined => {
+    if (v === undefined || v === null || v === '') return null;
+    const d = new Date(String(v));
+    return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+  };
+  const validFrom = parseDate(body?.validFrom);
+  if (validFrom === undefined) return { error: 'Некорректная дата начала' };
+  const validUntil = parseDate(body?.validUntil);
+  if (validUntil === undefined) return { error: 'Некорректная дата окончания' };
+  if (validFrom && validUntil && new Date(validUntil) <= new Date(validFrom)) {
+    return { error: 'Дата окончания должна быть позже даты начала' };
+  }
+
+  return {
+    value: { discountType, discountValue, maxActivations, validFrom, validUntil, isActive: body?.isActive !== false },
+  };
+}
+
+superRouter.get('/promo-codes', async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.id, p.code, p.discount_type, p.discount_value, p.max_activations, p.used_count,
+              p.valid_from, p.valid_until, p.is_active, p.created_at, o.name AS created_by_name
+       FROM promo_codes p LEFT JOIN operators o ON o.id = p.created_by
+       ORDER BY p.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (e) {
+    console.error('superadmin promo list error:', e);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+superRouter.post('/promo-codes', async (req, res) => {
+  try {
+    const parsed = parsePromoInput(req.body);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const v = parsed.value!;
+
+    // Optional custom code; otherwise generate a random one.
+    let code = typeof req.body?.code === 'string' ? req.body.code.trim().toUpperCase() : '';
+    if (code && !/^[A-Z0-9_-]{3,32}$/.test(code)) {
+      return res.status(400).json({ error: 'Код: 3–32 символа (латиница, цифры, «_», «-»)' });
+    }
+
+    const adminId = (req as AuthenticatedRequest).user!.id;
+    const insert = async (c: string) =>
+      pool.query(
+        `INSERT INTO promo_codes (code, discount_type, discount_value, max_activations, valid_from, valid_until, is_active, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING ${PROMO_FIELDS}`,
+        [c, v.discountType, v.discountValue, v.maxActivations, v.validFrom, v.validUntil, v.isActive, adminId]
+      );
+
+    if (code) {
+      const r = await insert(code);
+      return res.status(201).json(r.rows[0]);
+    }
+    for (let i = 0; i < 8; i++) {
+      code = crypto.randomBytes(5).toString('hex').toUpperCase().slice(0, 10);
+      try {
+        const r = await insert(code);
+        return res.status(201).json(r.rows[0]);
+      } catch (e: any) {
+        if (e.code !== '23505') throw e;
+      }
+    }
+    return res.status(500).json({ error: 'Не удалось сгенерировать код' });
+  } catch (e: any) {
+    if (e.code === '23505') return res.status(400).json({ error: 'Такой промокод уже существует' });
+    console.error('superadmin promo create error:', e);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+superRouter.put('/promo-codes/:id', async (req, res) => {
+  try {
+    const parsed = parsePromoInput(req.body);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const v = parsed.value!;
+    const result = await pool.query(
+      `UPDATE promo_codes
+       SET discount_type = $1, discount_value = $2, max_activations = $3,
+           valid_from = $4, valid_until = $5, is_active = $6
+       WHERE id = $7 RETURNING ${PROMO_FIELDS}`,
+      [v.discountType, v.discountValue, v.maxActivations, v.validFrom, v.validUntil, v.isActive, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Промокод не найден' });
+    res.json(result.rows[0]);
+  } catch (e) {
+    console.error('superadmin promo update error:', e);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+superRouter.delete('/promo-codes/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM promo_codes WHERE id = $1 RETURNING id', [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Промокод не найден' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('superadmin promo delete error:', e);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Superadmin: payments (CRM)
+// ---------------------------------------------------------------------------
+
+superRouter.get('/payments', async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT pm.id, pm.tenant_id, t.name AS tenant_name, t.slug AS tenant_slug,
+              pm.plan_id, pl.name AS plan_name, pl.code AS plan_code,
+              pm.base_cents, pm.amount_cents, pm.discount_type, pm.discount_value,
+              pc.code AS promo_code, pm.method, pm.status, pm.pay_url, pm.paid_at, pm.created_at
+       FROM payments pm
+       JOIN tenants t ON t.id = pm.tenant_id
+       LEFT JOIN plans pl ON pl.id = pm.plan_id
+       LEFT JOIN promo_codes pc ON pc.id = pm.promo_code_id
+       ORDER BY pm.created_at DESC
+       LIMIT 200`
+    );
+    res.json(result.rows);
+  } catch (e) {
+    console.error('superadmin payments list error:', e);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+/** Manual confirmation (used when online payment is disabled/missed). */
+superRouter.post('/payments/:id/confirm', async (req, res) => {
+  try {
+    const adminId = (req as AuthenticatedRequest).user!.id;
+    const result = await markPaymentPaid(Number(req.params.id), { method: 'manual', confirmedBy: adminId });
+    if (!result.ok) return res.status(400).json({ error: result.error || 'Не удалось подтвердить платёж' });
+    res.json({ ok: true, alreadyPaid: !!result.alreadyPaid });
+  } catch (e) {
+    console.error('superadmin payment confirm error:', e);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+superRouter.post('/payments/:id/cancel', async (req, res) => {
+  try {
+    const result = await pool.query(
+      "UPDATE payments SET status = 'cancelled' WHERE id = $1 AND status = 'pending' RETURNING id",
+      [req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Активный платёж не найден' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('superadmin payment cancel error:', e);
+    res.status(500).json({ error: 'DB Error' });
   }
 });
 

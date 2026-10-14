@@ -13,6 +13,8 @@ import cannedRoutes from './routes/canned';
 import uploadRoutes from './routes/upload';
 import adminRoutes, { superRouter } from './routes/admin';
 import telegramRoutes from './routes/telegram';
+import billingRoutes from './routes/billing';
+import cryptobotRoutes from './routes/cryptobot';
 import { handleConnection } from './ws/handler';
 import type { ClientWs } from './ws/types';
 import { startUploadsCleanup } from './services/uploads';
@@ -87,7 +89,9 @@ app.use(cors({
   // only for explicitly whitelisted origins.
   credentials: true,
 }));
-app.use(express.json());
+// Keep the raw body around so the CryptoBot webhook can verify its HMAC
+// signature over the exact bytes it received.
+app.use(express.json({ verify: (req, _res, buf) => { (req as express.Request & { rawBody?: Buffer }).rawBody = buf; } }));
 
 // Панели — приватная зона: просим поисковые системы не индексировать app-домен.
 app.use((req, res, next) => {
@@ -300,6 +304,8 @@ app.get(['/login', '/register', '/operator', '/admin', '/crm'], (req, res) => {
 app.use('/admin', adminRoutes);
 app.use('/superadmin', superRouter);
 app.use('/api/tg', telegramRoutes);
+app.use('/billing', billingRoutes);
+app.use('/api/cryptobot', cryptobotRoutes);
 
 // Корень и все прочие GET-пути, не перехваченные выше (API/виджет/uploads/статика):
 // лендинг на маркетинговом домене, SPA — на остальных.
