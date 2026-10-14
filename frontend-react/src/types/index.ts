@@ -167,6 +167,62 @@ export interface AdminChat {
   messages_count: number;
 }
 
+export type TicketFieldType =
+  | 'text'
+  | 'textarea'
+  | 'number'
+  | 'select'
+  | 'multiselect'
+  | 'radio'
+  | 'checkbox'
+  | 'date'
+  | 'file'
+  | 'divider'
+  | 'title';
+
+export interface TicketFieldOption {
+  value: string;
+  label: string;
+}
+
+export interface TicketField {
+  id: string;
+  type: TicketFieldType;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  options?: TicketFieldOption[];
+  helpText?: string;
+  order?: number;
+  defaultValue?: any;
+}
+
+export interface TicketTemplateSchema {
+  fields: TicketField[];
+  [key: string]: any;
+}
+
+export interface TicketTemplate {
+  id: number;
+  tenant_id: number;
+  name: string;
+  description: string | null;
+  schema: TicketTemplateSchema;
+  is_active: boolean;
+  created_by: number | null;
+  updated_by: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TicketTemplateListResponse {
+  items: TicketTemplate[];
+}
+
+export interface TicketTemplateResponse {
+  template: TicketTemplate;
+}
+
 export interface OnlineOperator {
   id: number;
   name: string;

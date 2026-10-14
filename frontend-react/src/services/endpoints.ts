@@ -22,6 +22,10 @@ import type {
   CrmPayment,
   PromoCode,
   PromoInput,
+  TicketTemplate,
+  TicketTemplateListResponse,
+  TicketTemplateResponse,
+  TicketTemplateSchema,
 } from '@/types';
 
 export const authApi = {
@@ -154,4 +158,16 @@ export const superadminApi = {
     api.put<PromoCode>(`/superadmin/promo-codes/${id}`, data),
   deletePromoCode: (id: number) =>
     api.delete<{ ok: boolean }>(`/superadmin/promo-codes/${id}`),
+};
+
+export const ticketTemplatesApi = {
+  list: () => api.get<TicketTemplateListResponse>('/ticket-templates'),
+  get: (id: number) => api.get<TicketTemplateResponse>(`/ticket-templates/${id}`),
+  create: (data: { name: string; description?: string | null; schema: TicketTemplateSchema; isActive?: boolean }) =>
+    api.post<TicketTemplateResponse>('/ticket-templates', data),
+  update: (
+    id: number,
+    data: { name?: string; description?: string | null; schema?: TicketTemplateSchema; isActive?: boolean }
+  ) => api.put<TicketTemplateResponse>(`/ticket-templates/${id}`, data),
+  delete: (id: number) => api.delete<{ success: boolean }>(`/ticket-templates/${id}`),
 };

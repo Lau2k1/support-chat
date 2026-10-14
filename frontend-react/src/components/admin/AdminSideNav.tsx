@@ -15,11 +15,12 @@ import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { wsManager } from '@/services/ws';
 
-type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'billing';
+type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'billing' | 'ticket-templates';
 
 const items: { page: Page; icon: React.ReactNode; label: string }[] = [
   { page: 'operators', icon: <PeopleIcon fontSize="small" />, label: 'Операторы' },
   { page: 'invites', icon: <ConfirmationNumberIcon fontSize="small" />, label: 'Инвайты' },
+  { page: 'ticket-templates', icon: <ConfirmationNumberIcon fontSize="small" />, label: 'Шаблоны тикетов' },
   { page: 'stats', icon: <BarChartIcon fontSize="small" />, label: 'Статистика' },
   { page: 'audit', icon: <FactCheckIcon fontSize="small" />, label: 'Аудит' },
   { page: 'telegram', icon: <SendIcon fontSize="small" />, label: 'Telegram-бот' },

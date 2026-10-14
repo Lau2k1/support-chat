@@ -26,6 +26,7 @@ import TagSelectorModal from '@/components/chat/TagSelectorModal';
 import ArchiveFiltersComponent from '@/components/archive/ArchiveFilters';
 import ArchiveList from '@/components/archive/ArchiveList';
 import PaywallBanner from '@/components/common/PaywallBanner';
+import TicketTemplatesList from '@/components/operator/TicketTemplatesList';
 import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -34,7 +35,7 @@ import { wsManager } from '@/services/ws';
 import { chatApi, statsApi, cannedApi } from '@/services/endpoints';
 import type { Chat, ArchiveFilters, Stats, DailyStat } from '@/types';
 
-type ViewType = 'chats' | 'archive' | 'stats';
+type ViewType = 'chats' | 'archive' | 'stats' | 'templates';
 
 export default function OperatorDashboard() {
   const [currentView, setCurrentView] = useState<ViewType>('chats');
@@ -118,6 +119,7 @@ export default function OperatorDashboard() {
           )}
           {currentView === 'archive' && <ArchiveView />}
           {currentView === 'stats' && <StatsView />}
+          {currentView === 'templates' && <TicketTemplatesList />}
         </Box>
       </Box>
 

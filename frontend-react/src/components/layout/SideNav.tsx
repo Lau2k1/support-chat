@@ -2,8 +2,9 @@ import { Box, IconButton, Typography } from '@mui/material';
 import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 
-type ViewType = 'chats' | 'archive' | 'stats';
+type ViewType = 'chats' | 'archive' | 'stats' | 'templates';
 
 interface SideNavProps {
   currentView: ViewType;
@@ -13,6 +14,7 @@ interface SideNavProps {
 const navItems: { view: ViewType; icon: React.ReactNode; label: string }[] = [
   { view: 'chats', icon: <ChatBubbleIcon fontSize="small" />, label: 'Чаты' },
   { view: 'archive', icon: <Inventory2Icon fontSize="small" />, label: 'Архив' },
+  { view: 'templates', icon: <ConfirmationNumberIcon fontSize="small" />, label: 'Шаблоны' },
   { view: 'stats', icon: <BarChartIcon fontSize="small" />, label: 'Стат.' },
 ];
 

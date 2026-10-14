@@ -15,6 +15,7 @@ import adminRoutes, { superRouter } from './routes/admin';
 import telegramRoutes from './routes/telegram';
 import billingRoutes from './routes/billing';
 import cryptobotRoutes from './routes/cryptobot';
+import ticketTemplatesRoutes from './routes/ticketTemplates';
 import { handleConnection } from './ws/handler';
 import type { ClientWs } from './ws/types';
 import { startUploadsCleanup } from './services/uploads';
@@ -306,6 +307,7 @@ app.use('/superadmin', superRouter);
 app.use('/api/tg', telegramRoutes);
 app.use('/billing', billingRoutes);
 app.use('/api/cryptobot', cryptobotRoutes);
+app.use('/api/ticket-templates', ticketTemplatesRoutes);
 
 // Корень и все прочие GET-пути, не перехваченные выше (API/виджет/uploads/статика):
 // лендинг на маркетинговом домене, SPA — на остальных.

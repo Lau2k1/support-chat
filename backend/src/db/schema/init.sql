@@ -269,3 +269,35 @@ CREATE TABLE IF NOT EXISTS payments (
 CREATE INDEX IF NOT EXISTS idx_payments_tenant ON payments(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_provider_invoice ON payments(provider_invoice_id) WHERE provider_invoice_id IS NOT NULL;
+
+-- ---------------------------------------------------------------------------
+-- Ticket templates (constructor). Admin creates/edits; operator uses read-only.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ticket_templates (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name VARCHAR(150) NOT NULL,
+    description TEXT,
+    schema JSONB NOT NULL DEFAULT '{"fields":[]}'::jsonb,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_by INTEGER REFERENCES operators(id) ON DELETE SET NULL,
+    updated_by INTEGER REFERENCES operators(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_ticket_templates_tenant ON ticket_templates(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_templates_active ON ticket_templates(tenant_id, is_active);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger t
+        JOIN pg_class c ON c.oid = t.tgrelid
+        WHERE c.relname = 'ticket_templates' AND t.tgname = 'ticket_templates_updated_at'
+    ) THEN
+        CREATE TRIGGER ticket_templates_updated_at
+        BEFORE UPDATE ON ticket_templates
+        FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+    END IF;
+END $$;
