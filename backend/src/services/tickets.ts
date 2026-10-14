@@ -73,17 +73,16 @@ export function validateTicketData(
     }
 
     switch (f.type) {
-      case 'text': {
-        if (typeof raw !== 'string') return { data: out, error: `«${label}»: ожидается текст` };
-        const v = raw.trim();
-        if (v.length > TEXT_MAX) return { data: out, error: `«${label}»: максимум ${TEXT_MAX} символов` };
-        out[f.id] = v;
-        break;
-      }
+      case 'text':
       case 'textarea': {
-        if (typeof raw !== 'string') return { data: out, error: `«${label}»: ожидается текст` };
-        const v = raw.trim();
-        if (v.length > TEXTAREA_MAX) return { data: out, error: `«${label}»: максимум ${TEXTAREA_MAX} символов` };
+        // A JSON number is acceptable here too (coerced), so API clients don't
+        // have to stringify ids they read from elsewhere.
+        if (typeof raw !== 'string' && typeof raw !== 'number') {
+          return { data: out, error: `«${label}»: ожидается текст` };
+        }
+        const v = String(raw).trim();
+        const max = f.type === 'textarea' ? TEXTAREA_MAX : TEXT_MAX;
+        if (v.length > max) return { data: out, error: `«${label}»: максимум ${max} символов` };
         out[f.id] = v;
         break;
       }
