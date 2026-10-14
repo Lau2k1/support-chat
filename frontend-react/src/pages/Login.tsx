@@ -101,7 +101,7 @@ export default function Login() {
 
         <Box sx={{ textAlign: 'center', mt: 2 }}>
           <Link component={RouterLink} to="/register" variant="body2" sx={{ fontWeight: 600 }}>
-            Зарегистрироваться по инвайт-коду
+            Зарегистрироваться
           </Link>
         </Box>
       </Card>
