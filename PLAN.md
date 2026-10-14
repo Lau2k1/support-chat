@@ -379,4 +379,35 @@
   паролей (пароль также есть в `deploy/.env` как `ADMIN_PASSWORD`).
 - `BACKUP_REMOTE_HOST/PATH` не заданы → бэкапы шифруются и остаются на сервере. Настроить
   оффсерверную копию (rsync на внешний хост) для полного закрытия SEC-10.
+
+## 14. Вход и регистрация через Telegram (Login Widget) — реализовано и включено на проде 14.10.2026
+
+> Цель: оператор/админ входит в панель одним нажатием в Telegram; новый пользователь
+> через Telegram сразу получает свой тенант (триал, `unpaid`) без пароля и invite-кода.
+
+- [x] **Проверка подписи виджета** `services/telegramLogin.ts`: HMAC-SHA256 с секретом
+  `SHA256(bot_token)` по документации Telegram, сравнение за постоянное время,
+  replay-защита (`auth_date` не старше 24 ч, будущее — не более 60 с).
+- [x] **Роуты** `routes/telegramAuth.ts`:
+  - `GET /auth/telegram/config` — публично сообщает, настроен ли вход и какой бот
+    (токен не покидает сервер; кнопка в UI скрыта, пока фича не настроена);
+  - `POST /auth/telegram/login` — существующий оператор входит по `telegram_id`
+    (username/фото обновляются), новый — саморегистрация: тенант + админ без пароля
+    (`billing_status='unpaid'`, базовые settings), транзакционно;
+  - `POST /me/telegram/link` / `unlink` — привязка/отвязка TG у админа; чужой занятый
+    TG → 409; отвязка запрещена, пока не задан пароль (иначе потеря доступа).
+- [x] **БД**: `operators.telegram_id / telegram_username / telegram_photo_url / telegram_linked_at`.
+- [x] **Фронтенд**: официальный виджет `telegram.org/js/telegram-widget.js`
+  (`TelegramLoginButton`, глобальный колбэк `onTelegramAuth`), кнопки на Login/Register,
+  диалог привязки в навигации админа и владельца (`TelegramLinkDialog`).
+- [x] **Unit-тесты** `test/unit/telegramLogin.test.ts`: подпись/подделка/чужой токен,
+  replay 24 ч, будущее время, некорректный id, обрезка полей, displayNameOf.
+- [x] **Прод включён** (бот `@SCTCHATBOT`): `TELEGRAM_LOGIN_BOT_TOKEN`/`TELEGRAM_LOGIN_BOT_USERNAME`
+  в `deploy/.env` (в git только `.env.example`), контейнер пересоздан,
+  `/auth/telegram/config` → `{"enabled":true}`.
+- [ ] **BotFather → Login Domain**: для бота `@SCTCHATBOT` задать домен `app.sct.chat`
+  (/mybots → Bot Settings → Login Domain). Без этого виджет отрисуется, но авторизация
+  завершится ошибкой «bot domain is invalid». Ручной шаг владельца.
+- [ ] Ротация токена бота при компрометации: заменить значения в `deploy/.env` и
+  пересоздать контейнер (сессии операторов не зависят от токена — JWT по-прежнему в cookie).
 - Пароль суперадмина `admin@sct.chat` рекомендуется сменить.

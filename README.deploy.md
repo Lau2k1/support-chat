@@ -139,6 +139,23 @@ crontab -e
   `PUBLIC_BASE_URL/api/tg/<botId>` (секрет `X-Telegram-Bot-Api-Secret-Token`).
 - Требуются рабочие 443 и корректный `PUBLIC_BASE_URL`.
 
+## 8a. Вход через Telegram (Login Widget)
+
+Отдельный бот для авторизации операторов/админов в панели (не путать с ботами клиентов из п. 8):
+
+1. Создайте бота в BotFather и задайте ему **Login Domain** = домен панелей
+   (`APP_DOMAIN`, например `app.sct.chat`): /mybots → Bot Settings → Login Domain.
+   Без этого виджет покажет ошибку авторизации.
+2. В `deploy/.env` задайте:
+   - `TELEGRAM_LOGIN_BOT_TOKEN` — токен бота из BotFather;
+   - `TELEGRAM_LOGIN_BOT_USERNAME` — username бота без `@`.
+3. Пересоздайте контейнер: `docker compose --env-file deploy/.env -f docker-compose.prod.yml up -d`.
+4. Проверка: `curl https://<APP_DOMAIN>/auth/telegram/config` → `{"enabled":true,"botUsername":"..."}`.
+
+Пока переменные не заданы, фича деградирует мягко: кнопки Telegram на страницах входа/регистрации
+скрыты, `/auth/telegram/login` отвечает 503. Ротация токена — заменить значения в `deploy/.env`
+и пересоздать контейнер; сессии операторов не зависят от токена.
+
 ## 9. Полезные команды
 
 ```bash
