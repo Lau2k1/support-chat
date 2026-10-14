@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Box, Typography, Card, Grid, Paper, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
 import { adminApi } from '@/services/endpoints';
 import type { OperatorStats } from '@/types';
+import { formatDuration } from '@/utils/format';
 
 export default function AdminStatsPage({ tenantId }: { tenantId?: number } = {}) {
   const [stats, setStats] = useState<OperatorStats[]>([]);
@@ -25,7 +26,7 @@ export default function AdminStatsPage({ tenantId }: { tenantId?: number } = {})
     { value: stats.length, label: 'Операторов' },
     { value: totalChats, label: 'Всего чатов' },
     { value: totalMsgs, label: 'Всего сообщений' },
-    { value: `${avgResp}с`, label: 'Ср. ответ' },
+    { value: formatDuration(avgResp), label: 'Ср. ответ' },
     { value: avgRating || '—', label: 'Ср. рейтинг' },
   ];
 
@@ -46,7 +47,7 @@ export default function AdminStatsPage({ tenantId }: { tenantId?: number } = {})
                 textAlign: 'center',
               }}
             >
-              <Typography variant="h4" sx={{ fontWeight: 700, lineHeight: 1.15 }} color="primary">{c.value}</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2, whiteSpace: 'nowrap' }} color="primary">{c.value}</Typography>
               <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.25, mt: 0.25 }}>
                 {c.label}
               </Typography>
@@ -124,7 +125,7 @@ export default function AdminStatsPage({ tenantId }: { tenantId?: number } = {})
                 </TableCell>
                 <TableCell>{o.total_chats}</TableCell>
                 <TableCell>{o.total_messages}</TableCell>
-                <TableCell>{o.avg_response_sec}с</TableCell>
+                <TableCell>{formatDuration(o.avg_response_sec)}</TableCell>
                 <TableCell>{o.avg_rating > 0 ? `${o.avg_rating} ★` : '—'}</TableCell>
               </TableRow>
             ))}

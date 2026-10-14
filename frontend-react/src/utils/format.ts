@@ -34,3 +34,20 @@ export function formatElapsedTime(updatedAt: number): string {
 export function formatDateInput(date: Date): string {
   return date.toISOString().split('T')[0];
 }
+
+/**
+ * Human-readable duration from a number of seconds (e.g. avg response time).
+ * 45 → «45с», 494 → «8м 14с», 5400 → «1ч 30м».
+ */
+export function formatDuration(seconds: number | null | undefined): string {
+  const sec = Number(seconds);
+  if (!Number.isFinite(sec) || sec <= 0) return '—';
+  const total = Math.round(sec);
+  if (total < 60) return `${total}с`;
+  const minutes = Math.floor(total / 60);
+  const restSec = total % 60;
+  if (minutes < 60) return restSec ? `${minutes}м ${restSec}с` : `${minutes}м`;
+  const hours = Math.floor(minutes / 60);
+  const restMin = minutes % 60;
+  return restMin ? `${hours}ч ${restMin}м` : `${hours}ч`;
+}

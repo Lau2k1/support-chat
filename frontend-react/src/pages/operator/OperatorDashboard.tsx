@@ -40,6 +40,7 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { wsManager } from '@/services/ws';
 import { chatApi, statsApi, cannedApi } from '@/services/endpoints';
 import type { Chat, ArchiveFilters, Stats, DailyStat } from '@/types';
+import { formatDuration } from '@/utils/format';
 
 type ViewType = 'chats' | 'archive' | 'stats' | 'tickets';
 
@@ -415,7 +416,7 @@ function StatsView() {
     { value: stats.openChats, label: 'Открытых', color: '#f59e0b', icon: <MarkChatUnreadIcon fontSize="small" /> },
     { value: stats.closedChats, label: 'Закрытых', color: '#10b981', icon: <CheckCircleOutlineOutlinedIcon fontSize="small" /> },
     { value: stats.totalMessages, label: 'Сообщений', color: '#8b5cf6', icon: <ForumIcon fontSize="small" /> },
-    { value: `${stats.avgResponseSec}с`, label: 'Ср. ответ', color: '#06b6d4', icon: <TimerIcon fontSize="small" /> },
+    { value: formatDuration(stats.avgResponseSec), label: 'Ср. ответ', color: '#06b6d4', icon: <TimerIcon fontSize="small" /> },
     { value: stats.avgRating || '—', label: 'Ср. рейтинг', color: '#f59e0b', icon: <StarIcon fontSize="small" /> },
   ];
 
@@ -448,7 +449,7 @@ function StatsView() {
               }}
             >
               <Box sx={{ color: c.color, display: 'flex', mb: 0.5 }}>{c.icon}</Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, lineHeight: 1.15 }}>
+              <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                 {c.value}
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.25, mt: 0.25 }}>
