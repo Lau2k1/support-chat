@@ -168,6 +168,55 @@ a {
   gap: 8px;
 }
 
+/* Wrapper is transparent on desktop, so brand / links / actions keep the
+   original three-item header layout. It turns into a dropdown on mobile. */
+.nav__menu {
+  display: contents;
+}
+
+.nav__burger {
+  display: none;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav__burger span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ink);
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.nav__burger:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.nav--open .nav__burger span:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.nav--open .nav__burger span:nth-child(2) {
+  opacity: 0;
+}
+
+.nav--open .nav__burger span:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
 /* ---------- Hero ---------- */
 .hero {
   background: radial-gradient(1200px 500px at 80% -10%, var(--blue-light), transparent 60%), var(--white);
@@ -710,6 +759,10 @@ a {
   font-size: 13px;
 }
 
+section[id] {
+  scroll-margin-top: 84px;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 960px) {
   .hero__inner {
@@ -737,24 +790,202 @@ a {
   }
 }
 
-@media (max-width: 680px) {
-  .nav__links {
-    display: none;
+/* ---------- Mobile nav ---------- */
+@media (max-width: 800px) {
+  .nav__burger {
+    display: inline-flex;
   }
+
+  .nav__menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: saturate(180%) blur(8px);
+    border-bottom: 1px solid var(--line);
+    box-shadow: 0 18px 30px rgba(15, 23, 42, 0.1);
+    padding: 4px 24px 18px;
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+    z-index: 19;
+  }
+
+  .nav--open .nav__menu {
+    display: flex;
+  }
+
+  .nav__links {
+    flex-direction: column;
+    gap: 0;
+    width: 100%;
+    font-size: 16px;
+    color: var(--ink);
+  }
+
+  .nav__links a {
+    padding: 14px 2px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .nav__actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding-top: 16px;
+  }
+
+  .nav__actions .btn {
+    width: 100%;
+  }
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 680px) {
+  .container {
+    padding: 0 18px;
+  }
+
+  .nav__inner {
+    height: 60px;
+    gap: 16px;
+  }
+
+  .nav__menu {
+    max-height: calc(100vh - 60px);
+    padding: 4px 18px 18px;
+  }
+
+  .hero {
+    padding: 40px 0 36px;
+  }
+
+  .hero__inner {
+    gap: 32px;
+  }
+
+  .hero h1 {
+    font-size: clamp(26px, 7.5vw, 34px);
+  }
+
+  .lead {
+    font-size: 16.5px;
+  }
+
+  .hero__cta {
+    margin: 22px 0 18px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .hero__cta .btn {
+    width: 100%;
+  }
+
+  .hero__points {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .mock {
+    padding: 16px;
+    max-width: 100%;
+  }
+
+  .mock__bubble {
+    max-width: 100%;
+  }
+
+  .stats__grid {
+    padding: 22px 18px;
+    gap: 18px 12px;
+  }
+
+  .stat b {
+    font-size: 18px;
+  }
+
+  .stat span {
+    font-size: 13px;
+  }
+
   .cards,
   .plans,
   .steps,
   .footer__cols {
     grid-template-columns: 1fr;
   }
-  .section {
-    padding: 60px 0;
+
+  .cards,
+  .steps {
+    gap: 14px;
   }
+
+  .plans {
+    gap: 22px;
+  }
+
+  .card,
+  .step {
+    padding: 22px 20px;
+  }
+
+  .plan {
+    padding: 24px 20px;
+  }
+
+  .section {
+    padding: 52px 0;
+  }
+
+  .section__title {
+    font-size: clamp(22px, 6.6vw, 28px);
+  }
+
+  .section__lead {
+    font-size: 16px;
+    margin-bottom: 28px;
+  }
+
+  section[id] {
+    scroll-margin-top: 72px;
+  }
+
+  .cta {
+    padding: 48px 0;
+  }
+
   .cta__inner {
     flex-direction: column;
     align-items: flex-start;
+    gap: 22px;
   }
-  .hero {
-    padding: 48px 0 44px;
+
+  .cta__actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .cta__actions .btn {
+    width: 100%;
+  }
+
+  .footer {
+    padding: 40px 0 20px;
+  }
+
+  .footer__inner {
+    gap: 26px;
+    padding-bottom: 26px;
+  }
+
+  .faq__item {
+    padding: 16px 18px;
   }
 }
