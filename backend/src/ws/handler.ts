@@ -18,8 +18,10 @@ import {
   getOnlineOperators,
   broadcastOperatorsStatus,
   findOperatorById,
+  autoAssignChat,
 } from '../services/chat';
 import { forwardMessageToTelegram } from '../services/telegram';
+import { signFileUrl } from '../utils/signedUrl';
 import { LIMITS } from '../utils/validate';
 
 // ---------------------------------------------------------------------------
@@ -243,7 +245,23 @@ export function handleConnection(ws: ClientWs, req?: HttpIncomingMessage) {
           ws.role = 'client';
           joinRoom(chat.id, ws);
           safeSend(ws, { type: 'chat_created', chatId: chat.id, token: clientToken, public_code: chat.public_code });
-          broadcastToOnlineOperators({ type: 'new_chat', chatId: chat.id, public_code: chat.public_code, client_name: null, updated_at: chat.updated_at, source: 'widget' }, tenant.id);
+          // Автораспределение: чат сразу закрепляется за наименее загруженным
+          // онлайн-оператором; если никого нет — остаётся в общем пуле.
+          const assignee = await autoAssignChat(chat.id, tenant.id);
+          broadcastToOnlineOperators(
+            {
+              type: 'new_chat',
+              chatId: chat.id,
+              public_code: chat.public_code,
+              client_name: null,
+              updated_at: chat.updated_at,
+              source: 'widget',
+              assigned_operator_id: assignee?.id ?? null,
+              operator_name: assignee?.name ?? null,
+            },
+            tenant.id
+          );
+          if (assignee) await broadcastOperatorsStatus(tenant.id);
           break;
         }
 
@@ -371,7 +389,7 @@ export function handleConnection(ws: ClientWs, req?: HttpIncomingMessage) {
 
           const out: OutgoingMessage = {
             type: 'message',
-            message: { ...res.rows[0], sender_name: sName, message_type: res.rows[0].message_type || 'text', file_url: res.rows[0].file_url || null },
+            message: { ...res.rows[0], sender_name: sName, message_type: res.rows[0].message_type || 'text', file_url: signFileUrl(res.rows[0].file_url) },
             updated_at: serverTime,
           };
 

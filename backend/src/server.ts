@@ -18,6 +18,8 @@ import type { ClientWs } from './ws/types';
 import { startUploadsCleanup } from './services/uploads';
 import { startAutoCloseTimer } from './services/chat';
 import { pool } from './db';
+import { resolveOperator, tokenFromRequest } from './middleware/auth';
+import { verifyFileSignature } from './utils/signedUrl';
 
 const app = express();
 
@@ -149,9 +151,42 @@ const INLINE_IMAGE_TYPES: Record<string, string> = {
   '.bmp': 'image/bmp',
 };
 const UPLOAD_NAME_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[a-z0-9]{1,8}$/i;
-app.get('/uploads/:name', (req, res) => {
+
+/** Тенант-владелец файла (через сообщение → чат). null, если файл ни к чему не привязан. */
+async function fileTenantId(name: string): Promise<number | null> {
+  const r = await pool.query(
+    'SELECT c.tenant_id FROM messages m JOIN chats c ON c.id = m.chat_id WHERE m.file_url = $1 LIMIT 1',
+    [`/uploads/${name}`]
+  );
+  return r.rows[0]?.tenant_id ?? null;
+}
+
+app.get('/uploads/:name', async (req, res) => {
   const name = String(req.params.name || '');
   if (!UPLOAD_NAME_RE.test(name)) return res.status(404).end();
+
+  // Изоляция тенантов: файл отдаём только владельцу.
+  //  1) виджет/внешние страницы — по короткой подписи ?t=... (теги <img>/<a>
+  //     не умеют слать заголовки, а cookie у встраиваемого виджета нет);
+  //  2) панель оператора — по сессионной cookie/Bearer того же тенанта.
+  let allowed = false;
+  try {
+    const sig = typeof req.query.t === 'string' ? req.query.t : '';
+    if (sig && verifyFileSignature(name, sig)) {
+      allowed = true;
+    } else {
+      const session = tokenFromRequest(req as unknown as { headers: Record<string, unknown> });
+      const operator = session ? await resolveOperator(session) : null;
+      if (operator) {
+        allowed = operator.role === 'superadmin' || operator.tenantId === (await fileTenantId(name));
+      }
+    }
+  } catch {
+    allowed = false;
+  }
+  // 404 (не 403) — не раскрываем существование чужих файлов.
+  if (!allowed) return res.status(404).end();
+
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
   const inlineType = INLINE_IMAGE_TYPES[path.extname(name).toLowerCase()];

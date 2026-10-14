@@ -154,6 +154,62 @@ export function findOperatorById(id: number, tenantId: number): ClientWs | undef
   return undefined;
 }
 
+/** Сколько открытых чатов сейчас закреплено за каждым оператором тенанта. */
+async function openChatsPerOperator(tenantId: number): Promise<Map<number, number>> {
+  const res = await pool.query(
+    `SELECT assigned_operator_id, COUNT(*)::int AS n
+     FROM chats
+     WHERE status = 'open' AND tenant_id = $1 AND assigned_operator_id IS NOT NULL
+     GROUP BY assigned_operator_id`,
+    [tenantId]
+  );
+  const load = new Map<number, number>();
+  for (const r of res.rows) load.set(Number(r.assigned_operator_id), Number(r.n));
+  return load;
+}
+
+/**
+ * Автораспределение: выбираем свободного онлайн-оператора тенанта с наименьшим
+ * числом уже закреплённых открытых чатов. Учитываем только собственников тенанта
+ * со статусом «online» (не «занят»/«офлайн»); суперадмины (тенант 0) не
+ * участвуют — они подключаются к чужим тенантам вручную. Возвращает оператора
+ * или null, если сейчас никто не свободен (чат остаётся в общем пуле).
+ */
+export async function pickLeastLoadedOperator(tenantId: number): Promise<{ id: number; name: string } | null> {
+  // Один оператор может иметь несколько вкладок (сокетов) — считаем один раз.
+  const unique = new Map<number, string>();
+  for (const op of iterOperatorsFor(tenantId)) {
+    if (!op.operator) continue;
+    if (op.operator.tenantId !== tenantId) continue; // исключаем суперадминов
+    if (op.operatorStatus !== 'online') continue; // «занят»/«офлайн» не назначаем
+    if (!unique.has(op.operator.id)) unique.set(op.operator.id, op.operator.name);
+  }
+  if (!unique.size) return null;
+
+  const load = await openChatsPerOperator(tenantId);
+  let best: { id: number; name: string; n: number } | null = null;
+  for (const [id, name] of unique) {
+    const n = load.get(id) || 0;
+    if (!best || n < best.n) best = { id, name, n };
+  }
+  return best ? { id: best.id, name: best.name } : null;
+}
+
+/**
+ * Закрепляет чат за наименее загруженным онлайн-оператором (атомарно — только
+ * если чат ещё ни за кем не закреплён). Возвращает назначенного оператора либо
+ * null, если очередь пуста или чат успели забрать.
+ */
+export async function autoAssignChat(chatId: number, tenantId: number): Promise<{ id: number; name: string } | null> {
+  const candidate = await pickLeastLoadedOperator(tenantId);
+  if (!candidate) return null;
+  const res = await pool.query(
+    'UPDATE chats SET assigned_operator_id = $1 WHERE id = $2 AND assigned_operator_id IS NULL RETURNING id',
+    [candidate.id, chatId]
+  );
+  return res.rows.length ? candidate : null;
+}
+
 /** Broadcast to every operator that belongs to (or can serve) the tenant. */
 export function broadcastToOperators(data: OutgoingMessage, tenantId: number) {
   for (const op of iterOperatorsFor(tenantId)) {

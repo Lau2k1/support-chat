@@ -79,6 +79,8 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL;
 
 CREATE INDEX IF NOT EXISTS idx_chats_status ON chats(status);
 CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
+-- Изоляция файлов: поиск владельца файла по messages.file_url (см. server.ts).
+CREATE INDEX IF NOT EXISTS idx_messages_file_url ON messages(file_url) WHERE file_url IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS canned_responses (
     id SERIAL PRIMARY KEY,

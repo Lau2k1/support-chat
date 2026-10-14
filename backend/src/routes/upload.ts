@@ -7,6 +7,7 @@ import { pool } from '../db';
 import { authMiddleware, resolveOperator, tokenFromRequest, AuthenticatedRequest, type AuthUser } from '../middleware/auth';
 import { broadcastToRoom } from '../services/chat';
 import { forwardMessageToTelegram } from '../services/telegram';
+import { signFileUrl } from '../utils/signedUrl';
 import type { OutgoingMessage } from '../ws/types';
 
 const upload = multer({
@@ -146,7 +147,7 @@ router.post(
           ...result.rows[0],
           sender_name: operator?.name || 'Клиент',
           message_type: result.rows[0].message_type || 'file',
-          file_url: result.rows[0].file_url || null,
+          file_url: signFileUrl(result.rows[0].file_url),
         },
         updated_at: serverTime,
       };
@@ -157,7 +158,7 @@ router.post(
         forwardMessageToTelegram(chatId, result.rows[0]).catch((e) => console.error('TG forward failed', e));
       }
 
-      res.json(result.rows[0]);
+      res.json({ ...result.rows[0], file_url: signFileUrl(result.rows[0].file_url) });
     } catch (e) {
       // SEC-02: never leave an orphan file behind when the insert/broadcast fails.
       fs.promises.unlink(file.path).catch(() => {});

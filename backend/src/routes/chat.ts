@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db';
 import { authMiddleware, resolveOperator, tokenFromRequest, AuthenticatedRequest } from '../middleware/auth';
 import { startOfDay, endOfDay } from '../utils/dateRange';
+import { signFileUrl } from '../utils/signedUrl';
 
 const router = Router();
 
@@ -111,10 +112,14 @@ router.get('/messages/:chatId', async (req, res) => {
     [chatId]
   );
 
+  // Файлы раздаются по подписанной ссылке (см. utils/signedUrl.ts), чтобы
+  // получатель истории мог открыть только «свои» файлы.
+  const signed = result.rows.map((m: any) => ({ ...m, file_url: signFileUrl(m.file_url) }));
+
   if (operator) {
-    res.json(result.rows);
+    res.json(signed);
   } else {
-    res.json(result.rows.filter((m: any) => m.message_type !== 'note'));
+    res.json(signed.filter((m: any) => m.message_type !== 'note'));
   }
 });
 

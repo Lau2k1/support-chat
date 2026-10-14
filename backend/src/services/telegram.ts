@@ -6,9 +6,12 @@ import { pool } from '../db';
 import {
   broadcastToOperators,
   broadcastToOnlineOperators,
+  broadcastOperatorsStatus,
+  autoAssignChat,
 } from './chat';
 import type { OutgoingMessage } from '../ws/types';
 import { normalizeTgApiBase } from '../utils/tgApiBase';
+import { signFileUrl } from '../utils/signedUrl';
 
 /**
  * Telegram integration (PLAN section 9).
@@ -289,10 +292,23 @@ export async function handleTelegramUpdate(botId: number, update: unknown): Prom
       [bot.tenant_id, externalId, name]
     );
     chatId = ins.rows[0].id;
+    // Автораспределение: как и у виджета, закрепляем чат за наименее
+    // загруженным онлайн-оператором тенанта (если кто-то онлайн).
+    const assignee = await autoAssignChat(chatId, bot.tenant_id);
     broadcastToOnlineOperators(
-      { type: 'new_chat', chatId, public_code: ins.rows[0].public_code, client_name: name, updated_at: Number(ins.rows[0].updated_at), source: 'telegram' },
+      {
+        type: 'new_chat',
+        chatId,
+        public_code: ins.rows[0].public_code,
+        client_name: name,
+        updated_at: Number(ins.rows[0].updated_at),
+        source: 'telegram',
+        assigned_operator_id: assignee?.id ?? null,
+        operator_name: assignee?.name ?? null,
+      },
       bot.tenant_id
     );
+    if (assignee) await broadcastOperatorsStatus(bot.tenant_id);
   }
 
   const timeUpdate = await pool.query(
@@ -312,7 +328,7 @@ export async function handleTelegramUpdate(botId: number, update: unknown): Prom
       ...mres.rows[0],
       sender_name: name,
       message_type: mres.rows[0].message_type || 'text',
-      file_url: mres.rows[0].file_url || null,
+      file_url: signFileUrl(mres.rows[0].file_url),
     },
     updated_at: serverTime,
   };
@@ -351,7 +367,7 @@ export async function forwardMessageToTelegram(chatId: number, message: MessageL
   const token = decryptToken(bot.bot_token);
   try {
     if ((message.message_type === 'image' || message.message_type === 'file') && message.file_url) {
-      const rel = String(message.file_url).replace(/^\/uploads\//, '');
+      const rel = String(message.file_url).replace(/^\/uploads\//, '').split('?')[0];
       const full = path.join(UPLOADS_DIR, rel);
       const method = message.message_type === 'image' ? 'sendPhoto' : 'sendDocument';
       await sendMedia(token, chat.external_id, method, full, message.content);
