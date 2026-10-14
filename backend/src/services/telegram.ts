@@ -112,6 +112,17 @@ export function deleteWebhook(token: string): Promise<boolean> {
   return callApi<boolean>(token, 'deleteWebhook', { drop_pending_updates: false });
 }
 
+export interface TelegramWebhookInfo {
+  url?: string;
+  pending_update_count?: number;
+  last_error_date?: number;
+  last_error_message?: string;
+}
+
+export function getWebhookInfo(token: string): Promise<TelegramWebhookInfo> {
+  return callApi<TelegramWebhookInfo>(token, 'getWebhookInfo');
+}
+
 export function sendText(token: string, chatId: string, text: string): Promise<unknown> {
   return callApi(token, 'sendMessage', { chat_id: chatId, text });
 }

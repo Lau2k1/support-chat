@@ -7,8 +7,9 @@ import CrmBotsPage from '@/components/owner/CrmBotsPage';
 import CrmTenantDetail from '@/components/owner/CrmTenantDetail';
 import CrmPaymentsPage from '@/components/owner/CrmPaymentsPage';
 import CrmPromoCodesPage from '@/components/owner/CrmPromoCodesPage';
+import CrmSystemPage from '@/components/owner/CrmSystemPage';
 
-type OwnerPage = 'overview' | 'tenants' | 'bots' | 'payments' | 'promo';
+type OwnerPage = 'overview' | 'tenants' | 'bots' | 'payments' | 'promo' | 'system';
 type OwnerView = OwnerPage | 'tenant';
 
 export default function OwnerDashboard() {
@@ -32,7 +33,9 @@ export default function OwnerDashboard() {
             ? 'Платежи клиентов'
             : view === 'promo'
               ? 'Промокоды'
-              : 'Telegram-боты';
+              : view === 'system'
+                ? 'Состояние сервера'
+                : 'Telegram-боты';
 
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
@@ -69,6 +72,7 @@ export default function OwnerDashboard() {
           {view === 'bots' && <CrmBotsPage />}
           {view === 'payments' && <CrmPaymentsPage />}
           {view === 'promo' && <CrmPromoCodesPage />}
+          {view === 'system' && <CrmSystemPage />}
         </Box>
       </Box>
     </Box>
@@ -76,6 +80,15 @@ export default function OwnerDashboard() {
 }
 
 function parseView(view: string | null): OwnerView {
-  if (view === 'tenants' || view === 'bots' || view === 'tenant' || view === 'payments' || view === 'promo') return view;
+  if (
+    view === 'tenants' ||
+    view === 'bots' ||
+    view === 'tenant' ||
+    view === 'payments' ||
+    view === 'promo' ||
+    view === 'system'
+  ) {
+    return view;
+  }
   return 'overview';
 }

@@ -28,6 +28,8 @@ import type {
   TicketListResponse,
   TicketResponse,
   TicketStatus,
+  SystemStatus,
+  SystemAlertsResponse,
 } from '@/types';
 
 export const authApi = {
@@ -160,6 +162,11 @@ export const superadminApi = {
     api.put<PromoCode>(`/superadmin/promo-codes/${id}`, data),
   deletePromoCode: (id: number) =>
     api.delete<{ ok: boolean }>(`/superadmin/promo-codes/${id}`),
+
+  // Platform health (owner CRM).
+  getSystemStatus: () => api.get<SystemStatus>('/superadmin/system/status'),
+  getSystemAlerts: (limit = 50) =>
+    api.get<SystemAlertsResponse>('/superadmin/system/alerts', { params: { limit } }),
 };
 
 export const ticketTemplatesApi = {

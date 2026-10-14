@@ -17,6 +17,7 @@ import billingRoutes from './routes/billing';
 import cryptobotRoutes from './routes/cryptobot';
 import ticketTemplatesRoutes from './routes/ticketTemplates';
 import ticketsRoutes from './routes/tickets';
+import { publicStatusRouter, systemAdminRouter } from './routes/systemStatus';
 import { handleConnection } from './ws/handler';
 import type { ClientWs } from './ws/types';
 import { startUploadsCleanup } from './services/uploads';
@@ -305,6 +306,10 @@ app.get(['/login', '/register', '/operator', '/admin', '/crm'], (req, res) => {
 
 app.use('/admin', adminRoutes);
 app.use('/superadmin', superRouter);
+app.use('/superadmin/system', systemAdminRouter);
+// External monitoring (bearer STATUS_TOKEN). Must be registered before the SPA
+// catch-all GET below.
+app.use(publicStatusRouter);
 app.use('/api/tg', telegramRoutes);
 app.use('/billing', billingRoutes);
 app.use('/api/cryptobot', cryptobotRoutes);

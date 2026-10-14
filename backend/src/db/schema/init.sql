@@ -349,3 +349,22 @@ BEGIN
         FOR EACH ROW EXECUTE FUNCTION set_updated_at();
     END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- Platform monitoring (owner-only). One row per incident transition, written by
+-- the host cron script deploy/monitor.sh (via psql), NOT per check — so the table
+-- stays tiny. status='firing' while the problem persists, 'resolved' after it
+-- recovers. kind: health | database | disk | memory | telegram | tls.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS system_alerts (
+    id SERIAL PRIMARY KEY,
+    kind VARCHAR(40) NOT NULL,
+    severity VARCHAR(10) NOT NULL DEFAULT 'critical',
+    status VARCHAR(12) NOT NULL DEFAULT 'firing',
+    message TEXT NOT NULL,
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_system_alerts_created ON system_alerts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_system_alerts_status ON system_alerts(status);

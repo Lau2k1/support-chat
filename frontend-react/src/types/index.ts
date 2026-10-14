@@ -250,6 +250,38 @@ export interface TicketResponse {
   ticket: Ticket;
 }
 
+export type CheckLevel = 'ok' | 'warning' | 'critical';
+
+export interface StatusCheck {
+  key: string;
+  label: string;
+  level: CheckLevel;
+  ok: boolean;
+  value: string;
+  detail?: string;
+}
+
+export interface SystemAlert {
+  id: number;
+  kind: string;
+  severity: string;
+  status: string;
+  message: string;
+  created_at: string;
+}
+
+export interface SystemStatus {
+  ok: boolean;
+  time: string;
+  uptimeSec: number;
+  checks: StatusCheck[];
+  failing: string[];
+}
+
+export interface SystemAlertsResponse {
+  items: SystemAlert[];
+}
+
 export interface OnlineOperator {
   id: number;
   name: string;
