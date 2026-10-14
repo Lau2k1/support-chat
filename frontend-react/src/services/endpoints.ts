@@ -22,7 +22,6 @@ import type {
   CrmPayment,
   PromoCode,
   PromoInput,
-  TicketTemplate,
   TicketTemplateListResponse,
   TicketTemplateResponse,
   TicketTemplateSchema,
