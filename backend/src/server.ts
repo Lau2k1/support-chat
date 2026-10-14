@@ -307,7 +307,7 @@ app.use('/superadmin', superRouter);
 app.use('/api/tg', telegramRoutes);
 app.use('/billing', billingRoutes);
 app.use('/api/cryptobot', cryptobotRoutes);
-app.use('/api/ticket-templates', ticketTemplatesRoutes);
+app.use('/ticket-templates', ticketTemplatesRoutes);
 
 // Корень и все прочие GET-пути, не перехваченные выше (API/виджет/uploads/статика):
 // лендинг на маркетинговом домене, SPA — на остальных.

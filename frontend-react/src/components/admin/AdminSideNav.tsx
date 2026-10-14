@@ -1,6 +1,7 @@
 import { Box, Typography } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/People';
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
+import DescriptionIcon from '@mui/icons-material/Description';
 import LabelIcon from '@mui/icons-material/Label';
 import SettingsIcon from '@mui/icons-material/Settings';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
@@ -20,7 +21,7 @@ type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 
 const items: { page: Page; icon: React.ReactNode; label: string }[] = [
   { page: 'operators', icon: <PeopleIcon fontSize="small" />, label: 'Операторы' },
   { page: 'invites', icon: <ConfirmationNumberIcon fontSize="small" />, label: 'Инвайты' },
-  { page: 'ticket-templates', icon: <ConfirmationNumberIcon fontSize="small" />, label: 'Шаблоны тикетов' },
+  { page: 'ticket-templates', icon: <DescriptionIcon fontSize="small" />, label: 'Шаблоны тикетов' },
   { page: 'stats', icon: <BarChartIcon fontSize="small" />, label: 'Статистика' },
   { page: 'audit', icon: <FactCheckIcon fontSize="small" />, label: 'Аудит' },
   { page: 'telegram', icon: <SendIcon fontSize="small" />, label: 'Telegram-бот' },
