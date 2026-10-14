@@ -223,6 +223,33 @@ export interface TicketTemplateResponse {
   template: TicketTemplate;
 }
 
+export type TicketStatus = 'open' | 'resolved';
+
+export interface Ticket {
+  id: number;
+  tenant_id: number;
+  template_id: number | null;
+  template_name: string;
+  template_schema: TicketTemplateSchema;
+  data: Record<string, any>;
+  status: TicketStatus;
+  created_by: number | null;
+  created_by_name: string | null;
+  resolved_by: number | null;
+  resolved_by_name: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TicketListResponse {
+  items: Ticket[];
+}
+
+export interface TicketResponse {
+  ticket: Ticket;
+}
+
 export interface OnlineOperator {
   id: number;
   name: string;

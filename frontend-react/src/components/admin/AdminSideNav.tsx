@@ -16,11 +16,12 @@ import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { wsManager } from '@/services/ws';
 
-type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'billing' | 'ticket-templates';
+type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'billing' | 'ticket-templates' | 'tickets';
 
 const items: { page: Page; icon: React.ReactNode; label: string }[] = [
   { page: 'operators', icon: <PeopleIcon fontSize="small" />, label: 'Операторы' },
   { page: 'invites', icon: <ConfirmationNumberIcon fontSize="small" />, label: 'Инвайты' },
+  { page: 'tickets', icon: <FactCheckIcon fontSize="small" />, label: 'Тикеты' },
   { page: 'ticket-templates', icon: <DescriptionIcon fontSize="small" />, label: 'Шаблоны тикетов' },
   { page: 'stats', icon: <BarChartIcon fontSize="small" />, label: 'Статистика' },
   { page: 'audit', icon: <FactCheckIcon fontSize="small" />, label: 'Аудит' },

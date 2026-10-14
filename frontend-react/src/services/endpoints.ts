@@ -25,6 +25,9 @@ import type {
   TicketTemplateListResponse,
   TicketTemplateResponse,
   TicketTemplateSchema,
+  TicketListResponse,
+  TicketResponse,
+  TicketStatus,
 } from '@/types';
 
 export const authApi = {
@@ -169,4 +172,17 @@ export const ticketTemplatesApi = {
     data: { name?: string; description?: string | null; schema?: TicketTemplateSchema; isActive?: boolean }
   ) => api.put<TicketTemplateResponse>(`/ticket-templates/${id}`, data),
   delete: (id: number) => api.delete<{ success: boolean }>(`/ticket-templates/${id}`),
+};
+
+export const ticketsApi = {
+  list: (params?: { status?: TicketStatus; templateId?: number }) =>
+    api.get<TicketListResponse>('/tickets', { params }),
+  get: (id: number) => api.get<TicketResponse>(`/tickets/${id}`),
+  /** Operator/admin fills an active template and creates a ticket. */
+  create: (data: { templateId: number; data: Record<string, any> }) =>
+    api.post<TicketResponse>('/tickets', data),
+  /** Решено / не решено. */
+  setStatus: (id: number, status: TicketStatus) =>
+    api.put<TicketResponse>(`/tickets/${id}`, { status }),
+  remove: (id: number) => api.delete<{ success: boolean }>(`/tickets/${id}`),
 };

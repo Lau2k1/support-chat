@@ -311,3 +311,41 @@ BEGIN
         FOR EACH ROW EXECUTE FUNCTION set_updated_at();
     END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- Tickets. Operators fill a template and create a ticket; admins manage them.
+-- template_name + template_schema are snapshots, so a ticket stays readable even
+-- if the admin later edits or deletes the template it came from.
+-- status: 'open' (не решено) | 'resolved' (решено).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS tickets (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    template_id INTEGER REFERENCES ticket_templates(id) ON DELETE SET NULL,
+    template_name VARCHAR(150) NOT NULL,
+    template_schema JSONB NOT NULL DEFAULT '{"fields":[]}'::jsonb,
+    data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status VARCHAR(20) NOT NULL DEFAULT 'open',
+    created_by INTEGER REFERENCES operators(id) ON DELETE SET NULL,
+    resolved_by INTEGER REFERENCES operators(id) ON DELETE SET NULL,
+    resolved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_tickets_tenant ON tickets(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_tickets_template ON tickets(template_id);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger t
+        JOIN pg_class c ON c.oid = t.tgrelid
+        WHERE c.relname = 'tickets' AND t.tgname = 'tickets_updated_at'
+    ) THEN
+        CREATE TRIGGER tickets_updated_at
+        BEFORE UPDATE ON tickets
+        FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+    END IF;
+END $$;

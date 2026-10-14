@@ -10,10 +10,11 @@ import AdminStatsPage from '@/components/admin/AdminStatsPage';
 import TelegramBotPage from '@/components/admin/TelegramBotPage';
 import BillingPage from '@/components/admin/BillingPage';
 import TicketTemplatesPage from '@/components/admin/TicketTemplatesPage';
+import TicketsPage from '@/components/tickets/TicketsPage';
 import PaywallBanner from '@/components/common/PaywallBanner';
 import { useAuthStore } from '@/stores/authStore';
 
-type AdminPage = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'billing' | 'ticket-templates';
+type AdminPage = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'billing' | 'ticket-templates' | 'tickets';
 
 export default function AdminPanel() {
   const billingActive = useAuthStore((s) => s.billingActive);
@@ -52,6 +53,7 @@ export default function AdminPanel() {
           {page === 'telegram' && <TelegramBotPage />}
           {page === 'billing' && <BillingPage />}
           {page === 'ticket-templates' && <TicketTemplatesPage />}
+          {page === 'tickets' && <TicketsPage isAdmin />}
         </Box>
       </Box>
     </Box>
@@ -68,4 +70,5 @@ const pageTitles: Record<AdminPage, string> = {
   telegram: 'Telegram-бот',
   billing: 'Тариф и оплата',
   'ticket-templates': 'Шаблоны тикетов',
+  tickets: 'Тикеты',
 };
