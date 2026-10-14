@@ -75,12 +75,19 @@ send_telegram() {
 
 record_alert() {
   local kind="$1" severity="$2" status="$3" message="$4"
-  if [ -z "${DB_USER:-}" ] || [ -z "${DB_NAME:-}" ]; then return 0; fi
-  # psql's :'var' quoting escapes the value safely (messages contain quotes).
-  docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -q \
-    -v kind="$kind" -v severity="$severity" -v status="$status" -v msg="$message" \
-    -c "INSERT INTO system_alerts (kind, severity, status, message) VALUES (:'kind', :'severity', :'status', :'msg');" \
-    >/dev/null 2>&1 || log "WARN: could not write alert to db"
+  [ -z "${DB_USER:-}" ] && return 0
+  [ -z "${DB_NAME:-}" ] && return 0
+  # NOTE: `psql -c` does NOT interpolate :'var' — psql only substitutes variables
+  # when the SQL arrives on stdin, so the statement is fed through a here-document.
+  if ! docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -q \
+      -v kind="$kind" -v severity="$severity" -v status="$status" -v msg="$message" \
+      <<'SQL' >/dev/null 2>>"$STATE_DIR/errors.log"
+INSERT INTO system_alerts (kind, severity, status, message) VALUES (:'kind', :'severity', :'status', :'msg');
+SQL
+  then
+    log "WARN: could not write alert to db (see $STATE_DIR/errors.log)"
+  fi
+  return 0
 }
 
 # ------------------------------------------------------------- state helpers
