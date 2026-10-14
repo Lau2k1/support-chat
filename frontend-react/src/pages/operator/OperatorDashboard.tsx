@@ -14,6 +14,12 @@ import CloseIcon from '@mui/icons-material/Close';
 import LabelIcon from '@mui/icons-material/Label';
 import SendIcon from '@mui/icons-material/Send';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import ChatBubbleOutlineOutlinedIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
+import MarkChatUnreadIcon from '@mui/icons-material/MarkChatUnread';
+import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
+import ForumIcon from '@mui/icons-material/Forum';
+import TimerIcon from '@mui/icons-material/Timer';
+import StarIcon from '@mui/icons-material/Star';
 import TopBar from '@/components/layout/TopBar';
 import SideNav from '@/components/layout/SideNav';
 import ChatSidebar from '@/components/chat/ChatSidebar';
@@ -404,16 +410,18 @@ function StatsView() {
 
   if (!stats) return <Box sx={{ p: 3, textAlign: 'center' }}>Загрузка...</Box>;
 
-  const cards = [
-    { value: stats.totalChats, label: 'Всего чатов' },
-    { value: stats.openChats, label: 'Открытых' },
-    { value: stats.closedChats, label: 'Закрытых' },
-    { value: stats.totalMessages, label: 'Сообщений' },
-    { value: `${stats.avgResponseSec}с`, label: 'Ср. время ответа' },
-    { value: stats.avgRating || '—', label: 'Ср. рейтинг' },
+  const cards: { value: React.ReactNode; label: string; color: string; icon: React.ReactNode }[] = [
+    { value: stats.totalChats, label: 'Всего чатов', color: '#007bff', icon: <ChatBubbleOutlineOutlinedIcon fontSize="small" /> },
+    { value: stats.openChats, label: 'Открытых', color: '#f59e0b', icon: <MarkChatUnreadIcon fontSize="small" /> },
+    { value: stats.closedChats, label: 'Закрытых', color: '#10b981', icon: <CheckCircleOutlineOutlinedIcon fontSize="small" /> },
+    { value: stats.totalMessages, label: 'Сообщений', color: '#8b5cf6', icon: <ForumIcon fontSize="small" /> },
+    { value: `${stats.avgResponseSec}с`, label: 'Ср. ответ', color: '#06b6d4', icon: <TimerIcon fontSize="small" /> },
+    { value: stats.avgRating || '—', label: 'Ср. рейтинг', color: '#f59e0b', icon: <StarIcon fontSize="small" /> },
   ];
 
   const maxCount = Math.max(...daily.map((d) => d.count), 1);
+  const weekTotal = daily.reduce((sum, d) => sum + d.count, 0);
+  const best = daily.reduce<DailyStat | null>((top, d) => (!top || d.count > top.count ? d : top), null);
 
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto', p: 3, overflowY: 'auto', flex: 1 }}>
@@ -424,9 +432,26 @@ function StatsView() {
       <Grid container spacing={2} sx={{ mb: 3 }}>
         {cards.map((c) => (
           <Grid size={{ xs: 6, sm: 4, md: 2 }} key={c.label}>
-            <Card sx={{ p: 2.5, textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ fontWeight: 700 }} color="primary">{c.value}</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <Card
+              sx={{
+                p: 2,
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                borderTop: '3px solid',
+                borderColor: c.color,
+                transition: 'box-shadow .2s ease, transform .2s ease',
+                '&:hover': { boxShadow: 4, transform: 'translateY(-2px)' },
+              }}
+            >
+              <Box sx={{ color: c.color, display: 'flex', mb: 0.5 }}>{c.icon}</Box>
+              <Typography variant="h4" sx={{ fontWeight: 700, lineHeight: 1.15 }}>
+                {c.value}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.25, mt: 0.25 }}>
                 {c.label}
               </Typography>
             </Card>
@@ -434,28 +459,61 @@ function StatsView() {
         ))}
       </Grid>
 
-      <Card sx={{ p: 2.5, mb: 2.5 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-          Чаты за последние 7 дней
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 160, pt: 2 }}>
-          {daily.map((d) => (
-            <Box key={d.day} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-              <Typography variant="caption" sx={{ fontWeight: 600 }}>{d.count}</Typography>
-              <Box
-                sx={{
-                  width: '100%',
-                  bgcolor: 'primary.main',
-                  borderRadius: '4px 4px 0 0',
-                  minHeight: 2,
-                  height: `${(d.count / maxCount) * 100}%`,
-                  transition: 'height 0.3s',
-                }}
-              />
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>{d.day}</Typography>
-            </Box>
-          ))}
+      <Card sx={{ p: 2.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', mb: 2, gap: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            Чаты за последние 7 дней
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'right' }}>
+            Всего: <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>{weekTotal}</Box>
+            {best && best.count > 0 && ` • лучший день: ${best.day} (${best.count})`}
+          </Typography>
         </Box>
+
+        {daily.length === 0 ? (
+          <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+            Нет данных за последние 7 дней
+          </Typography>
+        ) : (
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            {daily.map((d) => {
+              const pct = Math.round((d.count / maxCount) * 100);
+              return (
+                <Box key={d.day} sx={{ flex: 1, minWidth: 0 }}>
+                  {/* Колонка фиксированной высоты: без неё `height: %` у столбика
+                      считается от auto-родителя и схлопывается в minHeight. */}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: 180 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
+                      {d.count}
+                    </Typography>
+                    <Box sx={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                      <Box
+                        title={`${d.day}: ${d.count}`}
+                        sx={{
+                          width: '62%',
+                          maxWidth: 46,
+                          minHeight: 3,
+                          height: `${pct}%`,
+                          borderRadius: '6px 6px 0 0',
+                          background: 'linear-gradient(180deg, #63b3ff 0%, #007bff 100%)',
+                          transition: 'height .3s ease, filter .2s ease',
+                          '&:hover': { filter: 'brightness(1.12)' },
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: 'block', textAlign: 'center', mt: 0.75 }}
+                  >
+                    {d.day}
+                  </Typography>
+                </Box>
+              );
+            })}
+          </Box>
+        )}
       </Card>
     </Box>
   );

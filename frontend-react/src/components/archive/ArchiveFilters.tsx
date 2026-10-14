@@ -196,7 +196,14 @@ export default function ArchiveFilters({ filters, onChange, onReset, tags }: Arc
         </Box>
       </Box>
 
-      <Button variant="outlined" size="small" onClick={onReset} sx={{ alignSelf: 'flex-end' }}>
+      <Button
+        variant="outlined"
+        size="small"
+        onClick={onReset}
+        // Выравниваем по первой строке фильтров: без этого `alignSelf: flex-end`
+        // прижимает кнопку к низу самой высокой ячейки (теги с чипами).
+        sx={{ height: 40, alignSelf: 'flex-start' }}
+      >
         Сбросить
       </Button>
     </Box>

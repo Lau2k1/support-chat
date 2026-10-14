@@ -25,7 +25,7 @@ export default function AdminStatsPage({ tenantId }: { tenantId?: number } = {})
     { value: stats.length, label: 'Операторов' },
     { value: totalChats, label: 'Всего чатов' },
     { value: totalMsgs, label: 'Всего сообщений' },
-    { value: `${avgResp}с`, label: 'Ср. время ответа' },
+    { value: `${avgResp}с`, label: 'Ср. ответ' },
     { value: avgRating || '—', label: 'Ср. рейтинг' },
   ];
 
@@ -36,9 +36,18 @@ export default function AdminStatsPage({ tenantId }: { tenantId?: number } = {})
       <Grid container spacing={2} sx={{ mb: 3 }}>
         {cards.map((c) => (
           <Grid size={{ xs: 6, sm: 4, md: 2 }} key={c.label}>
-            <Card sx={{ p: 2, textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ fontWeight: 700 }} color="primary">{c.value}</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <Card
+              sx={{
+                p: 2,
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                textAlign: 'center',
+              }}
+            >
+              <Typography variant="h4" sx={{ fontWeight: 700, lineHeight: 1.15 }} color="primary">{c.value}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.25, mt: 0.25 }}>
                 {c.label}
               </Typography>
             </Card>
@@ -47,29 +56,50 @@ export default function AdminStatsPage({ tenantId }: { tenantId?: number } = {})
       </Grid>
 
       <Paper sx={{ p: 2.5, mb: 3 }}>
-        <Typography sx={{ fontWeight: 600, fontSize: 14, mb: 2 }}>Чаты по операторам</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 2, mb: 2 }}>
+          <Typography sx={{ fontWeight: 600, fontSize: 14 }}>Чаты по операторам</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Всего: <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>{totalChats}</Box>
+          </Typography>
+        </Box>
         {stats.length === 0 ? (
           <Typography color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>Нет данных</Typography>
         ) : (
-          <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 140, pt: 2 }}>
-            {stats.map((o) => (
-              <Box key={o.id} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-                <Typography variant="caption" sx={{ fontWeight: 600 }}>{o.total_chats}</Typography>
-                <Box
-                  sx={{
-                    width: '100%',
-                    bgcolor: 'primary.main',
-                    borderRadius: '4px 4px 0 0',
-                    minHeight: 2,
-                    height: `${(Number(o.total_chats) / maxChats) * 100}%`,
-                    transition: 'height 0.3s',
-                  }}
-                />
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 80 }}>
-                  {o.name}
-                </Typography>
-              </Box>
-            ))}
+          <Box sx={{ display: 'flex', gap: 1.5, overflowX: 'auto', pb: 0.5 }}>
+            {stats.map((o) => {
+              const pct = Math.round((Number(o.total_chats) / maxChats) * 100);
+              return (
+                <Box key={o.id} sx={{ flex: '1 0 76px', minWidth: 76 }}>
+                  {/* Колонка фиксированной высоты — иначе `height: %` у столбика
+                      считается от auto-родителя и схлопывается. */}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: 160 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, lineHeight: 1.3 }}>{o.total_chats}</Typography>
+                    <Box sx={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                      <Box
+                        title={`${o.name}: ${o.total_chats}`}
+                        sx={{
+                          width: '58%',
+                          maxWidth: 40,
+                          minHeight: 3,
+                          height: `${pct}%`,
+                          borderRadius: '6px 6px 0 0',
+                          background: 'linear-gradient(180deg, #63b3ff 0%, #007bff 100%)',
+                          transition: 'height .3s ease, filter .2s ease',
+                          '&:hover': { filter: 'brightness(1.12)' },
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: 'block', textAlign: 'center', mt: 0.75, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                  >
+                    {o.name}
+                  </Typography>
+                </Box>
+              );
+            })}
           </Box>
         )}
       </Paper>
