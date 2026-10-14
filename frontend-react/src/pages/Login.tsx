@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import { Box, Card, TextField, Button, Typography, Alert, Link } from '@mui/material';
+import { Box, Card, TextField, Button, Typography, Alert, Link, FormControlLabel, Checkbox } from '@mui/material';
 import { authApi } from '@/services/endpoints';
 import { useAuthStore } from '@/stores/authStore';
 import { validateEmail } from '@/utils/validation';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => localStorage.getItem('sc_remember_email') || '');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(() => localStorage.getItem('sc_remember') === '1');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
@@ -23,7 +24,15 @@ export default function Login() {
 
     setLoading(true);
     try {
-      await authApi.login(email.trim().toLowerCase(), password);
+      const em = email.trim().toLowerCase();
+      await authApi.login(em, password);
+      if (remember) {
+        localStorage.setItem('sc_remember', '1');
+        localStorage.setItem('sc_remember_email', em);
+      } else {
+        localStorage.removeItem('sc_remember');
+        localStorage.removeItem('sc_remember_email');
+      }
       await login();
       navigate('/');
     } catch (err: any) {
@@ -71,8 +80,13 @@ export default function Login() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            sx={{ mb: 2 }}
+            sx={{ mb: 1.5 }}
             required
+          />
+          <FormControlLabel
+            control={<Checkbox size="small" checked={remember} onChange={(e) => setRemember(e.target.checked)} />}
+            label="Запомнить меня"
+            sx={{ mb: 1.5 }}
           />
           <Button
             fullWidth
