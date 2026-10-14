@@ -18,6 +18,7 @@ import { chatApi } from '@/services/endpoints';
 import { useTyping } from '@/hooks/useTyping';
 import { useUIStore } from '@/stores/uiStore';
 import { LIMITS } from '@/utils/validation';
+import { imageFilesFromClipboard } from '@/utils/clipboard';
 import QuickRepliesMenu from '@/components/chat/QuickRepliesMenu';
 
 export interface ChatInputApi {
@@ -102,6 +103,21 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
     e.target.value = '';
   };
 
+  // Ctrl+V: paste image(s) straight from the clipboard into the chat.
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    if (!chatId || readOnly) return;
+    const files = imageFilesFromClipboard(e.clipboardData);
+    if (!files.length) return;
+    e.preventDefault();
+    for (const file of files) {
+      try {
+        await chatApi.uploadFile(chatId, file);
+      } catch {
+        showToast('Ошибка загрузки изображения', 'error');
+      }
+    }
+  };
+
   const disabled = !chatId || readOnly;
   const placeholder = readOnly ? 'Режим наблюдения — отправка недоступна' : noteMode ? 'Внутренняя заметка...' : 'Сообщение... (/ для быстрых ответов)';
 
@@ -156,7 +172,7 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
         onKeyDown={handleKeyDown}
         inputRef={textInputRef}
         disabled={disabled}
-        slotProps={{ htmlInput: { maxLength: LIMITS.message } }}
+        slotProps={{ htmlInput: { maxLength: LIMITS.message, onPaste: handlePaste } }}
         sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
       />
 

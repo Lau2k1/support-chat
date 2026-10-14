@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useWidgetWs } from './useWidgetWs';
+import { imageFilesFromClipboard } from '../utils/clipboard';
 
 /** Mirrors backend/src/utils/validate.ts LIMITS.message. */
 const MESSAGE_MAX = 4000;
@@ -201,6 +202,20 @@ export default function WidgetChat() {
   const handleInputBlur = useCallback(() => {
     sendTypingStop();
   }, [sendTypingStop]);
+
+  // Ctrl+V: paste image(s) from the clipboard into the chat.
+  const handlePaste = useCallback(
+    async (e: React.ClipboardEvent) => {
+      if (!chatId || chatClosed) return;
+      const files = imageFilesFromClipboard(e.clipboardData);
+      if (!files.length) return;
+      e.preventDefault();
+      for (const file of files) {
+        await uploadFile(file);
+      }
+    },
+    [chatId, chatClosed, uploadFile]
+  );
 
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -419,6 +434,7 @@ export default function WidgetChat() {
             onChange={handleInputChange}
             onBlur={handleInputBlur}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder="Напишите сообщение..."
             maxLength={MESSAGE_MAX}
             rows={1}
