@@ -36,7 +36,17 @@ touch "$STATE_FILE" "$COOLDOWN_FILE"
 
 # ---------------------------------------------------------------- env helpers
 # Values are read individually: sourcing .env would break on "TENANT_NAME=Главный офис".
-env_get() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-; }
+# Docker Compose strips surrounding quotes; we must do the same, otherwise a value
+# like APP_DOMAIN="app.sct.chat" would be used verbatim (breaking URLs and psql roles).
+env_get() {
+  local v
+  v="$(grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
+  case "$v" in
+    \"*\") v="${v#\"}"; v="${v%\"}" ;;
+    \'*\') v="${v#\'}"; v="${v%\'}" ;;
+  esac
+  printf '%s' "$v"
+}
 
 STATUS_TOKEN="$(env_get STATUS_TOKEN)"
 ALERT_TOKEN="$(env_get ALERT_TELEGRAM_TOKEN)"
