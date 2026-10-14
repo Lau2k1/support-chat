@@ -30,6 +30,9 @@ import type {
   TicketStatus,
   SystemStatus,
   SystemAlertsResponse,
+  TelegramWidgetData,
+  TelegramLoginConfig,
+  TelegramLinkState,
 } from '@/types';
 
 export const authApi = {
@@ -40,6 +43,18 @@ export const authApi = {
     api.post<{ token: string; role: string }>('/register', data),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.post<{ token: string }>('/me/password', { currentPassword, newPassword }),
+
+  // Telegram login (Login Widget). The payload is signed by Telegram and verified
+  // on the server with the bot token.
+  telegramConfig: () => api.get<TelegramLoginConfig>('/auth/telegram/config'),
+  telegramLogin: (data: TelegramWidgetData) =>
+    api.post<{ token: string; role: string; tenantId: number | null; registered: boolean }>(
+      '/auth/telegram/login',
+      data
+    ),
+  linkTelegram: (data: TelegramWidgetData) =>
+    api.post<{ ok: boolean; telegram: TelegramLinkState }>('/me/telegram/link', data),
+  unlinkTelegram: () => api.post<{ ok: boolean; telegram: TelegramLinkState }>('/me/telegram/unlink'),
 };
 
 export const billingApi = {

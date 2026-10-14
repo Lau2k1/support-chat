@@ -11,18 +11,22 @@ interface UIState {
   confirmDialog: ConfirmOptions | null;
   toast: { message: string; severity: 'success' | 'error' | 'info' | 'warning' } | null;
   changePasswordOpen: boolean;
+  telegramOpen: boolean;
   showConfirm: (options: ConfirmOptions) => void;
   hideConfirm: () => void;
   showToast: (message: string, severity?: 'success' | 'error' | 'info' | 'warning') => void;
   hideToast: () => void;
   showChangePassword: () => void;
   hideChangePassword: () => void;
+  showTelegram: () => void;
+  hideTelegram: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
   confirmDialog: null,
   toast: null,
   changePasswordOpen: false,
+  telegramOpen: false,
 
   showConfirm: (options) => set({ confirmDialog: options }),
   hideConfirm: () => set({ confirmDialog: null }),
@@ -35,4 +39,7 @@ export const useUIStore = create<UIState>((set) => ({
 
   showChangePassword: () => set({ changePasswordOpen: true }),
   hideChangePassword: () => set({ changePasswordOpen: false }),
+
+  showTelegram: () => set({ telegramOpen: true }),
+  hideTelegram: () => set({ telegramOpen: false }),
 }));

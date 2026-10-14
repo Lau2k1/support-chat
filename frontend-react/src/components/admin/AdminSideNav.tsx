@@ -11,6 +11,7 @@ import ChatIcon from '@mui/icons-material/Chat';
 import LogoutIcon from '@mui/icons-material/Logout';
 import KeyIcon from '@mui/icons-material/Key';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
+import TelegramIcon from '@mui/icons-material/Telegram';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -41,6 +42,8 @@ export default function AdminSideNav({ current, onChange }: Props) {
   const logout = useAuthStore((s) => s.logout);
   const showConfirm = useUIStore((s) => s.showConfirm);
   const showChangePassword = useUIStore((s) => s.showChangePassword);
+  const showTelegram = useUIStore((s) => s.showTelegram);
+  const telegramLinked = useAuthStore((s) => s.user?.telegram?.linked ?? false);
 
   const handleLogout = () => {
     showConfirm({
@@ -133,6 +136,22 @@ export default function AdminSideNav({ current, onChange }: Props) {
         >
           <KeyIcon sx={{ fontSize: 14 }} />
           Сменить пароль
+        </Box>
+        <Box
+          onClick={showTelegram}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            color: telegramLinked ? '#4ade80' : '#94a3b8',
+            cursor: 'pointer',
+            fontSize: 12,
+            mb: 1.2,
+            '&:hover': { color: '#e2e8f0' },
+          }}
+        >
+          <TelegramIcon sx={{ fontSize: 14 }} />
+          {telegramLinked ? 'Telegram привязан' : 'Привязать Telegram'}
         </Box>
         <Box
           onClick={handleLogout}

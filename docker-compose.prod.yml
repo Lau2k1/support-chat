@@ -80,6 +80,10 @@ services:
       # Monitoring: protects GET /status (used by deploy/monitor.sh + owner CRM).
       # Leave empty to disable the endpoint entirely (503).
       STATUS_TOKEN: ${STATUS_TOKEN:-}
+      # Telegram login (Login Widget). Empty = login via Telegram is disabled and
+      # the panel hides the button. Requires /setdomain <APP_DOMAIN> in BotFather.
+      TELEGRAM_LOGIN_BOT_TOKEN: ${TELEGRAM_LOGIN_BOT_TOKEN:-}
+      TELEGRAM_LOGIN_BOT_USERNAME: ${TELEGRAM_LOGIN_BOT_USERNAME:-}
       # Warning thresholds used by the /status payload (percent).
       MONITOR_DISK_WARN: ${MONITOR_DISK_WARN:-85}
       MONITOR_MEM_WARN: ${MONITOR_MEM_WARN:-90}

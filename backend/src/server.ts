@@ -18,6 +18,7 @@ import cryptobotRoutes from './routes/cryptobot';
 import ticketTemplatesRoutes from './routes/ticketTemplates';
 import ticketsRoutes from './routes/tickets';
 import { publicStatusRouter, systemAdminRouter } from './routes/systemStatus';
+import telegramAuthRoutes from './routes/telegramAuth';
 import { handleConnection } from './ws/handler';
 import type { ClientWs } from './ws/types';
 import { startUploadsCleanup } from './services/uploads';
@@ -68,11 +69,14 @@ app.use(helmet({
     useDefaults: false,
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
+      // telegram.org hosts the Login Widget script; it renders an iframe served
+      // from oauth.telegram.org, so both hosts must be allowed.
+      scriptSrc: ["'self'", 'https://telegram.org'],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-      imgSrc: ["'self'", 'data:', 'blob:'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https://t.me'],
       connectSrc: ["'self'"],
+      frameSrc: ["'self'", 'https://oauth.telegram.org'],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
@@ -290,6 +294,7 @@ app.get('/uploads/:dir/:name', (req, res) => {
 // this point, and are intentionally not rate-limited here.
 app.use(apiLimiter);
 app.use(authRoutes);
+app.use(telegramAuthRoutes);
 app.use(chatRoutes);
 app.use(cannedRoutes);
 app.use(uploadRoutes);

@@ -282,6 +282,26 @@ export interface SystemAlertsResponse {
   items: SystemAlert[];
 }
 
+export interface TelegramWidgetData {
+  id: number;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  photo_url?: string;
+  auth_date: number;
+  hash: string;
+}
+
+export interface TelegramLoginConfig {
+  enabled: boolean;
+  botUsername: string | null;
+}
+
+export interface TelegramLinkState {
+  linked: boolean;
+  username: string | null;
+}
+
 export interface OnlineOperator {
   id: number;
   name: string;

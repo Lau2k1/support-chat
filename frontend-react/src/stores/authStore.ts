@@ -6,11 +6,19 @@ export interface CurrentUser {
   name: string;
   role: 'superadmin' | 'admin' | 'operator';
   tenantId: number | null;
+  /** Null for accounts created through Telegram (no email on file). */
+  email?: string | null;
   billing?: {
     active: boolean;
     status: string | null;
     paidUntil: string | null;
   };
+  telegram?: {
+    linked: boolean;
+    username: string | null;
+  };
+  /** False for Telegram-only accounts (no password set). */
+  hasPassword?: boolean;
 }
 
 interface AuthState {

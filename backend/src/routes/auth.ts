@@ -23,7 +23,7 @@ const TRANSLIT: Record<string, string> = {
 };
 
 /** Builds an URL-safe tenant slug from a (possibly Cyrillic) company name. */
-function slugifyTenant(input: string): string {
+export function slugifyTenant(input: string): string {
   const s = input
     .trim()
     .toLowerCase()
@@ -37,7 +37,7 @@ function slugifyTenant(input: string): string {
 }
 
 /** Unique slug for a new self-registered tenant. */
-async function uniqueTenantSlug(client: { query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }> }, name: string): Promise<string> {
+export async function uniqueTenantSlug(client: { query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }> }, name: string): Promise<string> {
   let base = slugifyTenant(name);
   if (base.length < 2) base = `tenant-${crypto.randomBytes(3).toString('hex')}`;
   let candidate = base;
@@ -193,11 +193,17 @@ router.get('/me', authMiddleware, (req, res) => {
     name: user.name,
     role: user.role,
     tenantId: user.tenantId,
+    email: user.email ?? null,
     billing: {
       active: user.tenantActive,
       status: user.tenantBillingStatus ?? null,
       paidUntil: user.tenantPaidUntil ?? null,
     },
+    telegram: {
+      linked: Boolean(user.telegramId),
+      username: user.telegramUsername ?? null,
+    },
+    hasPassword: user.hasPassword !== false,
   });
 });
 

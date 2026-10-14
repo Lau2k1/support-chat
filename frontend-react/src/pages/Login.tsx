@@ -1,9 +1,22 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import { Box, Card, TextField, Button, Typography, Alert, Link, FormControlLabel, Checkbox } from '@mui/material';
+import {
+  Box,
+  Card,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Link,
+  FormControlLabel,
+  Checkbox,
+  Divider,
+} from '@mui/material';
 import { authApi } from '@/services/endpoints';
 import { useAuthStore } from '@/stores/authStore';
 import { validateEmail } from '@/utils/validation';
+import TelegramLoginButton from '@/components/common/TelegramLoginButton';
+import type { TelegramWidgetData } from '@/types';
 
 export default function Login() {
   const [email, setEmail] = useState(() => localStorage.getItem('sc_remember_email') || '');
@@ -13,6 +26,29 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
+
+  /** Sign in (or self-register) with the payload verified by our backend. */
+  const handleTelegram = useCallback(
+    async (data: TelegramWidgetData) => {
+      setError('');
+      setLoading(true);
+      try {
+        const res = await authApi.telegramLogin(data);
+        await login();
+        if (res.data.registered) {
+          // Fresh client: the account exists but the tenant is unpaid.
+          navigate('/admin');
+        } else {
+          navigate('/');
+        }
+      } catch (err: any) {
+        setError(err.response?.data?.error || 'Не удалось войти через Telegram');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [login, navigate]
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,6 +134,14 @@ export default function Login() {
             {loading ? 'Вход...' : 'Войти'}
           </Button>
         </Box>
+
+        <Divider sx={{ my: 2.5 }}>
+          <Typography variant="caption" color="text.secondary">
+            или
+          </Typography>
+        </Divider>
+
+        <TelegramLoginButton onAuth={handleTelegram} disabled={loading} />
 
         <Box sx={{ textAlign: 'center', mt: 2 }}>
           <Link component={RouterLink} to="/register" variant="body2" sx={{ fontWeight: 600 }}>

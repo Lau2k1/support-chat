@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Box,
@@ -8,12 +8,15 @@ import {
   Typography,
   Alert,
   Link,
+  Divider,
   ToggleButton,
   ToggleButtonGroup,
 } from '@mui/material';
 import { authApi } from '@/services/endpoints';
 import { useAuthStore } from '@/stores/authStore';
 import { LIMITS, validateEmail, validatePassword, validateRequired } from '@/utils/validation';
+import TelegramLoginButton from '@/components/common/TelegramLoginButton';
+import type { TelegramWidgetData } from '@/types';
 
 type Mode = 'admin' | 'operator';
 
@@ -36,6 +39,24 @@ export default function Register() {
       setError('');
     }
   };
+
+  /** Telegram signup creates a new client (tenant + admin) and signs in. */
+  const handleTelegram = useCallback(
+    async (data: TelegramWidgetData) => {
+      setError('');
+      setLoading(true);
+      try {
+        await authApi.telegramLogin(data);
+        await login();
+        navigate('/');
+      } catch (err: any) {
+        setError(err.response?.data?.error || 'Не удалось зарегистрироваться через Telegram');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [login, navigate]
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,6 +171,17 @@ export default function Register() {
             {loading ? 'Регистрация...' : mode === 'admin' ? 'Создать аккаунт' : 'Зарегистрироваться'}
           </Button>
         </Box>
+
+        <Divider sx={{ my: 2.5 }}>
+          <Typography variant="caption" color="text.secondary">
+            или
+          </Typography>
+        </Divider>
+
+        <TelegramLoginButton onAuth={handleTelegram} disabled={loading} />
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
+          Создаст нового клиента (аккаунт + тариф)
+        </Typography>
 
         <Box sx={{ textAlign: 'center', mt: 2 }}>
           <Link component={RouterLink} to="/login" variant="body2">

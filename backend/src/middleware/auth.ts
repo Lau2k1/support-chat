@@ -88,6 +88,13 @@ export interface AuthUser {
   /** Raw billing state of the tenant (for the panel's paywall banner). */
   tenantBillingStatus?: string | null;
   tenantPaidUntil?: string | null;
+  /** Email — null for accounts created through Telegram. */
+  email?: string | null;
+  /** Telegram account attached to this operator (Login Widget). */
+  telegramId?: number | null;
+  telegramUsername?: string | null;
+  /** False when the account has no password (Telegram-only signup). */
+  hasPassword?: boolean;
 }
 
 export interface JwtPayload {
@@ -140,6 +147,7 @@ export async function resolveOperator(token: string): Promise<AuthUser | null> {
 
   const result = await pool.query(
     `SELECT o.id, o.name, o.role, o.is_enabled, o.token_version, o.tenant_id,
+            o.email, o.telegram_id, o.telegram_username, (o.password IS NOT NULL) AS has_password,
             t.billing_status, t.paid_until
      FROM operators o
      LEFT JOIN tenants t ON t.id = o.tenant_id
@@ -164,6 +172,10 @@ export async function resolveOperator(token: string): Promise<AuthUser | null> {
     tenantActive,
     tenantBillingStatus: op.billing_status ?? null,
     tenantPaidUntil: paidUntil,
+    email: op.email ?? null,
+    telegramId: op.telegram_id ?? null,
+    telegramUsername: op.telegram_username ?? null,
+    hasPassword: op.has_password === true,
   };
 }
 

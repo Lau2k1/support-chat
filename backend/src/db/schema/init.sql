@@ -37,6 +37,18 @@ CREATE INDEX IF NOT EXISTS idx_operators_tenant ON operators(tenant_id);
 -- Legacy: operator status is derived at runtime from live WS connections, not stored.
 ALTER TABLE operators DROP COLUMN IF EXISTS status;
 
+-- Telegram login / account linking (Login Widget). An account created through
+-- Telegram has neither email nor password, so both columns become nullable.
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS telegram_id BIGINT;
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS telegram_username VARCHAR(64);
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS telegram_photo_url TEXT;
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS telegram_linked_at TIMESTAMP;
+ALTER TABLE operators ALTER COLUMN email DROP NOT NULL;
+ALTER TABLE operators ALTER COLUMN password DROP NOT NULL;
+-- One Telegram account can only ever be attached to a single operator.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_operators_telegram_id
+  ON operators(telegram_id) WHERE telegram_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS chats (
     id SERIAL PRIMARY KEY,
     client_id INTEGER NOT NULL,
