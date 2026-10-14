@@ -24,6 +24,10 @@ export default function SideNav({ currentView, onViewChange }: SideNavProps) {
       sx={{
         width: 70,
         bgcolor: '#1e293b',
+        // The nav keeps its fixed dark chrome in both schemes, so the separator is a
+        // translucent white rather than 'divider' (which is light in light mode and
+        // would vanish against paper in dark mode).
+        borderRight: '1px solid rgba(255,255,255,0.08)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',

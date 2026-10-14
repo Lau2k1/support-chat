@@ -109,8 +109,8 @@ export default function OperatorsPage({ tenantId }: { tenantId?: number } = {}) 
                     label={op.role === 'admin' ? 'Админ' : 'Оператор'}
                     size="small"
                     sx={{
-                      bgcolor: op.role === 'admin' ? '#dbeafe' : '#f1f5f9',
-                      color: op.role === 'admin' ? '#1d4ed8' : '#64748b',
+                      bgcolor: op.role === 'admin' ? 'infoBg' : 'action.hover',
+                      color: op.role === 'admin' ? 'info.main' : 'text.secondary',
                       fontWeight: 600,
                       fontSize: 11,
                     }}
@@ -121,8 +121,8 @@ export default function OperatorsPage({ tenantId }: { tenantId?: number } = {}) 
                     label={op.status || 'offline'}
                     size="small"
                     sx={{
-                      bgcolor: op.status === 'online' ? '#dcfce7' : op.status === 'busy' ? '#fef9c3' : '#f1f5f9',
-                      color: op.status === 'online' ? '#16a34a' : op.status === 'busy' ? '#a16207' : '#64748b',
+                      bgcolor: op.status === 'online' ? 'okBg' : op.status === 'busy' ? 'warnBg' : 'action.hover',
+                      color: op.status === 'online' ? 'ok' : op.status === 'busy' ? 'warn' : 'text.secondary',
                       fontWeight: 600,
                       fontSize: 11,
                     }}
@@ -133,8 +133,8 @@ export default function OperatorsPage({ tenantId }: { tenantId?: number } = {}) 
                     label={op.is_enabled ? 'Да' : 'Нет'}
                     size="small"
                     sx={{
-                      bgcolor: op.is_enabled ? '#dcfce7' : '#fee2e2',
-                      color: op.is_enabled ? '#16a34a' : '#dc2626',
+                      bgcolor: op.is_enabled ? 'okBg' : 'badBg',
+                      color: op.is_enabled ? 'ok' : 'bad',
                       fontWeight: 600,
                       fontSize: 11,
                     }}
@@ -186,7 +186,7 @@ function HeadCell({ children }: { children: React.ReactNode }) {
         color: 'text.secondary',
         textTransform: 'uppercase',
         letterSpacing: 0.5,
-        bgcolor: '#f8fafc',
+        bgcolor: 'action.hover',
       }}
     >
       {children}

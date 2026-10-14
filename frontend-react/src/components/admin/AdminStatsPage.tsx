@@ -145,7 +145,7 @@ function StatHeadCell({ children }: { children: React.ReactNode }) {
         color: 'text.secondary',
         textTransform: 'uppercase',
         letterSpacing: 0.5,
-        bgcolor: '#f8fafc',
+        bgcolor: 'action.hover',
       }}
     >
       {children}

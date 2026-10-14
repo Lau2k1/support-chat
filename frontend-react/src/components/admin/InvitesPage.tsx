@@ -134,7 +134,7 @@ export default function InvitesPage({ tenantId }: { tenantId?: number } = {}) {
                           fontSize: 14,
                           letterSpacing: 1,
                           color: 'primary.main',
-                          bgcolor: '#f0f4ff',
+                          bgcolor: 'infoBg',
                           px: 1,
                           borderRadius: 0.5,
                         }}
@@ -188,7 +188,7 @@ export default function InvitesPage({ tenantId }: { tenantId?: number } = {}) {
                     fontSize: 15,
                     letterSpacing: 1.5,
                     color: 'primary.main',
-                    bgcolor: '#f0f4ff',
+                    bgcolor: 'infoBg',
                     px: 1.5,
                     py: 0.8,
                     borderRadius: 1,
@@ -220,7 +220,7 @@ function HeadCell({ children }: { children: React.ReactNode }) {
         color: 'text.secondary',
         textTransform: 'uppercase',
         letterSpacing: 0.5,
-        bgcolor: '#f8fafc',
+        bgcolor: 'action.hover',
       }}
     >
       {children}

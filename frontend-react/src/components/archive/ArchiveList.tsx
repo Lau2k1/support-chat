@@ -16,7 +16,7 @@ export default function ArchiveList({ chats, selectedId, onSelect }: ArchiveList
         width: 300,
         flexShrink: 0,
         overflowY: 'auto',
-        bgcolor: '#fff',
+        bgcolor: 'background.paper',
         borderRight: '1px solid',
         borderColor: 'divider',
       }}
@@ -32,10 +32,10 @@ export default function ArchiveList({ chats, selectedId, onSelect }: ArchiveList
             key={chat.id}
             selected={chat.id === selectedId}
             onClick={() => onSelect(chat.id)}
-            sx={{ borderBottom: '1px solid #f1f5f9' }}
+            sx={{ borderBottom: '1px solid', borderBottomColor: 'divider' }}
           >
             <ListItemAvatar>
-              <Avatar sx={{ width: 36, height: 36, bgcolor: chat.source === 'telegram' ? '#e0f2fe' : '#e2e8f0', color: chat.source === 'telegram' ? '#0284c7' : '#64748b', fontSize: 14, fontWeight: 600 }}>
+              <Avatar sx={{ width: 36, height: 36, bgcolor: chat.source === 'telegram' ? 'infoBg' : 'action.hover', color: chat.source === 'telegram' ? 'info.main' : 'text.secondary', fontSize: 14, fontWeight: 600 }}>
                 {chat.source === 'telegram' ? <SendIcon sx={{ fontSize: 18 }} /> : 'К'}
               </Avatar>
             </ListItemAvatar>
@@ -59,7 +59,7 @@ export default function ArchiveList({ chats, selectedId, onSelect }: ArchiveList
                         key={tag.id}
                         label={tag.name}
                         size="small"
-                        sx={{ height: 18, fontSize: 10, bgcolor: tag.color || '#007bff', color: '#fff' }}
+                        sx={{ height: 18, fontSize: 10, bgcolor: tag.color || 'primary.main', color: '#fff' }}
                       />
                     ))}
                   </Box>

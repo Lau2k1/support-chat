@@ -44,7 +44,7 @@ export default function OwnerDashboard() {
         <Box
           sx={{
             height: 52,
-            bgcolor: '#fff',
+            bgcolor: 'background.paper',
             px: 3,
             display: 'flex',
             alignItems: 'center',

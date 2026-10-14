@@ -7,6 +7,27 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>SupportChat</title>
+    <script>
+      // Anti-flash: apply the stored color scheme before the bundle loads, so a
+      // dark-mode user never sees a light frame. Mirrors MUI's ThemeProvider
+      // (modeStorageKey 'sc_theme_mode', attribute data-mui-color-scheme).
+      (function () {
+        try {
+          var mode = localStorage.getItem('sc_theme_mode') || 'system';
+          var dark =
+            mode === 'dark' ||
+            (mode === 'system' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var scheme = dark ? 'dark' : 'light';
+          var root = document.documentElement;
+          root.setAttribute('data-mui-color-scheme', scheme);
+          root.style.colorScheme = scheme;
+          root.style.backgroundColor = dark ? '#0f172a' : '#f5f7f9';
+        } catch (e) {
+          /* localStorage unavailable — MUI falls back to the system scheme */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -138,8 +138,8 @@ export default function AuditPage({ tenantId }: { tenantId?: number } = {}) {
                       label={c.status === 'open' ? 'Открыт' : 'Закрыт'}
                       size="small"
                       sx={{
-                        bgcolor: c.status === 'open' ? '#dbeafe' : '#f1f5f9',
-                        color: c.status === 'open' ? '#1d4ed8' : '#64748b',
+                        bgcolor: c.status === 'open' ? 'infoBg' : 'action.hover',
+                        color: c.status === 'open' ? 'info.main' : 'text.secondary',
                         fontWeight: 600,
                         fontSize: 11,
                       }}
@@ -169,7 +169,7 @@ export default function AuditPage({ tenantId }: { tenantId?: number } = {}) {
           {modalLoading ? (
             <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>Загрузка...</Typography>
           ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 400, overflowY: 'auto', p: 1, bgcolor: '#fdfdfd', borderRadius: 1, border: '1px solid #f1f5f9' }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 400, overflowY: 'auto', p: 1, bgcolor: 'background.default', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
               {modalMessages.map((m) => {
                 const isNote = m.message_type === 'note';
                 const isClient = m.sender_id === 0;
@@ -183,9 +183,10 @@ export default function AuditPage({ tenantId }: { tenantId?: number } = {}) {
                       py: 0.8,
                       borderRadius: 1.5,
                       fontSize: 13,
-                      bgcolor: isNote ? '#fef9c3' : isClient ? '#fff' : 'primary.main',
-                      color: isNote ? '#713f12' : isClient ? 'text.primary' : '#fff',
-                      border: isNote ? '1px dashed #eab308' : isClient ? '1px solid #e2e8f0' : 'none',
+                      bgcolor: isNote ? 'warnBg' : isClient ? 'background.paper' : 'primary.main',
+                      color: isNote ? 'warn' : isClient ? 'text.primary' : 'primary.contrastText',
+                      border: isNote ? '1px dashed' : isClient ? '1px solid' : 'none',
+                      borderColor: isNote ? 'warning.main' : 'divider',
                     }}
                   >
                     {isNote && '📝 '}{m.content}
@@ -214,7 +215,7 @@ function HeadCell({ children }: { children: React.ReactNode }) {
         color: 'text.secondary',
         textTransform: 'uppercase',
         letterSpacing: 0.5,
-        bgcolor: '#f8fafc',
+        bgcolor: 'action.hover',
       }}
     >
       {children}

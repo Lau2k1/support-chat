@@ -16,9 +16,13 @@ import { authApi } from '@/services/endpoints';
 import { useAuthStore } from '@/stores/authStore';
 import { validateEmail } from '@/utils/validation';
 import TelegramLoginButton from '@/components/common/TelegramLoginButton';
+import ThemeToggle from '@/components/common/ThemeToggle';
+import { useColorScheme } from '@mui/material/styles';
 import type { TelegramWidgetData } from '@/types';
 
 export default function Login() {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const [email, setEmail] = useState(() => localStorage.getItem('sc_remember_email') || '');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(() => localStorage.getItem('sc_remember') === '1');
@@ -85,13 +89,31 @@ export default function Login() {
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
-        background: 'linear-gradient(145deg, #f5f7f9 0%, #ffffff 60%, #e8f2ff 100%)',
+        bgcolor: 'background.default',
+        // A soft primary halo instead of a light-only gradient: the scheme picks
+        // the tint, so the page stays coherent in dark mode.
+        backgroundImage: isDark
+          ? 'radial-gradient(circle at 50% 0%, rgba(77,158,255,0.14) 0%, transparent 55%)'
+          : 'radial-gradient(circle at 50% 0%, rgba(0,123,255,0.10) 0%, transparent 55%)',
       }}
     >
-      <Card sx={{ p: 5, width: 360, borderRadius: 3, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+      <Box sx={{ position: 'fixed', top: 16, right: 16 }}>
+        <ThemeToggle />
+      </Box>
+      <Card
+        sx={{
+          p: 5,
+          width: 360,
+          borderRadius: 3,
+          boxShadow: isDark ? '0 20px 60px rgba(0,0,0,0.55)' : '0 20px 60px rgba(0,0,0,0.2)',
+        }}
+      >
         <Box sx={{ textAlign: 'center', mb: 3.5 }}>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            Support<span style={{ color: '#007bff' }}>Chat</span>
+            Support
+            <Box component="span" sx={{ color: 'primary.main' }}>
+              Chat
+            </Box>
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             Платформа поддержки

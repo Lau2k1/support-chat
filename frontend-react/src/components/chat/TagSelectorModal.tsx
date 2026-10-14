@@ -86,13 +86,13 @@ export default function TagSelectorModal({ open, onClose, chatId }: TagSelectorP
                 sx={{
                   border: '1px solid',
                   borderColor: assigned ? 'primary.main' : 'divider',
-                  bgcolor: assigned ? '#eff6ff' : undefined,
+                  bgcolor: assigned ? 'action.selected' : undefined,
                   borderRadius: 1,
                   mb: 0.5,
                 }}
               >
                 <ListItemIcon sx={{ minWidth: 28 }}>
-                  <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: tag.color || '#007bff' }} />
+                  <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: tag.color || 'primary.main' }} />
                 </ListItemIcon>
                 <ListItemText primary={tag.name} />
                 {assigned && <CheckIcon fontSize="small" color="primary" />}

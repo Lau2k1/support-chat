@@ -80,7 +80,7 @@ export default function ArchiveFilters({ filters, onChange, onReset, tags }: Arc
         p: 2.5,
         borderBottom: '1px solid',
         borderColor: 'divider',
-        bgcolor: '#fff',
+        bgcolor: 'background.paper',
         alignItems: 'flex-start',
         boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
       }}
@@ -147,7 +147,7 @@ export default function ArchiveFilters({ filters, onChange, onReset, tags }: Arc
               top: '100%',
               left: 0,
               right: 0,
-              bgcolor: '#fff',
+              bgcolor: 'background.paper',
               border: '1px solid',
               borderColor: 'divider',
               borderRadius: 1,
@@ -170,7 +170,7 @@ export default function ArchiveFilters({ filters, onChange, onReset, tags }: Arc
                 }
                 label={
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: tag.color || '#007bff' }} />
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: tag.color || 'primary.main' }} />
                     <Typography variant="body2">{tag.name}</Typography>
                   </Box>
                 }
@@ -189,7 +189,7 @@ export default function ArchiveFilters({ filters, onChange, onReset, tags }: Arc
                 label={tag.name}
                 size="small"
                 onDelete={() => toggleTag(id)}
-                sx={{ bgcolor: tag.color || '#007bff', color: '#fff' }}
+                sx={{ bgcolor: tag.color || 'primary.main', color: '#fff' }}
               />
             );
           })}

@@ -123,7 +123,7 @@ export default function TagsPage({ tenantId }: { tenantId?: number } = {}) {
                   <TableCell sx={{ fontWeight: 600 }}>{tag.name}</TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Box sx={{ width: 20, height: 20, borderRadius: '50%', bgcolor: tag.color || '#007bff', border: '1px solid #ccc' }} />
+                      <Box sx={{ width: 20, height: 20, borderRadius: '50%', bgcolor: tag.color || '#007bff', border: '1px solid', borderColor: 'divider' }} />
                       <Typography variant="caption" color="text.secondary">{tag.color || '#007bff'}</Typography>
                     </Box>
                   </TableCell>
@@ -176,7 +176,7 @@ export default function TagsPage({ tenantId }: { tenantId?: number } = {}) {
               sx={{ width: 80 }}
               slotProps={{ inputLabel: { shrink: true } }}
             />
-            <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: tagColor, border: '1px solid #ccc' }} />
+            <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: tagColor, border: '1px solid', borderColor: 'divider' }} />
           </Box>
           {error && <Typography color="error" variant="caption" sx={{ display: 'block', mt: 1 }}>{error}</Typography>}
         </DialogContent>
@@ -198,7 +198,7 @@ function HeadCell({ children }: { children: React.ReactNode }) {
         color: 'text.secondary',
         textTransform: 'uppercase',
         letterSpacing: 0.5,
-        bgcolor: '#f8fafc',
+        bgcolor: 'action.hover',
       }}
     >
       {children}

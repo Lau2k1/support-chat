@@ -28,14 +28,14 @@ export default function MessageList({ messages, chatId }: MessageListProps) {
         display: 'flex',
         flexDirection: 'column',
         gap: 1,
-        bgcolor: '#fdfdfd',
+        bgcolor: 'background.default',
       }}
     >
       {messages.map((m) => (
         <MessageBubble key={m.id} message={m} />
       ))}
       {isTyping && (
-        <Box sx={{ alignSelf: 'flex-start', px: 1.5, py: 0.8, bgcolor: '#fff', border: '1px solid', borderColor: 'divider', borderRadius: 2, fontSize: 13, color: 'text.secondary', fontStyle: 'italic' }}>
+        <Box sx={{ alignSelf: 'flex-start', px: 1.5, py: 0.8, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 2, fontSize: 13, color: 'text.secondary', fontStyle: 'italic' }}>
           печатает...
         </Box>
       )}
@@ -57,11 +57,12 @@ function MessageBubble({ message: m }: { message: Message }) {
           maxWidth: '85%',
           px: 1.5,
           py: 1,
-          bgcolor: '#fef9c3',
-          border: '1px dashed #eab308',
+          bgcolor: 'warnBg',
+          border: '1px dashed',
+          borderColor: 'warning.main',
           borderRadius: 2,
           fontSize: 12,
-          color: '#713f12',
+          color: 'warn',
         }}
       >
         📝 {m.content}
@@ -76,8 +77,8 @@ function MessageBubble({ message: m }: { message: Message }) {
         maxWidth: '70%',
         px: 1.5,
         py: 1,
-        bgcolor: isOperator ? 'primary.main' : '#fff',
-        color: isOperator ? '#fff' : 'text.primary',
+        bgcolor: isOperator ? 'primary.main' : 'background.paper',
+        color: isOperator ? 'primary.contrastText' : 'text.primary',
         border: isOperator ? 'none' : '1px solid',
         borderColor: 'divider',
         borderRadius: 2,

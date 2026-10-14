@@ -16,11 +16,15 @@ import { authApi } from '@/services/endpoints';
 import { useAuthStore } from '@/stores/authStore';
 import { LIMITS, validateEmail, validatePassword, validateRequired } from '@/utils/validation';
 import TelegramLoginButton from '@/components/common/TelegramLoginButton';
+import ThemeToggle from '@/components/common/ThemeToggle';
+import { useColorScheme } from '@mui/material/styles';
 import type { TelegramWidgetData } from '@/types';
 
 type Mode = 'admin' | 'operator';
 
 export default function Register() {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const [mode, setMode] = useState<Mode>('admin');
   const [name, setName] = useState('');
   const [company, setCompany] = useState('');
@@ -97,14 +101,31 @@ export default function Register() {
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
-        background: 'linear-gradient(145deg, #f5f7f9 0%, #ffffff 60%, #e8f2ff 100%)',
+        bgcolor: 'background.default',
+        // Scheme-aware halo (see Login): avoids a light-only gradient.
+        backgroundImage: isDark
+          ? 'radial-gradient(circle at 50% 0%, rgba(77,158,255,0.14) 0%, transparent 55%)'
+          : 'radial-gradient(circle at 50% 0%, rgba(0,123,255,0.10) 0%, transparent 55%)',
         py: 3,
       }}
     >
-      <Card sx={{ p: 5, width: 440, borderRadius: 3, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+      <Box sx={{ position: 'fixed', top: 16, right: 16 }}>
+        <ThemeToggle />
+      </Box>
+      <Card
+        sx={{
+          p: 5,
+          width: 440,
+          borderRadius: 3,
+          boxShadow: isDark ? '0 20px 60px rgba(0,0,0,0.55)' : '0 20px 60px rgba(0,0,0,0.2)',
+        }}
+      >
         <Box sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            Support<span style={{ color: '#007bff' }}>Chat</span>
+            Support
+            <Box component="span" sx={{ color: 'primary.main' }}>
+              Chat
+            </Box>
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             {mode === 'admin' ? 'Регистрация клиента' : 'Регистрация оператора'}

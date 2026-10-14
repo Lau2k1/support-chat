@@ -185,7 +185,7 @@ export default function TemplateModal({ open, onClose, onInsert }: TemplateModal
         )}
 
         {formOpen && (
-          <Box sx={{ mt: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: '#fbfcfe' }}>
+          <Box sx={{ mt: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'action.hover' }}>
             <TextField
               fullWidth
               size="small"

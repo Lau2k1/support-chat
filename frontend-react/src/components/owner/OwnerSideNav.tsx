@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { wsManager } from '@/services/ws';
+import ThemeToggle from '@/components/common/ThemeToggle';
 
 type Page = 'overview' | 'tenants' | 'bots' | 'payments' | 'promo' | 'system';
 
@@ -55,6 +56,8 @@ export default function OwnerSideNav({ current, onChange }: Props) {
         width: 230,
         bgcolor: '#111827',
         color: '#e2e8f0',
+        // Fixed dark chrome: a translucent separator stays visible in both schemes.
+        borderRight: '1px solid rgba(255,255,255,0.08)',
         display: 'flex',
         flexDirection: 'column',
         flexShrink: 0,
@@ -146,6 +149,7 @@ export default function OwnerSideNav({ current, onChange }: Props) {
           <TelegramIcon sx={{ fontSize: 14 }} />
           {telegramLinked ? 'Telegram привязан' : 'Привязать Telegram'}
         </Box>
+        <ThemeToggle row rowColor="#9ca3af" rowHoverColor="#f3f4f6" />
         <Box
           onClick={handleLogout}
           sx={{

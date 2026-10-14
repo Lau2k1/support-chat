@@ -217,7 +217,7 @@ function ChatsView({
         <Box
           sx={{
             height: 50,
-            bgcolor: '#fff',
+            bgcolor: 'background.paper',
             px: 2,
             display: 'flex',
             alignItems: 'center',
@@ -237,7 +237,7 @@ function ChatsView({
               <Chip
                 label={publicCode}
                 size="small"
-                sx={{ height: 20, fontSize: 11, fontFamily: 'monospace', bgcolor: '#f1f5f9' }}
+                sx={{ height: 20, fontSize: 11, fontFamily: 'monospace', bgcolor: 'action.hover' }}
               />
             )}
             {currentChatId && isTelegram && (
@@ -245,7 +245,7 @@ function ChatsView({
                 icon={<SendIcon sx={{ fontSize: 14 }} />}
                 label="Telegram"
                 size="small"
-                sx={{ height: 20, fontSize: 11, bgcolor: '#e0f2fe', color: '#0284c7', '& .MuiChip-icon': { color: '#0284c7' } }}
+                sx={{ height: 20, fontSize: 11, bgcolor: 'infoBg', color: 'info.main', '& .MuiChip-icon': { color: 'info.main' } }}
               />
             )}
           </Typography>
@@ -258,7 +258,7 @@ function ChatsView({
                   size="small"
                   onDelete={() => handleRemoveTag(t.id)}
                   title="Снять тег"
-                  sx={{ height: 22, fontSize: 11, bgcolor: t.color || '#007bff', color: '#fff' }}
+                  sx={{ height: 22, fontSize: 11, bgcolor: t.color || 'primary.main', color: '#fff' }}
                 />
               ))}
               <Button size="small" variant="outlined" startIcon={<SwapHorizIcon />} onClick={onOpenTransfer}>
@@ -283,17 +283,17 @@ function ChatsView({
                 sx={{
                   px: 2,
                   py: 0.75,
-                  bgcolor: '#f0f9ff',
+                  bgcolor: 'infoBg',
                   borderBottom: '1px solid',
-                  borderColor: '#bae6fd',
+                  borderColor: 'info.main',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 1,
                   flexShrink: 0,
                 }}
               >
-                <VisibilityIcon sx={{ fontSize: 15, color: '#0284c7' }} />
-                <Typography variant="caption" sx={{ fontWeight: 600, color: '#0369a1' }}>
+                <VisibilityIcon sx={{ fontSize: 15, color: 'info.main' }} />
+                <Typography variant="caption" sx={{ fontWeight: 600, color: 'info.main' }}>
                   Режим наблюдения — чат оператора {assignee?.name}. Отправка сообщений недоступна.
                 </Typography>
               </Box>
@@ -365,7 +365,7 @@ function ArchiveView() {
         <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           <ArchiveList chats={chats} selectedId={selectedId} onSelect={handleSelectArchiveChat} />
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            <Box sx={{ height: 50, bgcolor: '#fff', px: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', fontWeight: 600, fontSize: 14, flexShrink: 0 }}>
+            <Box sx={{ height: 50, bgcolor: 'background.paper', px: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', fontWeight: 600, fontSize: 14, flexShrink: 0 }}>
               <Typography sx={{ fontWeight: 600 }}>
                 {selectedId
                   ? `${selectedChat?.client_name || 'Клиент'} · ${selectedChat?.public_code || `#${selectedId}`} (архив)`

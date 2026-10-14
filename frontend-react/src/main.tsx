@@ -17,7 +17,7 @@ useAuthStore.getState().checkAuth();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={theme} modeStorageKey="sc_theme_mode" defaultMode="system">
       <CssBaseline />
       <RouterProvider router={router} />
       <ConfirmDialog />

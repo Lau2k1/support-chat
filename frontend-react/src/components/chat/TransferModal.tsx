@@ -80,7 +80,7 @@ export default function TransferModal({ open, onClose, chatId }: TransferModalPr
                 sx={{ borderRadius: 1, mb: 0.5, border: '1px solid', borderColor: 'divider' }}
               >
                 <ListItemAvatar sx={{ minWidth: 40 }}>
-                  <Avatar sx={{ width: 28, height: 28, bgcolor: '#e2e8f0', color: '#334155', fontSize: 12, fontWeight: 700 }}>
+                  <Avatar sx={{ width: 28, height: 28, bgcolor: 'action.hover', color: 'text.primary', fontSize: 12, fontWeight: 700 }}>
                     {op.name.charAt(0).toUpperCase()}
                   </Avatar>
                 </ListItemAvatar>

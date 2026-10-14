@@ -18,6 +18,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useUIStore } from '@/stores/uiStore';
 import { wsManager } from '@/services/ws';
+import ThemeToggle from '@/components/common/ThemeToggle';
 
 const statusColors = { online: '#4ade80', busy: '#f59e0b', offline: '#94a3b8' };
 const statusLabels = { online: 'Онлайн', busy: 'Занят', offline: 'Оффлайн' };
@@ -51,7 +52,7 @@ export default function TopBar() {
     <Box
       sx={{
         height: 52,
-        background: '#fff',
+        bgcolor: 'background.paper',
         borderBottom: '1px solid',
         borderColor: 'divider',
         display: 'flex',
@@ -62,7 +63,10 @@ export default function TopBar() {
       }}
     >
       <Typography variant="subtitle1" sx={{ fontWeight: 700, mr: 1 }} color="primary">
-        Support<span style={{ color: '#64748b', fontWeight: 400 }}>Chat</span>
+        Support
+        <Box component="span" sx={{ color: 'text.secondary', fontWeight: 400 }}>
+          Chat
+        </Box>
       </Typography>
 
       <Box sx={{ flex: 1, display: 'flex', gap: 0.5, overflowX: 'auto', px: 1 }}>
@@ -132,6 +136,8 @@ export default function TopBar() {
             <Typography sx={{ fontSize: 11, fontWeight: 600, ml: 0.5 }}>Админ</Typography>
           </IconButton>
         )}
+
+        <ThemeToggle />
 
         <IconButton size="small" onClick={showChangePassword} title="Сменить пароль">
           <KeyIcon fontSize="small" />

@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { wsManager } from '@/services/ws';
+import ThemeToggle from '@/components/common/ThemeToggle';
 
 type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'billing' | 'ticket-templates' | 'tickets';
 
@@ -62,6 +63,8 @@ export default function AdminSideNav({ current, onChange }: Props) {
         width: 220,
         bgcolor: '#1e293b',
         color: '#e2e8f0',
+        // Fixed dark chrome: a translucent separator stays visible in both schemes.
+        borderRight: '1px solid rgba(255,255,255,0.08)',
         display: 'flex',
         flexDirection: 'column',
         flexShrink: 0,
@@ -153,6 +156,7 @@ export default function AdminSideNav({ current, onChange }: Props) {
           <TelegramIcon sx={{ fontSize: 14 }} />
           {telegramLinked ? 'Telegram привязан' : 'Привязать Telegram'}
         </Box>
+        <ThemeToggle row onDarkSurface />
         <Box
           onClick={handleLogout}
           sx={{

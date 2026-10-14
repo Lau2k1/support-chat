@@ -110,7 +110,7 @@ export default function QuickRepliesMenu({ open, anchorEl, onClose, onInsert, on
                     <ListItemButton
                       key={c}
                       onClick={() => setCategory(c)}
-                      sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: '#f1f5f9', '&:hover': { bgcolor: '#f5f7f9' } }}
+                      sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: 'divider', '&:hover': { bgcolor: 'action.hover' } }}
                     >
                       <ListItemText
                         primary={<Typography variant="body2" sx={{ fontWeight: 500 }}>{labelOf(c)}</Typography>}
@@ -128,7 +128,7 @@ export default function QuickRepliesMenu({ open, anchorEl, onClose, onInsert, on
                 <ListItemButton
                   key={r.id}
                   onClick={() => handlePick(r.content)}
-                  sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: '#f1f5f9', alignItems: 'flex-start', '&:hover': { bgcolor: '#f5f7f9' } }}
+                  sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: 'divider', alignItems: 'flex-start', '&:hover': { bgcolor: 'action.hover' } }}
                 >
                   <ListItemText
                     primary={<Typography variant="body2" sx={{ fontWeight: 600 }}>{r.title}</Typography>}

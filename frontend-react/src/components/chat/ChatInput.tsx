@@ -125,7 +125,7 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
     <Box
       sx={{
         p: 1.5,
-        bgcolor: '#fff',
+        bgcolor: 'background.paper',
         borderTop: '1px solid',
         borderColor: 'divider',
         display: 'flex',

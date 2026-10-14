@@ -68,7 +68,7 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
     <Box
       sx={{
         width: 280,
-        bgcolor: '#fff',
+        bgcolor: 'background.paper',
         borderRight: '1px solid',
         borderColor: 'divider',
         display: 'flex',
@@ -162,7 +162,8 @@ function ChatItem({
 
   const isWaiting = group === 'waiting';
   const isObserver = group === 'distributed';
-  const borderColor = isWaiting ? '#f59e0b' : isObserver ? '#0284c7' : isActive ? '#007bff' : 'transparent';
+  // Left status stripe: palette tokens so it keeps contrast in both schemes.
+  const stripeColor = isWaiting ? 'warning.main' : isObserver ? 'info.main' : isActive ? 'primary.main' : 'transparent';
 
   const secondaryLine = isObserver
     ? `Наблюдение · оператор ${assignee?.name || ''}`
@@ -173,13 +174,14 @@ function ChatItem({
       onClick={onClick}
       selected={isActive}
       sx={{
-        borderLeft: `3px solid ${borderColor}`,
-        bgcolor: isWaiting ? '#fffbeb' : undefined,
-        '&.Mui-selected': { bgcolor: '#eff6ff' },
+        borderLeft: '3px solid',
+        borderLeftColor: stripeColor,
+        bgcolor: isWaiting ? 'warnBg' : undefined,
+        '&.Mui-selected': { bgcolor: 'action.selected' },
       }}
     >
       <ListItemAvatar>
-        <Avatar sx={{ width: 34, height: 34, bgcolor: isTelegram ? '#e0f2fe' : '#e2e8f0', color: isTelegram ? '#0284c7' : '#64748b', fontSize: 13, fontWeight: 600 }}>
+        <Avatar sx={{ width: 34, height: 34, bgcolor: isTelegram ? 'infoBg' : 'action.hover', color: isTelegram ? 'info.main' : 'text.secondary', fontSize: 13, fontWeight: 600 }}>
           {isTelegram ? <SendIcon sx={{ fontSize: 18 }} /> : 'К'}
         </Avatar>
       </ListItemAvatar>
@@ -200,7 +202,7 @@ function ChatItem({
         secondary={
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
             {isObserver ? (
-              <Typography variant="caption" noWrap sx={{ minWidth: 0, flex: 1, color: '#0369a1', display: 'flex', alignItems: 'center', gap: 0.25 }}>
+              <Typography variant="caption" noWrap sx={{ minWidth: 0, flex: 1, color: 'info.main', display: 'flex', alignItems: 'center', gap: 0.25 }}>
                 <VisibilityIcon sx={{ fontSize: 11 }} />
                 {secondaryLine}
               </Typography>
@@ -215,7 +217,7 @@ function ChatItem({
                 fontFamily: 'monospace',
                 flexShrink: 0,
                 fontSize: 11,
-                color: isWaiting ? '#b45309' : 'text.secondary',
+                color: isWaiting ? 'warn' : 'text.secondary',
               }}
             >
               {elapsed}

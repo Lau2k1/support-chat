@@ -208,13 +208,13 @@ export default function CrmSystemPage() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', bgcolor: '#f8fafc' }}>
+                    <TableCell sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', bgcolor: 'action.hover' }}>
                       ВРЕМЯ
                     </TableCell>
-                    <TableCell sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', bgcolor: '#f8fafc' }}>
+                    <TableCell sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', bgcolor: 'action.hover' }}>
                       СОСТОЯНИЕ
                     </TableCell>
-                    <TableCell sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', bgcolor: '#f8fafc' }}>
+                    <TableCell sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', bgcolor: 'action.hover' }}>
                       СООБЩЕНИЕ
                     </TableCell>
                   </TableRow>

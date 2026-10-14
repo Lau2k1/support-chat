@@ -19,7 +19,7 @@ export default function RightPanel({ onInsertTemplate }: RightPanelProps) {
     <Box
       sx={{
         width: 240,
-        bgcolor: '#fff',
+        bgcolor: 'background.paper',
         borderLeft: '1px solid',
         borderColor: 'divider',
         display: 'flex',
@@ -87,7 +87,7 @@ export default function RightPanel({ onInsertTemplate }: RightPanelProps) {
                         mb: 0.5,
                         cursor: 'pointer',
                         transition: 'background-color 0.15s ease',
-                        '&:hover': { bgcolor: '#eff6ff', borderColor: 'primary.main' },
+                        '&:hover': { bgcolor: 'action.selected', borderColor: 'primary.main' },
                       }}
                     >
                       <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 12 }}>{t.title}</Typography>
