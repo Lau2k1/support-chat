@@ -4,8 +4,8 @@ import {
   Button,
   Card,
   Chip,
+  Divider,
   IconButton,
-  Stack,
   Table,
   TableBody,
   TableCell,
@@ -200,7 +200,7 @@ export default function TicketTemplatesPage() {
                       </Typography>
                     </TableCell>
                     <TableCell align="right">
-                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                      <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
                         <Tooltip title="Предпросмотр">
                           <IconButton size="small" onClick={() => handlePreview(tpl)}>
                             <VisibilityIcon fontSize="small" />
@@ -221,7 +221,7 @@ export default function TicketTemplatesPage() {
                             <DeleteIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                      </Stack>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))
