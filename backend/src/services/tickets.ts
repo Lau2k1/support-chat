@@ -218,15 +218,18 @@ export async function setTicketStatus(
   status: TicketStatus,
   userId: number | null
 ): Promise<Ticket | null> {
+  const isResolved = status === 'resolved';
+  // Explicit casts: `$1` would otherwise be deduced inconsistently (varchar vs
+  // text) because it is both assigned to `status` and compared to a literal.
   const res = await pool.query(
     `UPDATE tickets
-     SET status = $1,
-         resolved_by = CASE WHEN $1 = 'resolved' THEN $2 ELSE NULL END,
-         resolved_at = CASE WHEN $1 = 'resolved' THEN NOW() ELSE NULL END,
+     SET status = $1::varchar,
+         resolved_by = CASE WHEN $2::boolean THEN $3::int ELSE NULL END,
+         resolved_at = CASE WHEN $2::boolean THEN NOW() ELSE NULL END,
          updated_at = NOW()
-     WHERE id = $3 AND tenant_id = $4
+     WHERE id = $4::int AND tenant_id = $5::int
      RETURNING id`,
-    [status, userId, id, tenantId]
+    [status, isResolved, userId, id, tenantId]
   );
   if (!res.rows[0]) return null;
   return getTicket(res.rows[0].id as number, tenantId);

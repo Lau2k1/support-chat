@@ -316,6 +316,16 @@ app.use('/tickets', ticketsRoutes);
 app.get('/', sendSpaIndex);
 app.get('{*path}', sendSpaIndex);
 
+// Единый обработчик ошибок (Express 5 сам передаёт сюда отклонённые промисы из
+// async-роутов). Без него клиент получал бы HTML-страницу 500 вместо JSON, а
+// причина не попадала бы в лог. Регистрируется последним.
+app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (res.headersSent) return next(err);
+  const message = err instanceof Error ? err.message : String(err);
+  console.error('[error]', message, err instanceof Error ? err.stack : '');
+  res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+});
+
 const server = http.createServer(app);
 
 // SEC-03: reject cross-origin WebSocket handshakes. A browser sends `Origin`,
