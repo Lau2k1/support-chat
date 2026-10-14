@@ -25,6 +25,21 @@ describe('signFileUrl', () => {
   it('is stable within a day (same URL for the same file)', () => {
     expect(signFileUrl(`/uploads/${FILE}`)).toBe(signFileUrl(`/uploads/${FILE}`));
   });
+
+  it('signs tenant-scoped (nested) paths too', () => {
+    const rel = `tenant-7/${FILE}`;
+    const signed = signFileUrl(`/uploads/${rel}`);
+    expect(signed).toMatch(/^\/uploads\/tenant-7\/123e4567[^?]*\?t=\d+\.[0-9a-f]{64}$/);
+    const token = signed!.split('?t=')[1];
+    expect(verifyFileSignature(rel, token)).toBe(true);
+    // Подпись привязана к полному пути: без папки тенанта не проходит.
+    expect(verifyFileSignature(FILE, token)).toBe(false);
+  });
+
+  it('leaves traversal attempts untouched', () => {
+    expect(signFileUrl('/uploads/../etc/passwd')).toBe('/uploads/../etc/passwd');
+    expect(signFileUrl('/uploads/tenant-1/../../../etc/passwd')).toBe('/uploads/tenant-1/../../../etc/passwd');
+  });
 });
 
 describe('verifyFileSignature', () => {

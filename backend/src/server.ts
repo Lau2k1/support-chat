@@ -20,6 +20,7 @@ import { startAutoCloseTimer } from './services/chat';
 import { pool } from './db';
 import { resolveOperator, tokenFromRequest } from './middleware/auth';
 import { verifyFileSignature } from './utils/signedUrl';
+import { resolveUploadPath, tenantDirOf } from './utils/uploadPaths';
 
 const app = express();
 
@@ -141,7 +142,6 @@ app.use(express.static(frontendPath));
 // SEC-01: uploads are served through an explicit controller (not express.static),
 // so a file's content type can never make the browser execute it. Only raster
 // images are inlined; everything else is forced to download as an opaque binary.
-const UPLOADS_DIR = path.join(__dirname, '../uploads');
 const INLINE_IMAGE_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -150,56 +150,76 @@ const INLINE_IMAGE_TYPES: Record<string, string> = {
   '.webp': 'image/webp',
   '.bmp': 'image/bmp',
 };
-const UPLOAD_NAME_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[a-z0-9]{1,8}$/i;
 
-/** Тенант-владелец файла (через сообщение → чат). null, если файл ни к чему не привязан. */
-async function fileTenantId(name: string): Promise<number | null> {
+/**
+ * Тенант-владелец файла. У новых файлов он закодирован в папке `tenant-<id>/`;
+ * у исторических «плоских» — находим через сообщение → чат. null, если файл ни к
+ * чему не привязан.
+ */
+async function fileTenantId(rel: string): Promise<number | null> {
+  const fromDir = tenantDirOf(rel);
+  if (fromDir !== null) return fromDir;
   const r = await pool.query(
     'SELECT c.tenant_id FROM messages m JOIN chats c ON c.id = m.chat_id WHERE m.file_url = $1 LIMIT 1',
-    [`/uploads/${name}`]
+    [`/uploads/${rel}`]
   );
   return r.rows[0]?.tenant_id ?? null;
 }
 
-app.get('/uploads/:name', async (req, res) => {
-  const name = String(req.params.name || '');
-  if (!UPLOAD_NAME_RE.test(name)) return res.status(404).end();
+/**
+ * Изоляция тенантов: файл отдаём только владельцу.
+ *  1) виджет/внешние страницы — по короткой подписи ?t=... (теги <img>/<a>
+ *     не умеют слать заголовки, а cookie у встраиваемого виджета нет);
+ *  2) панель оператора — по сессионной cookie/Bearer того же тенанта.
+ * Путь строго валидируется (`<uuid>.<ext>` или `tenant-<id>/<uuid>.<ext>`),
+ * поэтому обход каталога невозможен.
+ */
+async function serveUpload(rel: string, req: express.Request, res: express.Response): Promise<void> {
+  const clean = String(rel).split('?')[0].replace(/^\/+/, '');
+  const full = resolveUploadPath(clean);
+  if (!full) return void res.status(404).end();
 
-  // Изоляция тенантов: файл отдаём только владельцу.
-  //  1) виджет/внешние страницы — по короткой подписи ?t=... (теги <img>/<a>
-  //     не умеют слать заголовки, а cookie у встраиваемого виджета нет);
-  //  2) панель оператора — по сессионной cookie/Bearer того же тенанта.
   let allowed = false;
   try {
     const sig = typeof req.query.t === 'string' ? req.query.t : '';
-    if (sig && verifyFileSignature(name, sig)) {
+    if (sig && verifyFileSignature(clean, sig)) {
       allowed = true;
     } else {
       const session = tokenFromRequest(req as unknown as { headers: Record<string, unknown> });
       const operator = session ? await resolveOperator(session) : null;
       if (operator) {
-        allowed = operator.role === 'superadmin' || operator.tenantId === (await fileTenantId(name));
+        allowed = operator.role === 'superadmin' || operator.tenantId === (await fileTenantId(clean));
       }
     }
   } catch {
     allowed = false;
   }
   // 404 (не 403) — не раскрываем существование чужих файлов.
-  if (!allowed) return res.status(404).end();
+  if (!allowed) return void res.status(404).end();
 
+  const filename = path.basename(clean);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
-  const inlineType = INLINE_IMAGE_TYPES[path.extname(name).toLowerCase()];
+  const inlineType = INLINE_IMAGE_TYPES[path.extname(clean).toLowerCase()];
   if (inlineType) {
     res.setHeader('Content-Type', inlineType);
-    res.setHeader('Content-Disposition', `inline; filename="${name}"`);
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
   } else {
     res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   }
-  res.sendFile(path.join(UPLOADS_DIR, name), (err) => {
+  res.sendFile(full, (err) => {
     if (err && !res.headersSent) res.status(404).end();
   });
+}
+
+// Файлы отдаются по двум маршрутам: «плоскому» (/uploads/<file>) и вложенному
+// (/uploads/tenant-<id>/<file>). Оба ведут в общий обработчик.
+app.get('/uploads/:name', (req, res) => {
+  void serveUpload(String(req.params.name || ''), req, res);
+});
+app.get('/uploads/:dir/:name', (req, res) => {
+  void serveUpload(`${String(req.params.dir || '')}/${String(req.params.name || '')}`, req, res);
 });
 
 // SEC-08: mount the general limit ONCE. Attaching it to every router meant a

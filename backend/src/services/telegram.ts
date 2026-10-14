@@ -12,6 +12,7 @@ import {
 import type { OutgoingMessage } from '../ws/types';
 import { normalizeTgApiBase } from '../utils/tgApiBase';
 import { signFileUrl } from '../utils/signedUrl';
+import { UPLOADS_DIR, tenantRelPath } from '../utils/uploadPaths';
 
 /**
  * Telegram integration (PLAN section 9).
@@ -24,7 +25,6 @@ import { signFileUrl } from '../utils/signedUrl';
 // SEC-18: validate TELEGRAM_API_BASE — must be a URL, and https-only in
 // production (prevents SSRF to internal services and protects bot tokens).
 const TG_API_BASE = normalizeTgApiBase(process.env.TELEGRAM_API_BASE, process.env.NODE_ENV);
-const UPLOADS_DIR = path.join(__dirname, '../../uploads');
 
 // ---------------------------------------------------------------------------
 // Token encryption
@@ -148,7 +148,12 @@ function safeExt(name?: string | null): string {
   return SAFE_TG_EXT.has(ext) ? ext : '.bin';
 }
 
-async function downloadTelegramFile(token: string, fileId: string, originalName?: string): Promise<string> {
+async function downloadTelegramFile(
+  token: string,
+  fileId: string,
+  originalName: string | undefined,
+  tenantId: number | null
+): Promise<string> {
   const info = await callApi<{ file_path: string; file_size?: number }>(token, 'getFile', { file_id: fileId });
   if (info.file_size && info.file_size > MAX_TG_FILE_BYTES) {
     throw new Error('File too large');
@@ -157,8 +162,10 @@ async function downloadTelegramFile(token: string, fileId: string, originalName?
   if (!res.ok) throw new Error('Failed to download file from Telegram');
 
   const stored = crypto.randomUUID() + safeExt(originalName || info.file_path);
-  await fs.promises.mkdir(UPLOADS_DIR, { recursive: true });
-  const dest = path.join(UPLOADS_DIR, stored);
+  // Изоляция тенантов: файл кладём в подпапку своего тенанта.
+  const rel = tenantId != null ? tenantRelPath(tenantId, stored) : stored;
+  const dest = path.join(UPLOADS_DIR, rel);
+  await fs.promises.mkdir(path.dirname(dest), { recursive: true });
 
   // SEC-09: stream the body to disk instead of buffering the whole file in memory.
   if (!res.body) throw new Error('No response body');
@@ -180,7 +187,7 @@ async function downloadTelegramFile(token: string, fileId: string, originalName?
     throw new Error('File too large');
   }
 
-  return `/uploads/${stored}`;
+  return `/uploads/${rel}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -210,31 +217,36 @@ function displayName(msg: TgMessage, externalId: string): string {
 }
 
 /** Normalizes an incoming Telegram message into our content/type/file_url shape. */
-async function normalizeContent(token: string, msg: TgMessage): Promise<{ content: string; messageType: string; fileUrl: string | null } | null> {
+async function normalizeContent(
+  token: string,
+  msg: TgMessage,
+  tenantId: number | null
+): Promise<{ content: string; messageType: string; fileUrl: string | null } | null> {
+  const dl = (fileId: string, name?: string) => downloadTelegramFile(token, fileId, name, tenantId);
   if (msg.text) return { content: msg.text, messageType: 'text', fileUrl: null };
   if (msg.photo?.length) {
     const largest = msg.photo[msg.photo.length - 1];
-    const fileUrl = await downloadTelegramFile(token, largest.file_id, 'photo.jpg');
+    const fileUrl = await dl(largest.file_id, 'photo.jpg');
     return { content: msg.caption || 'Фото', messageType: 'image', fileUrl };
   }
   if (msg.sticker) {
-    const fileUrl = await downloadTelegramFile(token, msg.sticker.file_id, 'sticker.webp');
+    const fileUrl = await dl(msg.sticker.file_id, 'sticker.webp');
     return { content: 'Стикер', messageType: 'image', fileUrl };
   }
   if (msg.document) {
-    const fileUrl = await downloadTelegramFile(token, msg.document.file_id, msg.document.file_name);
+    const fileUrl = await dl(msg.document.file_id, msg.document.file_name);
     return { content: msg.document.file_name || 'Документ', messageType: 'file', fileUrl };
   }
   if (msg.voice) {
-    const fileUrl = await downloadTelegramFile(token, msg.voice.file_id, 'voice.ogg');
+    const fileUrl = await dl(msg.voice.file_id, 'voice.ogg');
     return { content: 'Голосовое сообщение', messageType: 'file', fileUrl };
   }
   if (msg.audio) {
-    const fileUrl = await downloadTelegramFile(token, msg.audio.file_id, msg.audio.file_name || 'audio.mp3');
+    const fileUrl = await dl(msg.audio.file_id, msg.audio.file_name || 'audio.mp3');
     return { content: msg.audio.file_name || 'Аудио', messageType: 'file', fileUrl };
   }
   if (msg.video) {
-    const fileUrl = await downloadTelegramFile(token, msg.video.file_id, msg.video.file_name || 'video.mp4');
+    const fileUrl = await dl(msg.video.file_id, msg.video.file_name || 'video.mp4');
     return { content: msg.video.file_name || 'Видео', messageType: 'file', fileUrl };
   }
   return null;
@@ -269,7 +281,7 @@ export async function handleTelegramUpdate(botId: number, update: unknown): Prom
   );
 
   const token = decryptToken(bot.bot_token);
-  const normalized = await normalizeContent(token, msg);
+  const normalized = await normalizeContent(token, msg, bot.tenant_id ?? null);
   if (!normalized) return;
 
   // Find an open telegram chat for this contact, or create a new one.

@@ -25,15 +25,16 @@ function sign(name: string, exp: number): string {
  * Добавляет подпись к сохранённому `/uploads/<file>` URL. Срок выравнивается по
  * границе суток, чтобы одна и та же ссылка была стабильной в течение дня (не
  * ломает кэш браузера при повторной отрисовке одного и того же сообщения).
+ * Подпись покрывает весь относительный путь, включая папку тенанта.
  */
 export function signFileUrl(fileUrl: string | null | undefined): string | null {
   if (!fileUrl) return null;
   if (!fileUrl.startsWith(PREFIX)) return fileUrl;
-  const name = fileUrl.slice(PREFIX.length);
+  const rel = fileUrl.slice(PREFIX.length).split('?')[0];
   // Уже подписанный/подозрительный URL не трогаем.
-  if (!name || name.includes('?') || name.includes('/')) return fileUrl;
+  if (!rel || rel.startsWith('/') || rel.includes('..') || rel.includes('\\')) return fileUrl;
   const exp = Math.ceil((Date.now() + TTL_MS) / DAY_MS) * DAY_MS;
-  return `${PREFIX}${name}?t=${exp}.${sign(name, exp)}`;
+  return `${PREFIX}${rel}?t=${exp}.${sign(rel, exp)}`;
 }
 
 /** Проверяет подпись из query-параметра `t`. */

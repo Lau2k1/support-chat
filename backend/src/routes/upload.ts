@@ -8,11 +8,18 @@ import { authMiddleware, resolveOperator, tokenFromRequest, AuthenticatedRequest
 import { broadcastToRoom } from '../services/chat';
 import { forwardMessageToTelegram } from '../services/telegram';
 import { signFileUrl } from '../utils/signedUrl';
+import { UPLOADS_DIR, tenantRelPath } from '../utils/uploadPaths';
 import type { OutgoingMessage } from '../ws/types';
 
 const upload = multer({
   storage: multer.diskStorage({
-    destination: path.join(__dirname, '../../uploads'),
+    // Изоляция тенантов: новые файлы кладём в подпапку `tenant-<id>/`. Тенант
+    // известен заранее — authorizeUpload выполняется до multer и кладёт id в req.
+    destination: (req, _file, cb) => {
+      const tenantId = (req as UploadRequest).uploadTenantId;
+      const dir = tenantId != null ? path.join(UPLOADS_DIR, `tenant-${tenantId}`) : UPLOADS_DIR;
+      fs.mkdir(dir, { recursive: true }, (err) => cb(err, dir));
+    },
     filename: (_req, file, cb) => {
       const ext = path.extname(file.originalname);
       cb(null, crypto.randomUUID() + ext);
@@ -51,6 +58,7 @@ const router = Router();
 interface UploadRequest extends AuthenticatedRequest {
   uploadChatId?: number;
   uploadOperator?: AuthUser | null;
+  uploadTenantId?: number | null;
 }
 
 /**
@@ -84,6 +92,7 @@ async function authorizeUpload(req: UploadRequest, res: Response, next: NextFunc
 
     req.uploadChatId = chatId;
     req.uploadOperator = operator;
+    req.uploadTenantId = chat.tenant_id ?? null;
     next();
   } catch (e) {
     console.error('Upload auth error:', e);
@@ -122,7 +131,9 @@ router.post(
     try {
       const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.originalname);
       const message_type = isImage ? 'image' : 'file';
-      const fileUrl = `/uploads/${file.filename}`;
+      // Изоляция тенантов: путь включает папку тенанта, если она известна.
+      const rel = req.uploadTenantId != null ? tenantRelPath(req.uploadTenantId, file.filename) : file.filename;
+      const fileUrl = `/uploads/${rel}`;
       const content = file.originalname;
 
       const senderId = operator?.id || 0;
