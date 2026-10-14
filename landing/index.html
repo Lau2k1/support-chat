@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SupportChat — поддержка клиентов для VPN-сервисов</title>
+    <meta
+      name="description"
+      content="Мультиканальная поддержка для VPN-сервисов: встраиваемый виджет на сайт и Telegram-бот на каждый бренд, все операторы в одном окне. Автораспределение чатов, файлы, изоляция данных."
+    />
+    <meta name="theme-color" content="#007bff" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23007bff'/%3E%3Cpath d='M9 12h14M9 16h10M9 20h7' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/landing/styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="container nav__inner">
+        <a class="brand" href="/">
+          <span class="brand__mark" aria-hidden="true"></span>
+          <span class="brand__name">SupportChat</span>
+        </a>
+        <nav class="nav__links" aria-label="Основная навигация">
+          <a href="#features">Возможности</a>
+          <a href="#how">Как работает</a>
+          <a href="#pricing">Тарифы</a>
+          <a href="#faq">Вопросы</a>
+        </nav>
+        <div class="nav__actions">
+          <a class="btn btn--ghost" href="https://app.sct.chat/login">Войти</a>
+          <a class="btn btn--primary" href="https://app.sct.chat/register">Попробовать</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="container hero__inner">
+          <div class="hero__copy">
+            <p class="eyebrow">Поддержка для VPN-сервисов</p>
+            <h1>Клиенты пишут в чат на сайте и в Telegram — отвечайте из одного окна</h1>
+            <p class="lead">
+              SupportChat объединяет встроенный виджет и Telegram-бота на каждый бренд в единой
+              панели оператора. Чаты распределяются сами, история и файлы не теряются, а данные
+              каждого бренда изолированы.
+            </p>
+            <div class="hero__cta">
+              <a class="btn btn--primary btn--lg" href="https://app.sct.chat/register">Подключить бесплатно</a>
+              <a class="btn btn--outline btn--lg" href="#how">Как это работает</a>
+            </div>
+            <ul class="hero__points">
+              <li>Виджет — подключение одной строкой</li>
+              <li>Бот на каждый бренд</li>
+              <li>Без установки на сервер</li>
+            </ul>
+          </div>
+
+          <div class="hero__panel" aria-hidden="true">
+            <div class="mock">
+              <div class="mock__head">
+                <span class="mock__dot"></span>
+                <span class="mock__title">Диалоги</span>
+                <span class="mock__pill">online</span>
+              </div>
+              <div class="mock__row">
+                <span class="mock__avatar"></span>
+                <span class="mock__lines"><i></i><i></i></span>
+                <span class="mock__tag mock__tag--tg">Telegram</span>
+              </div>
+              <div class="mock__row mock__row--active">
+                <span class="mock__avatar"></span>
+                <span class="mock__lines"><i></i><i></i></span>
+                <span class="mock__tag">Виджет</span>
+              </div>
+              <div class="mock__row">
+                <span class="mock__avatar"></span>
+                <span class="mock__lines"><i></i><i></i></span>
+                <span class="mock__tag mock__tag--tg">Telegram</span>
+              </div>
+              <div class="mock__bubble">Здравствуйте! Не подключается сервер 🇳🇱</div>
+              <div class="mock__bubble mock__bubble--out">Проверяю, одну минуту 🙂</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="stats">
+        <div class="container stats__grid">
+          <div class="stat"><b>2 канала</b><span>виджет и Telegram</span></div>
+          <div class="stat"><b>1 панель</b><span>для всех операторов</span></div>
+          <div class="stat"><b>до 5 минут</b><span>на подключение</span></div>
+          <div class="stat"><b>изоляция</b><span>данных по брендам</span></div>
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <div class="container">
+          <p class="section__eyebrow">Возможности</p>
+          <h2 class="section__title">Всё, что нужно поддержке VPN-сервиса</h2>
+          <p class="section__lead">
+            Мы собрали рабочие инструменты операторов и удобное управление клиентами-брендами —
+            без лишних настроек и интеграций.
+          </p>
+
+          <div class="cards">
+            <article class="card">
+              <span class="card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 5h16v11H8l-4 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+              </span>
+              <h3>Виджет одной строкой</h3>
+              <p>Вставьте готовый фрагмент на сайт — виджет поддержки появится в правом нижнем углу. Свой цвет и приветствие настраиваются.</p>
+            </article>
+
+            <article class="card">
+              <span class="card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22"><path d="M21 3 3 10.5l6 2.5 2.5 6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+              </span>
+              <h3>Telegram-бот на ваш бренд</h3>
+              <p>Отдельный @bot для каждого бренда: клиенты пишут в Telegram, операторы отвечают прямо из панели. Токен хранится в зашифрованном виде.</p>
+            </article>
+
+            <article class="card">
+              <span class="card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5M17 8h4M19 6v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </span>
+              <h3>Автораспределение чатов</h3>
+              <p>Новый диалог автоматически уходит наименее загруженному свободному оператору. Никто не перегружен, клиент не ждёт.</p>
+            </article>
+
+            <article class="card">
+              <span class="card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3 5 6v6c0 4 3 6.5 7 9 4-2.5 7-5 7-9V6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m9 12 2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <h3>Изоляция данных брендов</h3>
+              <p>Каждый бренд — отдельный аккаунт со своими операторами и настройками. Чужие чаты и файлы недоступны: доступ проверяется на каждом запросе.</p>
+            </article>
+
+            <article class="card">
+              <span class="card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 15V4m0 0L8 8m4-4 4 4M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <h3>Файлы и изображения</h3>
+              <p>Скриншоты конфигов, логи, инструкции — клиент прикрепляет файл или вставляет картинку из буфера, оператор отправляет ответ вложениями.</p>
+            </article>
+
+            <article class="card">
+              <span class="card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 19V5m4 14V9m4 10V13m4 6V7m4 12V11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </span>
+              <h3>Статистика и контроль</h3>
+              <p>Нагрузка операторов, скорость ответа, оценки клиентов и архив диалогов — чтобы понимать, где поддержка справляется, а где нет.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="how" class="section section--muted">
+        <div class="container">
+          <p class="section__eyebrow">Как работает</p>
+          <h2 class="section__title">Подключение за три шага</h2>
+          <ol class="steps">
+            <li class="step">
+              <span class="step__num">1</span>
+              <h3>Зарегистрируйте бренд</h3>
+              <p>Создайте аккаунт и добавьте операторов. Для каждого бренда — свои операторы, настройки и каналы.</p>
+            </li>
+            <li class="step">
+              <span class="step__num">2</span>
+              <h3>Подключите каналы</h3>
+              <p>Вставьте код виджета на сайт и добавьте токен Telegram-бота в панели — вебхук настроится автоматически.</p>
+            </li>
+            <li class="step">
+              <span class="step__num">3</span>
+              <h3>Отвечайте клиентам</h3>
+              <p>Чаты из виджета и Telegram приходят в одно окно. Отвечайте, отправляйте файлы и закрывайте диалоги.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="pricing" class="section">
+        <div class="container">
+          <p class="section__eyebrow">Тарифы</p>
+          <h2 class="section__title">Прозрачная подписка под ваш объём</h2>
+          <p class="section__lead">
+            Платите за количество операторов. Все тарифы включают виджет, Telegram-бота, панель
+            оператора и админку бренда.
+          </p>
+
+          <div class="plans">
+            <article class="plan">
+              <h3>Старт</h3>
+              <p class="plan__desc">Для небольшого сервиса на старте</p>
+              <p class="plan__price"><b>2 900 ₽</b><span>/ мес</span></p>
+              <ul class="plan__list">
+                <li>До 3 операторов</li>
+                <li>Виджет + Telegram-бот</li>
+                <li>Файлы и история диалогов</li>
+                <li>Автораспределение чатов</li>
+              </ul>
+              <a class="btn btn--outline btn--block" href="https://app.sct.chat/register">Начать</a>
+            </article>
+
+            <article class="plan plan--featured">
+              <span class="plan__badge">Популярный</span>
+              <h3>Профи</h3>
+              <p class="plan__desc">Для растущего VPN-бренда</p>
+              <p class="plan__price"><b>5 900 ₽</b><span>/ мес</span></p>
+              <ul class="plan__list">
+                <li>До 10 операторов</li>
+                <li>Всё из «Старт»</li>
+                <li>Быстрые ответы и теги</li>
+                <li>Оценки и статистика</li>
+                <li>Несколько брендов</li>
+              </ul>
+              <a class="btn btn--primary btn--block" href="https://app.sct.chat/register">Выбрать</a>
+            </article>
+
+            <article class="plan">
+              <h3>Бизнес</h3>
+              <p class="plan__desc">Для сети сервисов и команд</p>
+              <p class="plan__price"><b>11 900 ₽</b><span>/ мес</span></p>
+              <ul class="plan__list">
+                <li>До 30 операторов</li>
+                <li>Всё из «Профи»</li>
+                <li>Режим наблюдателя и аудит</li>
+                <li>Приоритетная поддержка</li>
+              </ul>
+              <a class="btn btn--outline btn--block" href="https://app.sct.chat/register">Выбрать</a>
+            </article>
+
+            <article class="plan plan--custom">
+              <h3>Custom</h3>
+              <p class="plan__desc">Большие объёмы, SLA, white-label</p>
+              <p class="plan__price"><b>По запросу</b></p>
+              <ul class="plan__list">
+                <li>Операторы без лимита</li>
+                <li>Персональный SLA</li>
+                <li>Помощь с миграцией</li>
+                <li>Индивидуальные доработки</li>
+              </ul>
+              <a class="btn btn--outline btn--block" href="#contact">Обсудить</a>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" class="section section--muted">
+        <div class="container">
+          <p class="section__eyebrow">Вопросы</p>
+          <h2 class="section__title">Частые вопросы</h2>
+          <div class="faq">
+            <details class="faq__item">
+              <summary>Сложно ли подключить виджет?</summary>
+              <p>Нет. После регистрации панель покажет готовый фрагмент кода — его нужно вставить на сайт. Отдельных серверов и установок не требуется.</p>
+            </details>
+            <details class="faq__item">
+              <summary>Можно ли отвечать в Telegram?</summary>
+              <p>Да. Вы подключаете своего Telegram-бота, и сообщения клиентов приходят в ту же панель. Ответы операторов уходят клиенту в Telegram.</p>
+            </details>
+            <details class="faq__item">
+              <summary>Данные разных брендов не смешаются?</summary>
+              <p>Нет. Каждый клиент-бренд — отдельный аккаунт. Доступ к чатам, файлам и настройкам проверяется на уровне тенанта, чужие данные недоступны.</p>
+            </details>
+            <details class="faq__item">
+              <summary>Как оплачивать и можно ли отменить?</summary>
+              <p>Подписка помесячная, без долгих договоров. Подойдёт счёт для ИП/ООО, можно сменить тариф или отказаться в любой момент.</p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section id="contact" class="cta">
+        <div class="container cta__inner">
+          <div>
+            <h2>Подключите поддержку для вашего VPN-сервиса</h2>
+            <p>Зарегистрируйте бренд и начните принимать чаты уже сегодня. Мы поможем с подключением и переносом.</p>
+          </div>
+          <div class="cta__actions">
+            <a class="btn btn--primary btn--lg" href="https://app.sct.chat/register">Создать аккаунт</a>
+            <a class="btn btn--light btn--lg" href="https://app.sct.chat/login">Войти в панель</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer__inner">
+        <div class="footer__brand">
+          <span class="brand__mark" aria-hidden="true"></span>
+          <span class="brand__name">SupportChat</span>
+          <p>Мультиканальная поддержка клиентов для VPN-сервисов.</p>
+        </div>
+        <div class="footer__cols">
+          <div>
+            <h4>Продукт</h4>
+            <a href="#features">Возможности</a>
+            <a href="#pricing">Тарифы</a>
+            <a href="#how">Как работает</a>
+          </div>
+          <div>
+            <h4>Панель</h4>
+            <a href="https://app.sct.chat/login">Вход</a>
+            <a href="https://app.sct.chat/register">Регистрация</a>
+          </div>
+          <div>
+            <h4>Связь</h4>
+            <a href="mailto:support@sct.chat">support@sct.chat</a>
+          </div>
+        </div>
+      </div>
+      <div class="container footer__bottom">
+        <span>© 2026 SupportChat. Все права защищены.</span>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -122,6 +122,7 @@ support-chat/
 │   ├── src/{pages,components,stores,hooks,services,types,utils}
 │   ├── index.html           # SPA-панели
 │   └── widget.html          # виджет
+├── landing/                 # маркетинговый лендинг (статика, отдаёт бэкенд)
 ├── deploy/                  # Caddyfile, .env.example, backup.sh, README.deploy.md
 ├── docker-compose.yml       # dev: postgres
 ├── docker-compose.prod.yml  # prod: app + postgres + caddy

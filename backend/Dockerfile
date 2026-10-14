@@ -43,6 +43,9 @@ COPY backend/docker-entrypoint.sh ./docker-entrypoint.sh
 # Built SPA + widget, served by the backend catch-all (../../frontend-react/dist).
 COPY --from=frontend /app/frontend-react/dist /app/frontend-react/dist
 
+# Маркетинговый лендинг (отдаётся бэкендом с ../../landing на основном домене).
+COPY landing /app/landing
+
 RUN sed -i 's/\r$//' ./docker-entrypoint.sh \
  && chmod +x ./docker-entrypoint.sh \
  && mkdir -p /app/backend/uploads \

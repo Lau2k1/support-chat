@@ -36,6 +36,26 @@ if (isProd && !allowedOrigins) {
   console.warn('WARNING: CORS_ORIGINS is not set in production — cross-origin widget embeds will be blocked.');
 }
 
+// ---- Двухдоменная схема: лендинг на DOMAIN, панели на APP_DOMAIN ----
+// Пока APP_DOMAIN не задан, всё работает как раньше (обратная совместимость с
+// локальной разработкой и smoke-тестами). Лендинг отдаётся ТОЛЬКО когда запрос
+// пришёл на маркетинговый домен (DOMAIN), отличный от APP_DOMAIN. Любой другой
+// хост (app-домен, localhost, IP, клиентские домены) ведёт себя как панель/API.
+const appDomain = (process.env.APP_DOMAIN || '').trim().toLowerCase();
+const landingDomain = (process.env.DOMAIN || '').trim().toLowerCase();
+
+function requestHost(req: express.Request): string {
+  const raw = req.headers.host || '';
+  return String(raw).split(':')[0].toLowerCase();
+}
+
+/** true, если запрос пришёл на маркетинговый домен (лендинг), а не в панель. */
+function isLandingHost(req: express.Request): boolean {
+  if (!appDomain || !landingDomain) return false; // фича выключена -> как раньше
+  const h = requestHost(req);
+  return h === landingDomain && h !== appDomain;
+}
+
 app.use(helmet({
   // SEC-01: re-enable CSP. Inline styles are required by MUI/emotion; scripts stay
   // same-origin only, so an injected inline <script> cannot execute.
@@ -68,6 +88,14 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+
+// Панели — приватная зона: просим поисковые системы не индексировать app-домен.
+app.use((req, res, next) => {
+  if (appDomain && requestHost(req) === appDomain) {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  }
+  next();
+});
 
 // Basic rate limits (abuse protection). Tune when real numbers are known.
 // Raise AUTH_RATE_LIMIT_MAX for local/smoke runs that issue many logins.
@@ -110,6 +138,22 @@ app.get('/health', (_req, res) => {
 });
 
 const frontendPath = path.join(__dirname, '../../frontend-react/dist');
+// Маркетинговый лендинг (статика в репозитории, копируется в образ как /app/landing).
+const landingPath = path.join(__dirname, '../../landing');
+
+/**
+ * Отдаёт корневой HTML: лендинг на маркетинговом домене, иначе — SPA панели
+ * (клиент сам редиректит по роли). Ошибка отдачи (нет файла) не должна валить
+ * запрос HTML-текстом Express по умолчанию.
+ */
+function sendSpaIndex(req: express.Request, res: express.Response): void {
+  const file = isLandingHost(req)
+    ? path.join(landingPath, 'index.html')
+    : path.join(frontendPath, 'index.html');
+  res.sendFile(file, (err) => {
+    if (err && !res.headersSent) res.status(404).send('Not found');
+  });
+}
 
 // SEC-19: widget.html is embedded in customer sites via iframe. Allow
 // frame-ancestors for the tenant's configured widget_origins (plus same-origin).
@@ -137,7 +181,17 @@ app.get('/widget.html', async (req, res, next) => {
   next();
 });
 
-app.use(express.static(frontendPath));
+// robots.txt: лендинг индексируем, панели и служебные хосты — нет.
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  res.send(isLandingHost(req) ? 'User-agent: *\nAllow: /\n' : 'User-agent: *\nDisallow: /\n');
+});
+
+// index: false — иначе express.static отдал бы SPA index.html на `/`, и
+// лендинг-хост никогда не смог бы показать свой index.html.
+app.use(express.static(frontendPath, { index: false }));
+// Статика лендинга: /landing/styles.css и т.п.
+app.use('/landing', express.static(landingPath, { index: false }));
 
 // SEC-01: uploads are served through an explicit controller (not express.static),
 // so a file's content type can never make the browser execute it. Only raster
@@ -235,7 +289,11 @@ app.use(uploadRoutes);
 
 // SPA pages (client-side routes) must be served before the authenticated admin routers —
 // otherwise /admin would hit authMiddleware and return 401 JSON instead of index.html.
-app.get(['/login', '/register', '/operator', '/admin', '/crm'], (_req, res) => {
+// На маркетинговом домене эти пути уводим в панель на APP_DOMAIN (302).
+app.get(['/login', '/register', '/operator', '/admin', '/crm'], (req, res) => {
+  if (isLandingHost(req)) {
+    return res.redirect(302, `https://${appDomain}${req.originalUrl}`);
+  }
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
@@ -243,9 +301,10 @@ app.use('/admin', adminRoutes);
 app.use('/superadmin', superRouter);
 app.use('/api/tg', telegramRoutes);
 
-app.get('{*path}', (_req, res) => {
-  res.sendFile(path.join(frontendPath, 'index.html'));
-});
+// Корень и все прочие GET-пути, не перехваченные выше (API/виджет/uploads/статика):
+// лендинг на маркетинговом домене, SPA — на остальных.
+app.get('/', sendSpaIndex);
+app.get('{*path}', sendSpaIndex);
 
 const server = http.createServer(app);
 

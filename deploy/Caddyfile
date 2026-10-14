@@ -1,6 +1,12 @@
 # Caddy reverse proxy: automatic HTTPS (Let's Encrypt) + WebSocket passthrough.
-# DOMAIN is provided by docker-compose (from deploy/.env).
-{$DOMAIN} {
+# Both DOMAIN (лендинг + виджет) and APP_DOMAIN (панели) are provided by
+# docker-compose from deploy/.env. Their A-records must point to this server
+# BEFORE the first start, otherwise Let's Encrypt issuance fails.
+#
+# Оба хоста проксируются в один и тот же контейнер приложения — бэкенд сам
+# различает их по заголовку Host (лендинг vs панели).
+
+(common) {
 	encode zstd gzip
 
 	header {
@@ -8,7 +14,18 @@
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
 	}
+}
+
+# Основной домен: маркетинговый лендинг, виджет, API и файлы.
+{$DOMAIN} {
+	import common
 
 	# WebSocket upgrade (/ws) and the whole API/SPA go to the app container.
+	reverse_proxy app:3000
+}
+
+# Домен панелей: та же панель/API, отдельный сертификат.
+{$APP_DOMAIN} {
+	import common
 	reverse_proxy app:3000
 }

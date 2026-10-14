@@ -51,6 +51,10 @@ services:
       TELEGRAM_TOKEN_KEY: ${TELEGRAM_TOKEN_KEY}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
       CORS_ORIGINS: ${CORS_ORIGINS}
+      # Двухдоменная схема: DOMAIN — лендинг + виджет, APP_DOMAIN — панели.
+      # Пока APP_DOMAIN пуст, бэкенд ведёт себя как раньше (всё на одном домене).
+      DOMAIN: ${DOMAIN}
+      APP_DOMAIN: ${APP_DOMAIN:-}
       CHAT_TIMEOUT_MINUTES: ${CHAT_TIMEOUT_MINUTES:-7}
       # SEC-08: general API requests allowed per IP per 15 min (default 1000).
       API_RATE_LIMIT_MAX: ${API_RATE_LIMIT_MAX:-1000}
@@ -92,6 +96,8 @@ services:
       - "443:443"
     environment:
       DOMAIN: ${DOMAIN}
+      # Панели живут на отдельном домене — Caddy выпускает для него свой сертификат.
+      APP_DOMAIN: ${APP_DOMAIN:-}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
