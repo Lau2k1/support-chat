@@ -273,6 +273,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_provider_invoice ON payments(prov
 -- ---------------------------------------------------------------------------
 -- Ticket templates (constructor). Admin creates/edits; operator uses read-only.
 -- ---------------------------------------------------------------------------
+
+-- Auto-update function for updated_at columns
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TABLE IF NOT EXISTS ticket_templates (
     id SERIAL PRIMARY KEY,
     tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
