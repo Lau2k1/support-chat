@@ -398,16 +398,22 @@
     TG → 409; отвязка запрещена, пока не задан пароль (иначе потеря доступа).
 - [x] **БД**: `operators.telegram_id / telegram_username / telegram_photo_url / telegram_linked_at`.
 - [x] **Фронтенд**: официальный виджет `telegram.org/js/telegram-widget.js`
-  (`TelegramLoginButton`, глобальный колбэк `onTelegramAuth`), кнопки на Login/Register,
-  диалог привязки в навигации админа и владельца (`TelegramLinkDialog`).
+  (`TelegramLoginButton`), кнопки на Login/Register, диалог привязки в навигации админа
+  и владельца (`TelegramLinkDialog`). ⚠️ Подводный камень CSP: атрибут `data-onauth`
+  заставляет скрипт виджета вызвать `eval()`, который наша CSP (script-src без
+  `'unsafe-eval'`, SEC-01) блокирует — скрипт падает до создания iframe и кнопка не
+  отрисовывается. Решение: скрипт вставляется БЕЗ `data-onauth`, а подписанный payload
+  приходит на страницу postMessage-событием `auth_user` от `https://oauth.telegram.org`;
+  компонент слушает его сам (проверка origin) и передаёт в `onAuth`. Сервер в обоих
+  случаях перепроверяет подпись токеном.
 - [x] **Unit-тесты** `test/unit/telegramLogin.test.ts`: подпись/подделка/чужой токен,
   replay 24 ч, будущее время, некорректный id, обрезка полей, displayNameOf.
 - [x] **Прод включён** (бот `@SCTCHATBOT`): `TELEGRAM_LOGIN_BOT_TOKEN`/`TELEGRAM_LOGIN_BOT_USERNAME`
   в `deploy/.env` (в git только `.env.example`), контейнер пересоздан,
   `/auth/telegram/config` → `{"enabled":true}`.
-- [ ] **BotFather → Login Domain**: для бота `@SCTCHATBOT` задать домен `app.sct.chat`
-  (/mybots → Bot Settings → Login Domain). Без этого виджет отрисуется, но авторизация
-  завершится ошибкой «bot domain is invalid». Ручной шаг владельца.
+- [x] **BotFather → Login Widget / Allowed URL**: для бота `@SCTCHATBOT` владельцем задан
+  домен `app.sct.chat` (в новом BotFather пункт называется «Login Widget» → Add Allowed URL;
+  командой — `/setdomain`). Поддомены учитываются отдельно: нужен именно `app.sct.chat`.
 - [ ] Ротация токена бота при компрометации: заменить значения в `deploy/.env` и
   пересоздать контейнер (сессии операторов не зависят от токена — JWT по-прежнему в cookie).
 - Пароль суперадмина `admin@sct.chat` рекомендуется сменить.

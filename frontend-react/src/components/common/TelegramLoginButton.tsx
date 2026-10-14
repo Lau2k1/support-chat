@@ -3,13 +3,6 @@ import { Box } from '@mui/material';
 import { authApi } from '@/services/endpoints';
 import type { TelegramWidgetData } from '@/types';
 
-declare global {
-  interface Window {
-    /** Called by telegram-widget.js (data-onauth) — must be global. */
-    onTelegramAuth?: (user: TelegramWidgetData) => void;
-  }
-}
-
 interface Props {
   onAuth: (user: TelegramWidgetData) => void;
   disabled?: boolean;
@@ -18,9 +11,13 @@ interface Props {
 /**
  * Renders the official Telegram Login Widget.
  *
- * The widget hands the signed user payload to a global callback
- * (`data-onauth="onTelegramAuth(user)"`) instead of posting it somewhere itself —
- * our server then re-verifies the signature with the bot token.
+ * The script is injected WITHOUT data-onauth: that attribute makes the widget
+ * eval() the callback expression, and the CSP (script-src without
+ * 'unsafe-eval', SEC-01) blocks eval — the widget then crashes before creating
+ * its iframe and no button appears. Instead, the signed payload is delivered
+ * to the page as a postMessage ('auth_user') from oauth.telegram.org, which we
+ * listen for ourselves and forward to onAuth; the server re-verifies the
+ * signature with the bot token either way.
  *
  * Renders nothing when Telegram login is not configured, so the panel degrades
  * gracefully before the bot token is in place.
@@ -54,10 +51,29 @@ export default function TelegramLoginButton({ onAuth, disabled = false }: Props)
   }, []);
 
   useEffect(() => {
+    if (!ready) return;
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== 'https://oauth.telegram.org') return;
+      let data: { event?: string; auth_data?: TelegramWidgetData };
+      try {
+        data = JSON.parse(String(event.data));
+      } catch {
+        return;
+      }
+      if (data.event === 'auth_user' && data.auth_data) {
+        callback.current(data.auth_data);
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => {
+      window.removeEventListener('message', onMessage);
+    };
+  }, [ready]);
+
+  useEffect(() => {
     const el = holder.current;
     if (!ready || !botUsername.current || !el) return;
-
-    window.onTelegramAuth = (user: TelegramWidgetData) => callback.current(user);
 
     el.innerHTML = '';
     const script = document.createElement('script');
@@ -66,7 +82,6 @@ export default function TelegramLoginButton({ onAuth, disabled = false }: Props)
     script.setAttribute('data-telegram-login', botUsername.current);
     script.setAttribute('data-size', 'large');
     script.setAttribute('data-radius', '10');
-    script.setAttribute('data-onauth', 'onTelegramAuth(user)');
     script.setAttribute('data-request-access', 'write');
     el.appendChild(script);
 
