@@ -40,7 +40,7 @@ export default function Login() {
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(145deg, #f5f7f9 0%, #ffffff 60%, #e8f2ff 100%)',
       }}
     >
       <Card sx={{ p: 5, width: 360, borderRadius: 3, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>

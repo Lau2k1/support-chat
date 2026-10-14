@@ -76,7 +76,7 @@ export default function Register() {
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(145deg, #f5f7f9 0%, #ffffff 60%, #e8f2ff 100%)',
         py: 3,
       }}
     >
