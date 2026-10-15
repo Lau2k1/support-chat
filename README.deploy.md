@@ -139,6 +139,38 @@ crontab -e
   `PUBLIC_BASE_URL/api/tg/<botId>` (секрет `X-Telegram-Bot-Api-Secret-Token`).
 - Требуются рабочие 443 и корректный `PUBLIC_BASE_URL`.
 
+## 8b. Приём платежей (CryptoBot / Crypto Pay)
+
+Оплата подписки проходит через `@CryptoBot` (Crypto Pay API). Счёт выставляется в панели раздела
+«Оплата»: `POST /billing/checkout` создаёт инвойс в USD (fiat).
+
+1. Создайте приложение в `@CryptoBot`: Crypto Pay → My Apps → Create App, скопируйте токен.
+   Проверка токена: `POST https://pay.crypt.bot/api/getMe` с заголовком
+   `Crypto-Pay-API-Token: <токен>` → должно вернуться `{"ok":true,...}`.
+2. В `deploy/.env` задайте:
+   - `CRYPTOBOT_TOKEN` — токен приложения (в git только `.env.example`, без значения);
+   - `CRYPTOBOT_CURRENCY_TYPE=fiat`, `CRYPTOBOT_FIAT=USD` — фиатный счёт в долларах
+     (альтернатива: `crypto` + `CRYPTOBOT_ASSET=USDT`).
+3. Пересоздайте контейнер: `docker compose --env-file deploy/.env -f docker-compose.prod.yml up -d`.
+4. **Webhook** (моментальная активация подписки): в `@CryptoBot` → Crypto Pay → My Apps → ваше
+   приложение → **Webhooks** укажите `https://<DOMAIN>/api/cryptobot/webhook`. Методов управления
+   webhook в API нет (`setWebhook` → 405 METHOD_NOT_FOUND), настраивается только в интерфейсе бота.
+   Подпись запросов — заголовок `crypto-pay-api-signature` (HMAC-SHA256 с ключом `SHA256(token)`);
+   без корректной подписи эндпоинт отвечает 401.
+5. Пока webhook не настроен, оплата всё равно активируется: панель опрашивает
+   `POST /billing/payments/:id/sync` (проверка инвойса через `getInvoices`). Без `CRYPTOBOT_TOKEN`
+   биллинг мягко деградирует в ручной режим — «Заявка на оплату» с уведомлением владельцу в Telegram.
+
+## 8c. Юридические документы
+
+Статические страницы `landing/legal/*.html` отдаются как `/legal/offer`, `/legal/privacy`,
+`/legal/consent`, `/legal/dpa`, `/legal/cookies` (белый список в `server.ts`, работает на обоих
+доменах). На них ссылаются футер лендинга, форма регистрации и тексты согласий.
+
+Перед выпуском новой редакции обновите версию в тексте страницы **и** в `backend/src/legal.ts`
+(`LEGAL`) — записи в `legal_acceptances` ссылаются на редакцию, действовавшую на момент акцепта.
+Реквизиты исполнителя в разделе 12 оферты нужно заполнить до начала продаж.
+
 ## 8a. Вход через Telegram (Login Widget)
 
 Отдельный бот для авторизации операторов/админов в панели (не путать с ботами клиентов из п. 8):
