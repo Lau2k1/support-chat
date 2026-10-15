@@ -19,7 +19,6 @@ import MarkChatUnreadIcon from '@mui/icons-material/MarkChatUnread';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import ForumIcon from '@mui/icons-material/Forum';
 import TimerIcon from '@mui/icons-material/Timer';
-import StarIcon from '@mui/icons-material/Star';
 import TopBar from '@/components/layout/TopBar';
 import SideNav from '@/components/layout/SideNav';
 import ChatSidebar from '@/components/chat/ChatSidebar';
@@ -428,7 +427,6 @@ function StatsView() {
     { value: stats.closedChats, label: 'Закрытых', color: '#10b981', icon: <CheckCircleOutlineOutlinedIcon fontSize="small" /> },
     { value: stats.totalMessages, label: 'Сообщений', color: '#8b5cf6', icon: <ForumIcon fontSize="small" /> },
     { value: formatDuration(stats.avgResponseSec), label: 'Ср. ответ', color: '#06b6d4', icon: <TimerIcon fontSize="small" /> },
-    { value: stats.avgRating || '—', label: 'Ср. рейтинг', color: '#f59e0b', icon: <StarIcon fontSize="small" /> },
   ];
 
   const maxCount = Math.max(...daily.map((d) => d.count), 1);

@@ -220,7 +220,8 @@ app.get('/legal/:doc', (req, res, next) => {
 
 // SEC-01: uploads are served through an explicit controller (not express.static),
 // so a file's content type can never make the browser execute it. Only raster
-// images are inlined; everything else is forced to download as an opaque binary.
+// images and video are inlined; everything else is forced to download as an
+// opaque binary.
 const INLINE_IMAGE_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -228,6 +229,18 @@ const INLINE_IMAGE_TYPES: Record<string, string> = {
   '.gif': 'image/gif',
   '.webp': 'image/webp',
   '.bmp': 'image/bmp',
+};
+
+// Видео отдаём inline с настоящим типом: с octet-stream браузер не проигрывает
+// файл в <video>. res.sendFile умеет Range-запросы, поэтому перемотка работает.
+const INLINE_VIDEO_TYPES: Record<string, string> = {
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime',
+  '.m4v': 'video/x-m4v',
+  '.ogv': 'video/ogg',
+  '.avi': 'video/x-msvideo',
+  '.mkv': 'video/x-matroska',
 };
 
 /**
@@ -278,8 +291,12 @@ async function serveUpload(rel: string, req: express.Request, res: express.Respo
 
   const filename = path.basename(clean);
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
-  const inlineType = INLINE_IMAGE_TYPES[path.extname(clean).toLowerCase()];
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox"
+  );
+  const ext = path.extname(clean).toLowerCase();
+  const inlineType = INLINE_IMAGE_TYPES[ext] ?? INLINE_VIDEO_TYPES[ext];
   if (inlineType) {
     res.setHeader('Content-Type', inlineType);
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);

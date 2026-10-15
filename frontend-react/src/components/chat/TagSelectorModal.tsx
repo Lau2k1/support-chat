@@ -9,6 +9,7 @@ import {
   IconButton,
   TextField,
   Box,
+  Typography,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckIcon from '@mui/icons-material/Check';
@@ -16,6 +17,7 @@ import { useState } from 'react';
 import { useChatStore } from '@/stores/chatStore';
 import { chatApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
+import { LIMITS } from '@/utils/validation';
 
 interface TagSelectorProps {
   open: boolean;
@@ -47,6 +49,10 @@ export default function TagSelectorModal({ open, onClose, chatId }: TagSelectorP
   const handleToggle = async (tagId: number) => {
     if (!chatId) return;
     const isAssigned = assignedIds.has(tagId);
+    if (!isAssigned && assignedIds.size >= LIMITS.tagsPerChat) {
+      showToast(`Максимум ${LIMITS.tagsPerChat} тегов на чат`, 'error');
+      return;
+    }
     try {
       if (isAssigned) {
         await chatApi.removeTag(chatId, tagId);
@@ -56,8 +62,8 @@ export default function TagSelectorModal({ open, onClose, chatId }: TagSelectorP
         showToast('Тег назначен');
       }
       await refresh(chatId);
-    } catch {
-      showToast('Ошибка изменения тега', 'error');
+    } catch (e: any) {
+      showToast(e?.response?.data?.error || 'Ошибка изменения тега', 'error');
     }
   };
 
@@ -65,6 +71,9 @@ export default function TagSelectorModal({ open, onClose, chatId }: TagSelectorP
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         Теги чата
+        <Typography variant="caption" color="text.secondary">
+          {assignedIds.size} / {LIMITS.tagsPerChat}
+        </Typography>
         <IconButton onClick={onClose} size="small"><CloseIcon /></IconButton>
       </DialogTitle>
       <DialogContent>

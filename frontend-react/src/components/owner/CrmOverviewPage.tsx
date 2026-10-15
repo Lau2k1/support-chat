@@ -29,10 +29,7 @@ export default function CrmOverviewPage() {
     const load = async () => {
       try {
         const [d, t] = await Promise.all([superadminApi.getDashboard(), superadminApi.getTenants()]);
-        setDash({
-          ...d.data,
-          avg_rating: Math.round(Number(d.data.avg_rating) * 10) / 10,
-        });
+        setDash(d.data);
         setTenants(t.data);
       } catch {
         showToast('Ошибка загрузки метрик', 'error');
@@ -51,7 +48,6 @@ export default function CrmOverviewPage() {
     { value: dash.chats, label: 'Всего чатов' },
     { value: dash.messages, label: 'Сообщений' },
     { value: `${dash.invites_used}/${dash.invites}`, label: 'Инвайтов исп./выдано' },
-    { value: dash.avg_rating || '—', label: 'Ср. рейтинг' },
   ];
 
   const maxCount = Math.max(...dash.daily.map((d) => d.count), 1);
@@ -114,7 +110,6 @@ export default function CrmOverviewPage() {
                 <HeadCell>Статус</HeadCell>
                 <HeadCell>Операторы</HeadCell>
                 <HeadCell>Чаты</HeadCell>
-                <HeadCell>Ср. рейтинг</HeadCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -133,12 +128,11 @@ export default function CrmOverviewPage() {
                   </TableCell>
                   <TableCell>{t.operators_count ?? 0}</TableCell>
                   <TableCell>{t.chats_count ?? 0}</TableCell>
-                  <TableCell>{t.avg_rating ? `${t.avg_rating} ★` : '—'}</TableCell>
                 </TableRow>
               ))}
               {!tenants.length && (
                 <TableRow>
-                  <TableCell colSpan={5} sx={{ textAlign: 'center', color: 'text.secondary', py: 3 }}>
+                  <TableCell colSpan={4} sx={{ textAlign: 'center', color: 'text.secondary', py: 3 }}>
                     Тенантов пока нет
                   </TableCell>
                 </TableRow>

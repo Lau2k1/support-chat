@@ -20,14 +20,12 @@ export default function AdminStatsPage({ tenantId }: { tenantId?: number } = {})
   const totalChats = stats.reduce((s, o) => s + Number(o.total_chats), 0);
   const totalMsgs = stats.reduce((s, o) => s + Number(o.total_messages), 0);
   const avgResp = stats.length ? Math.round(stats.reduce((s, o) => s + Number(o.avg_response_sec), 0) / stats.length) : 0;
-  const avgRating = stats.length ? Math.round(stats.reduce((s, o) => s + Number(o.avg_rating), 0) / stats.length * 10) / 10 : 0;
 
   const cards = [
     { value: stats.length, label: 'Операторов' },
     { value: totalChats, label: 'Всего чатов' },
     { value: totalMsgs, label: 'Всего сообщений' },
     { value: formatDuration(avgResp), label: 'Ср. ответ' },
-    { value: avgRating || '—', label: 'Ср. рейтинг' },
   ];
 
   const maxChats = Math.max(...stats.map((o) => Number(o.total_chats)), 1);
@@ -114,7 +112,6 @@ export default function AdminStatsPage({ tenantId }: { tenantId?: number } = {})
               <StatHeadCell>Чатов</StatHeadCell>
               <StatHeadCell>Сообщений</StatHeadCell>
               <StatHeadCell>Ср. время ответа</StatHeadCell>
-              <StatHeadCell>Ср. рейтинг</StatHeadCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -126,7 +123,6 @@ export default function AdminStatsPage({ tenantId }: { tenantId?: number } = {})
                 <TableCell>{o.total_chats}</TableCell>
                 <TableCell>{o.total_messages}</TableCell>
                 <TableCell>{formatDuration(o.avg_response_sec)}</TableCell>
-                <TableCell>{o.avg_rating > 0 ? `${o.avg_rating} ★` : '—'}</TableCell>
               </TableRow>
             ))}
           </TableBody>

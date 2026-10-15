@@ -8,6 +8,8 @@ export const LIMITS = {
   passwordMin: 8,
   passwordMax: 128,
   tagName: 30,
+  /** Максимум тегов на один чат (зеркалит backend LIMITS.tagsPerChat). */
+  tagsPerChat: 10,
   cannedShortcut: 32,
   cannedTitle: 200,
   cannedContent: 4000,

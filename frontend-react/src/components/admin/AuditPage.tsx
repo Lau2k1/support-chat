@@ -22,6 +22,7 @@ import {
   IconButton,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import SendIcon from '@mui/icons-material/Send';
 import { adminApi, chatApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
 import { formatDateTime, formatTime } from '@/utils/format';
@@ -77,6 +78,8 @@ export default function AuditPage({ tenantId }: { tenantId?: number } = {}) {
     finally { setModalLoading(false); }
   };
 
+  const modalChat = chats.find((c) => c.id === modalChatId);
+
   return (
     <>
       <Paper sx={{ p: 2.5 }}>
@@ -114,7 +117,6 @@ export default function AuditPage({ tenantId }: { tenantId?: number } = {}) {
                 <HeadCell>Клиент</HeadCell>
                 <HeadCell>Оператор</HeadCell>
                 <HeadCell>Статус</HeadCell>
-                <HeadCell>Рейтинг</HeadCell>
                 <HeadCell>Сообщений</HeadCell>
                 <HeadCell>Создан</HeadCell>
                 <HeadCell>Действия</HeadCell>
@@ -123,7 +125,7 @@ export default function AuditPage({ tenantId }: { tenantId?: number } = {}) {
             <TableBody>
               {chats.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 4 }}>
+                  <TableCell colSpan={7} align="center" sx={{ color: 'text.secondary', py: 4 }}>
                     Нет чатов
                   </TableCell>
                 </TableRow>
@@ -131,7 +133,20 @@ export default function AuditPage({ tenantId }: { tenantId?: number } = {}) {
               {chats.map((c) => (
                 <TableRow key={c.id} hover>
                   <TableCell><Box component="span" sx={{ fontFamily: 'monospace', fontSize: 12 }}>{c.public_code || `#${c.id}`}</Box></TableCell>
-                  <TableCell>Клиент #{c.client_id}</TableCell>
+                  <TableCell>
+                    {/* Имя клиента приходит из Telegram-профиля; у виджета его нет,
+                        поэтому там остаётся номер обращения. */}
+                    {c.client_name ? (
+                      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                        {c.client_name}
+                        {c.source === 'telegram' && (
+                          <SendIcon sx={{ fontSize: 14, color: 'info.main' }} titleAccess="Telegram" />
+                        )}
+                      </Box>
+                    ) : (
+                      `Клиент #${c.client_id}`
+                    )}
+                  </TableCell>
                   <TableCell>{c.operator_name || <Box component="span" color="text.secondary">Не назначен</Box>}</TableCell>
                   <TableCell>
                     <Chip
@@ -145,7 +160,6 @@ export default function AuditPage({ tenantId }: { tenantId?: number } = {}) {
                       }}
                     />
                   </TableCell>
-                  <TableCell>{c.rating ? `${c.rating} ★` : '—'}</TableCell>
                   <TableCell>{c.messages_count}</TableCell>
                   <TableCell>{formatDateTime(c.created_at)}</TableCell>
                   <TableCell>
@@ -162,6 +176,7 @@ export default function AuditPage({ tenantId }: { tenantId?: number } = {}) {
 
       <Dialog open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {modalChat?.client_name ? `${modalChat.client_name} · ` : ''}
           Чат #{modalChatId}
           <IconButton onClick={() => setModalOpen(false)} size="small"><CloseIcon /></IconButton>
         </DialogTitle>

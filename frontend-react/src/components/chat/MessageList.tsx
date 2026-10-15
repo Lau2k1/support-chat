@@ -94,6 +94,15 @@ function MessageBubble({ message: m }: { message: Message }) {
           onClick={() => window.open(m.file_url ?? undefined, '_blank')}
         />
       )}
+      {m.message_type === 'video' && m.file_url && (
+        <Box
+          component="video"
+          src={m.file_url}
+          controls
+          preload="metadata"
+          sx={{ maxWidth: 260, width: '100%', borderRadius: 1, display: 'block' }}
+        />
+      )}
       {m.message_type === 'file' && m.file_url && (
         <a href={m.file_url} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline', fontSize: 13 }}>
           📎 {m.content || 'Файл'}

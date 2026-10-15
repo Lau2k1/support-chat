@@ -1,4 +1,5 @@
 import { pool } from '../db';
+import type { PoolClient } from 'pg';
 import { notifyPaymentPaid } from './notify';
 
 /**
@@ -110,6 +111,45 @@ export function isActiveBilling(status: string | null | undefined, paidUntil: st
 }
 
 /**
+ * Обрезает неиспользованные инвайты до лимита мест тарифа и возвращает число
+ * удалённых кодов. Место занимают операторы (их не удаляем — это решение админа)
+ * и выданные, но ещё не использованные коды, поэтому при смене тарифа вниз
+ * «лишние» коды сгорают: самые новые (их админ выдавал последними).
+ *
+ * Принимает и pool, и клиент транзакции — активация платежа вызывает внутри
+ * своей транзакции, ручная выдача тарифа из CRM — сразу после UPDATE.
+ */
+export async function trimPendingInvites(
+  client: Pick<PoolClient, 'query'>,
+  tenantId: number,
+  operatorLimit: number
+): Promise<number> {
+  const seats = await client.query<{ operators: number; pending: number }>(
+    `SELECT (SELECT COUNT(*)::int FROM operators o WHERE o.tenant_id = $1) AS operators,
+            (SELECT COUNT(*)::int FROM invite_codes ic
+              WHERE ic.tenant_id = $1 AND ic.used_by IS NULL
+                AND (ic.expires_at IS NULL OR ic.expires_at > now())) AS pending`,
+    [tenantId]
+  );
+  const operators = seats.rows[0]?.operators ?? 0;
+  const pending = seats.rows[0]?.pending ?? 0;
+  const excess = pending - Math.max(0, operatorLimit - operators);
+  if (excess <= 0) return 0;
+
+  const del = await client.query(
+    `DELETE FROM invite_codes WHERE id IN (
+       SELECT id FROM invite_codes
+        WHERE tenant_id = $1 AND used_by IS NULL
+          AND (expires_at IS NULL OR expires_at > now())
+        ORDER BY created_at DESC, id DESC
+        LIMIT $2
+     )`,
+    [tenantId, excess]
+  );
+  return del.rowCount ?? 0;
+}
+
+/**
  * Marks a payment as paid and extends the tenant's subscription. Idempotent:
  * calling it again on an already-paid payment is a no-op. Runs in a single
  * transaction and consumes one promo activation.
@@ -177,7 +217,21 @@ export async function markPaymentPaid(
       [payment.tenant_id, payment.plan_id, plan?.operator_limit ?? null, payment.period_days]
     );
 
+    // Переход на более низкий тариф: неиспользованные инвайты обрезаем до нового
+    // лимита мест. Операторов не трогаем (это решение админа), поэтому при
+    // переполнении по операторам снимаем все лишние коды.
+    const droppedInvites =
+      plan?.operator_limit == null
+        ? 0
+        : await trimPendingInvites(client, payment.tenant_id, plan.operator_limit);
+
     await client.query('COMMIT');
+
+    if (droppedInvites > 0) {
+      console.log(
+        `[billing] тенант #${payment.tenant_id}: тариф «${plan?.name ?? plan?.code}» — удалено неиспользованных инвайтов: ${droppedInvites}`
+      );
+    }
 
     // Оплата — событие, о котором владелец должен узнать сразу (в CRM он может
     // и не заглянуть). Отправляется после COMMIT и не влияет на результат.

@@ -178,12 +178,18 @@ export default function CrmTenantsPage() {
       // Тариф отправляем, только если он действительно менялся: иначе сервер
       // заново применил бы лимит мест из тарифа и затёр ручную настройку.
       const planChanged = (subTenant.plan_code ?? '') !== subPlan;
-      await superadminApi.updateTenantSubscription(subTenant.id, {
+      const res = await superadminApi.updateTenantSubscription(subTenant.id, {
         billingStatus: subStatus,
         paidUntil: subUntil ? endOfLocalDay(subUntil) : null,
         ...(planChanged ? { planCode: subPlan === '' ? null : subPlan } : {}),
       });
-      showToast('Подписка обновлена');
+      // Понижение тарифа срезает лишние неиспользованные инвайты — владелец
+      // должен это видеть, иначе пропавшие коды выглядят как баг.
+      const dropped = res.data.dropped_invites ?? 0;
+      showToast(
+        dropped > 0 ? `Подписка обновлена · сгорело инвайтов: ${dropped}` : 'Подписка обновлена',
+        dropped > 0 ? 'warning' : 'success'
+      );
       setSubTenant(null);
       load();
     } catch (e: any) {

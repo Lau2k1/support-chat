@@ -85,7 +85,9 @@ router.post('/checkout', async (req, res) => {
     const plan = await getPlanByCode(planCode);
     if (!plan || !plan.is_active) return res.status(400).json({ error: 'Тариф не найден' });
     if (plan.price_cents === null) {
-      return res.status(400).json({ error: 'Для тарифа Custom цена обсуждается — свяжитесь с нами' });
+      return res.status(400).json({
+        error: 'Тариф Custom обсуждается индивидуально — напишите нам в Telegram @sctManager',
+      });
     }
 
     let promo = null;

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db';
 import { authMiddleware, resolveOperator, tokenFromRequest, AuthenticatedRequest } from '../middleware/auth';
 import { startOfDay, endOfDay } from '../utils/dateRange';
+import { LIMITS } from '../utils/validate';
 import { signFileUrl } from '../utils/signedUrl';
 
 const router = Router();
@@ -11,7 +12,7 @@ router.get('/chats', authMiddleware, async (req, res) => {
     const user = (req as AuthenticatedRequest).user!;
     const { status, from, to, limit = '50', offset = '0' } = req.query;
     let sql = `
-      SELECT c.id, c.client_id, c.client_name, c.status, c.rating, c.assigned_operator_id,
+      SELECT c.id, c.client_id, c.client_name, c.status, c.assigned_operator_id, c.source,
              COALESCE(c.tenant_id, 0)::text || '_' || c.id::text AS public_code,
              o.name AS operator_name,
              extract(epoch from c.created_at) * 1000 AS created_at,
@@ -161,11 +162,37 @@ router.put('/chats/:chatId/tag', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Chat or tag not found' });
     }
 
-    // Insert if not exists
-    await pool.query(
-      'INSERT INTO chat_tags (chat_id, tag_id) VALUES ($1, $2) ON CONFLICT (chat_id, tag_id) DO NOTHING',
-      [chatId, tagId]
-    );
+    // Лимит тегов на чат. Проверяем под блокировкой строки чата, иначе два
+    // параллельных запроса на 10-м теге могли бы проскочить оба.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT id FROM chats WHERE id = $1 FOR UPDATE', [chatId]);
+      const already = await client.query(
+        'SELECT 1 FROM chat_tags WHERE chat_id = $1 AND tag_id = $2',
+        [chatId, tagId]
+      );
+      if (!already.rows.length) {
+        const count = await client.query(
+          'SELECT COUNT(*)::int AS count FROM chat_tags WHERE chat_id = $1',
+          [chatId]
+        );
+        if (count.rows[0].count >= LIMITS.tagsPerChat) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: `Максимум ${LIMITS.tagsPerChat} тегов на чат` });
+        }
+        await client.query(
+          'INSERT INTO chat_tags (chat_id, tag_id) VALUES ($1, $2) ON CONFLICT (chat_id, tag_id) DO NOTHING',
+          [chatId, tagId]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
     res.json({ ok: true });
   } catch (e) {
     console.error('chat route error:', e);

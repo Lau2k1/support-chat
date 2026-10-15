@@ -19,7 +19,7 @@ interface WidgetMessage {
   sender_id: number;
   sender_name?: string;
   content: string;
-  message_type: 'text' | 'image' | 'file' | 'note';
+  message_type: 'text' | 'image' | 'video' | 'file' | 'note';
   file_url?: string | null;
   created_at: number;
 }
@@ -290,20 +290,35 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
     if (!chatId) return;
     const formData = new FormData();
     formData.append('file', file);
+
+    let res: Response;
     try {
       const token = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
-      const res = await fetch(`/upload/${chatId}`, {
+      res = await fetch(`/upload/${chatId}`, {
         method: 'POST',
         headers: token ? { 'X-Client-Token': token } : {},
         body: formData,
       });
-      if (!res.ok) return;
-      // The server broadcasts the stored message into the chat room itself
-      // (see routes/upload.ts), so everyone sees the file here without an
-      // extra WS round-trip (and clients can't forge file_url).
     } catch (e) {
-      console.error(e);
+      // Сеть недоступна — наверх уходит понятный клиенту текст, причина в cause.
+      throw new Error('Не удалось загрузить файл: нет связи', { cause: e });
     }
+
+    if (!res.ok) {
+      // Причину (слишком большой файл / недопустимый тип) показываем клиенту —
+      // молчаливое «ничего не произошло» выглядит как поломка виджета.
+      let message = 'Не удалось загрузить файл';
+      try {
+        const data = (await res.json()) as { error?: string };
+        if (data?.error) message = data.error;
+      } catch {
+        /* не JSON — оставляем общий текст */
+      }
+      throw new Error(message);
+    }
+    // The server broadcasts the stored message into the chat room itself
+    // (see routes/upload.ts), so everyone sees the file here without an
+    // extra WS round-trip (and clients can't forge file_url).
   }, []);
 
   const sendTypingStart = useCallback(() => {

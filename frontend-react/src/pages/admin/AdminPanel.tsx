@@ -18,6 +18,26 @@ import { useAuthStore } from '@/stores/authStore';
 
 type AdminPage = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'widget' | 'billing' | 'ticket-templates' | 'tickets';
 
+const PAGE_KEYS: AdminPage[] = ['operators', 'invites', 'tags', 'settings', 'audit', 'stats', 'telegram', 'widget', 'billing', 'ticket-templates', 'tickets'];
+
+/** Ключ последнего открытого раздела панели. */
+const PAGE_STORAGE_KEY = 'sc_admin_page';
+
+/**
+ * Раздел, на который возвращаемся при входе в панель: последний открытый.
+ * Без этого любой возврат в /admin (перезагрузка, ссылка из операторской)
+ * бросал админа на первый раздел — «Операторы», теряя контекст работы.
+ */
+function initialPage(billingActive: boolean): AdminPage {
+  try {
+    const saved = localStorage.getItem(PAGE_STORAGE_KEY);
+    if (saved && (PAGE_KEYS as string[]).includes(saved)) return saved as AdminPage;
+  } catch {
+    /* localStorage недоступен — падаем на раздел по умолчанию */
+  }
+  return billingActive ? 'operators' : 'billing';
+}
+
 /** Copy for the upgrade placeholder shared by both ticket sections. */
 const TICKETS_LOCK = {
   title: 'Тикет-система',
@@ -30,14 +50,28 @@ export default function AdminPanel() {
   const billingActive = useAuthStore((s) => s.billingActive);
   const canUseTickets = useAuthStore((s) => s.canUseTickets);
   // A brand-new (unpaid) tenant lands straight on the billing section; paying
-  // customers start on the daily-driver page.
-  const [page, setPage] = useState<AdminPage>(billingActive ? 'operators' : 'billing');
+  // customers return to the section they left.
+  const [page, setPage] = useState<AdminPage>(() => initialPage(billingActive));
+
+  const openPage = (next: AdminPage) => {
+    setPage(next);
+    try {
+      localStorage.setItem(PAGE_STORAGE_KEY, next);
+    } catch {
+      /* приватный режим — просто не запоминаем раздел */
+    }
+  };
+
+  // Тикет-разделы доступны только на тарифах с тикет-системой: после смены
+  // тарифа сохранённый раздел может стать заблокированным.
+  const currentPage: AdminPage =
+    !canUseTickets && (page === 'tickets' || page === 'ticket-templates') ? 'operators' : page;
 
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
-      <AdminSideNav current={page} onChange={setPage} />
+      <AdminSideNav current={currentPage} onChange={openPage} />
       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {!billingActive && page !== 'billing' && <PaywallBanner onGoToBilling={() => setPage('billing')} />}
+        {!billingActive && currentPage !== 'billing' && <PaywallBanner onGoToBilling={() => openPage('billing')} />}
         <Box
           sx={{
             height: 52,
@@ -52,29 +86,29 @@ export default function AdminPanel() {
             flexShrink: 0,
           }}
         >
-          {pageTitles[page]}
+          {pageTitles[currentPage]}
         </Box>
         <Box sx={{ flex: 1, overflowY: 'auto', p: 3 }}>
-          {page === 'operators' && <OperatorsPage />}
-          {page === 'invites' && <InvitesPage />}
-          {page === 'tags' && <TagsPage />}
-          {page === 'settings' && <SettingsPage />}
-          {page === 'audit' && <AuditPage />}
-          {page === 'stats' && <AdminStatsPage />}
-          {page === 'telegram' && <TelegramBotPage />}
-          {page === 'widget' && <WidgetPage />}
-          {page === 'billing' && <BillingPage />}
-          {page === 'ticket-templates' &&
+          {currentPage === 'operators' && <OperatorsPage />}
+          {currentPage === 'invites' && <InvitesPage />}
+          {currentPage === 'tags' && <TagsPage />}
+          {currentPage === 'settings' && <SettingsPage />}
+          {currentPage === 'audit' && <AuditPage />}
+          {currentPage === 'stats' && <AdminStatsPage />}
+          {currentPage === 'telegram' && <TelegramBotPage />}
+          {currentPage === 'widget' && <WidgetPage />}
+          {currentPage === 'billing' && <BillingPage />}
+          {currentPage === 'ticket-templates' &&
             (canUseTickets ? (
               <TicketTemplatesPage />
             ) : (
-              <FeatureLocked {...TICKETS_LOCK} onUpgrade={() => setPage('billing')} />
+              <FeatureLocked {...TICKETS_LOCK} onUpgrade={() => openPage('billing')} />
             ))}
-          {page === 'tickets' &&
+          {currentPage === 'tickets' &&
             (canUseTickets ? (
               <TicketsPage isAdmin />
             ) : (
-              <FeatureLocked {...TICKETS_LOCK} onUpgrade={() => setPage('billing')} />
+              <FeatureLocked {...TICKETS_LOCK} onUpgrade={() => openPage('billing')} />
             ))}
         </Box>
       </Box>

@@ -100,8 +100,6 @@ export const chatApi = {
     formData.append('file', file);
     return api.post(`/upload/${chatId}`, formData);
   },
-  rateChat: (chatId: number, rating: number) =>
-    api.post<{ ok: boolean }>(`/rate/${chatId}`, { rating }),
 };
 
 export const statsApi = {
@@ -175,7 +173,8 @@ export const superadminApi = {
   /**
    * Manual subscription change. Only the fields you send are touched:
    * `planCode` (null снимает тариф), `paidUntil` (null = бессрочно),
-   * `billingStatus`, `operatorLimit`.
+   * `billingStatus`, `operatorLimit`. `dropped_invites` — сколько
+   * неиспользованных инвайтов сгорело из-за нового лимита мест.
    */
   updateTenantSubscription: (
     id: number,
@@ -185,7 +184,7 @@ export const superadminApi = {
       billingStatus?: 'active' | 'unpaid';
       operatorLimit?: number | null;
     }
-  ) => api.put<Tenant>(`/superadmin/tenants/${id}/subscription`, data),
+  ) => api.put<Tenant & { dropped_invites?: number }>(`/superadmin/tenants/${id}/subscription`, data),
   deleteTenant: (id: number) =>
     api.delete<{ ok: boolean; id: number; name: string; slug: string }>(`/superadmin/tenants/${id}`),
   issueInvites: (id: number, data: { count: number; expiresInHours?: number }) =>

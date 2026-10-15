@@ -24,7 +24,6 @@ export interface Tenant {
   messages_count?: number;
   invites_issued?: number;
   invites_used?: number;
-  avg_rating?: number;
 }
 
 export interface InviteBatch {
@@ -42,7 +41,6 @@ export interface CrmDashboard {
   messages: number;
   invites: number;
   invites_used: number;
-  avg_rating: number;
   daily: { day: string; count: number }[];
 }
 
@@ -72,7 +70,6 @@ export interface Chat {
   public_code?: string;
   client_name?: string;
   status: 'open' | 'closed';
-  rating?: number;
   assigned_operator_id?: number;
   operator_name?: string;
   created_at: number;
@@ -89,7 +86,7 @@ export interface Message {
   sender_id: number;
   sender_name?: string;
   content: string;
-  message_type: 'text' | 'image' | 'file' | 'note';
+  message_type: 'text' | 'image' | 'video' | 'file' | 'note';
   file_url?: string | null;
   created_at: number;
   read_at?: string | null;
@@ -144,7 +141,6 @@ export interface Stats {
   closedChats: number;
   totalMessages: number;
   avgResponseSec: number;
-  avgRating: number;
 }
 
 export interface DailyStat {
@@ -161,7 +157,6 @@ export interface OperatorStats {
   total_chats: number;
   total_messages: number;
   avg_response_sec: number;
-  avg_rating: number;
 }
 
 export interface AdminChat {
@@ -169,9 +164,11 @@ export interface AdminChat {
   client_id: number;
   public_code?: string;
   status: 'open' | 'closed';
-  rating?: number;
   assigned_operator_id?: number;
   operator_name?: string;
+  /** Имя из Telegram-профиля; у виджет-чатов его нет. */
+  client_name?: string | null;
+  source?: 'widget' | 'telegram';
   created_at: number;
   updated_at: number;
   messages_count: number;

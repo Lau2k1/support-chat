@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useWidgetWs } from './useWidgetWs';
 import { imageFilesFromClipboard } from '../utils/clipboard';
+import { UPLOAD_ACCEPT, uploadSizeError } from '../utils/upload';
 
 /** Mirrors backend/src/utils/validate.ts LIMITS.message. */
 const MESSAGE_MAX = 4000;
@@ -69,10 +70,6 @@ const AttachIcon = () => (
   <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
 );
 
-const CheckIcon = () => (
-  <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-);
-
 export default function WidgetChat() {
   const {
     chatId,
@@ -94,14 +91,12 @@ export default function WidgetChat() {
   const [closing, setClosing] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [unread, setUnread] = useState(0);
-  const [ratingChatId, setRatingChatId] = useState<number | null>(null);
-  const [ratingValue, setRatingValue] = useState(0);
-  const [hoverRating, setHoverRating] = useState(0);
-  const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const [showWelcome, setShowWelcome] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const uploadErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -134,14 +129,17 @@ export default function WidgetChat() {
     prevMsgCountRef.current = messages.length;
   }, [messages.length, isOpen]);
 
+  // Чат закрыт (оператором или самим клиентом): показываем итог и через пару
+  // секунд возвращаем виджет к приветствию — при необходимости можно начать
+  // новый чат, не перезагружая страницу.
   useEffect(() => {
-    if (chatClosed && chatId) {
-      setRatingChatId(chatId);
-      setRatingValue(0);
-      setHoverRating(0);
-      setRatingSubmitted(false);
-    }
-  }, [chatClosed, chatId]);
+    if (!chatClosed) return;
+    const t = setTimeout(() => {
+      resetChat();
+      setShowWelcome(true);
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [chatClosed, resetChat]);
 
   useEffect(() => {
     if (isOpen) {
@@ -203,6 +201,30 @@ export default function WidgetChat() {
     sendTypingStop();
   }, [sendTypingStop]);
 
+  const showUploadError = useCallback((message: string) => {
+    setUploadError(message);
+    if (uploadErrorTimerRef.current) clearTimeout(uploadErrorTimerRef.current);
+    uploadErrorTimerRef.current = setTimeout(() => setUploadError(''), 6000);
+  }, []);
+
+  /** Отправляет файл и показывает причину отказа, если сервер его не принял. */
+  const uploadWithFeedback = useCallback(
+    async (file: File) => {
+      const sizeErr = uploadSizeError(file);
+      if (sizeErr) {
+        showUploadError(sizeErr);
+        return;
+      }
+      try {
+        await uploadFile(file);
+        setUploadError('');
+      } catch (e) {
+        showUploadError(e instanceof Error ? e.message : 'Не удалось загрузить файл');
+      }
+    },
+    [uploadFile, showUploadError]
+  );
+
   // Ctrl+V: paste image(s) from the clipboard into the chat.
   const handlePaste = useCallback(
     async (e: React.ClipboardEvent) => {
@@ -211,43 +233,20 @@ export default function WidgetChat() {
       if (!files.length) return;
       e.preventDefault();
       for (const file of files) {
-        await uploadFile(file);
+        await uploadWithFeedback(file);
       }
     },
-    [chatId, chatClosed, uploadFile]
+    [chatId, chatClosed, uploadWithFeedback]
   );
 
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      await uploadFile(file);
+      await uploadWithFeedback(file);
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
-    [uploadFile]
-  );
-
-  const handleSubmitRating = useCallback(
-    async (rating: number) => {
-      if (!ratingChatId) return;
-      setRatingValue(rating);
-      setRatingSubmitted(true);
-      try {
-        await fetch(`/rate/${ratingChatId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rating }),
-        });
-      } catch (e) {
-        console.error(e);
-      }
-      setTimeout(() => {
-        setRatingChatId(null);
-        setRatingSubmitted(false);
-        resetChat();
-      }, 2000);
-    },
-    [ratingChatId, resetChat]
+    [uploadWithFeedback]
   );
 
   if (!isOpen) {
@@ -263,8 +262,7 @@ export default function WidgetChat() {
     );
   }
 
-  const showRating = chatClosed && ratingChatId;
-  const showInput = !chatClosed || !ratingChatId;
+  const showInput = !chatClosed;
   const isOnline = connected && !operatorsOffline;
   const groups = groupMessages(messages);
 
@@ -320,35 +318,11 @@ export default function WidgetChat() {
           </div>
         )}
 
-        {showRating && (
-          <div className="sw-rating">
-            {ratingSubmitted ? (
-              <div className="sw-rating__thanks">
-                <div className="sw-rating__thanks-icon">
-                  <CheckIcon />
-                </div>
-                <p className="sw-rating__thanks-text">Спасибо за оценку!</p>
-              </div>
-            ) : (
-              <>
-                <p className="sw-rating__text">Оцените качество обслуживания</p>
-                <div className="sw-rating__stars">
-                  {[1, 2, 3, 4, 5].map((v) => (
-                    <button
-                      key={v}
-                      className={`sw-rating__star${
-                        v <= (hoverRating || ratingValue) ? ' sw-rating__star--active' : ''
-                      }`}
-                      onClick={() => handleSubmitRating(v)}
-                      onMouseEnter={() => setHoverRating(v)}
-                      onMouseLeave={() => setHoverRating(0)}
-                    >
-                      ★
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
+        {chatClosed && (
+          <div className="sw-offline">
+            Чат завершён. Спасибо за обращение!
+            <br />
+            Можно начать новый чат.
           </div>
         )}
 
@@ -385,6 +359,8 @@ export default function WidgetChat() {
                             alt=""
                             onClick={() => window.open(m.file_url!, '_blank')}
                           />
+                        ) : m.message_type === 'video' && m.file_url ? (
+                          <video className="sw-msg__video" src={m.file_url} controls preload="metadata" />
                         ) : m.message_type === 'file' && m.file_url ? (
                           <a className="sw-msg__file" href={m.file_url} target="_blank" rel="noreferrer">
                             📎 {m.content || 'Файл'}
@@ -415,13 +391,15 @@ export default function WidgetChat() {
         <div ref={messagesEndRef} />
       </div>
 
+      {uploadError && <div className="sw-upload-error">{uploadError}</div>}
+
       {showInput && (
         <div className="sw-input-area">
           <input
             ref={fileInputRef}
             type="file"
             style={{ display: 'none' }}
-            accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.txt"
+            accept={UPLOAD_ACCEPT}
             onChange={handleFileSelect}
           />
           <button className="sw-btn-attach" onClick={() => fileInputRef.current?.click()} title="Прикрепить файл">

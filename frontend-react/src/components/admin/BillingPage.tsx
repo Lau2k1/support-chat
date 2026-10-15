@@ -21,9 +21,11 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
+import TelegramIcon from '@mui/icons-material/Telegram';
 import { billingApi } from '@/services/endpoints';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
+import { MANAGER_TELEGRAM_URL } from '@/utils/contacts';
 import { formatDateTime, daysWord, subscriptionState } from '@/utils/format';
 import type { BillingOverview, Payment, Plan, PromoQuote } from '@/types';
 
@@ -454,14 +456,16 @@ function PlanCard({
   onSelect: () => void;
 }) {
   const isCustom = plan.price_cents === null;
+  // «Custom» не покупается онлайн: цена обсуждается в Telegram, туда и ведём.
+  const openTelegram = () => window.open(MANAGER_TELEGRAM_URL, '_blank', 'noopener');
   return (
     <Card
-      onClick={onSelect}
+      onClick={isCustom ? openTelegram : onSelect}
       sx={{
         p: 2.5,
         cursor: 'pointer',
         border: '2px solid',
-        borderColor: selected ? 'primary.main' : 'divider',
+        borderColor: selected && !isCustom ? 'primary.main' : 'divider',
         transition: 'border-color .15s',
         display: 'flex',
         flexDirection: 'column',
@@ -498,18 +502,33 @@ function PlanCard({
           <li key={f}>{f}</li>
         ))}
       </Box>
-      <Button
-        variant={selected ? 'contained' : 'outlined'}
-        fullWidth
-        disabled={isCustom}
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect();
-        }}
-        sx={{ mt: 1.5 }}
-      >
-        {isCustom ? 'Связаться с нами' : selected ? 'Выбрано' : 'Выбрать'}
-      </Button>
+      {isCustom ? (
+        <Button
+          fullWidth
+          variant="outlined"
+          startIcon={<TelegramIcon />}
+          component="a"
+          href={MANAGER_TELEGRAM_URL}
+          target="_blank"
+          rel="noopener"
+          onClick={(e) => e.stopPropagation()}
+          sx={{ mt: 1.5 }}
+        >
+          Написать в Telegram
+        </Button>
+      ) : (
+        <Button
+          variant={selected ? 'contained' : 'outlined'}
+          fullWidth
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
+          sx={{ mt: 1.5 }}
+        >
+          {selected ? 'Выбрано' : 'Выбрать'}
+        </Button>
+      )}
     </Card>
   );
 }

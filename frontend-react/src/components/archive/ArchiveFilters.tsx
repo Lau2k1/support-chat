@@ -71,6 +71,14 @@ export default function ArchiveFilters({ filters, onChange, onReset, tags }: Arc
     onChange({ ...filters, tagIds: newTagIds });
   };
 
+  // «Сбросить» очищает и фильтры, и локальное состояние панели: поиск по тегам
+  // иначе остаётся заполненным и выглядит как неработающая кнопка.
+  const handleReset = () => {
+    setTagSearch('');
+    setTagDropdownOpen(false);
+    onReset();
+  };
+
   return (
     <Box
       sx={{
@@ -199,7 +207,7 @@ export default function ArchiveFilters({ filters, onChange, onReset, tags }: Arc
       <Button
         variant="outlined"
         size="small"
-        onClick={onReset}
+        onClick={handleReset}
         // Выравниваем по первой строке фильтров: без этого `alignSelf: flex-end`
         // прижимает кнопку к низу самой высокой ячейки (теги с чипами).
         sx={{ height: 40, alignSelf: 'flex-start' }}

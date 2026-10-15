@@ -19,7 +19,7 @@ import {
 } from '../utils/validate';
 import { startOfDay, endOfDay } from '../utils/dateRange';
 import { getOperatorsWithStatus, type OperatorBusyStatus } from '../services/chat';
-import { markPaymentPaid, listPlans, getPlanByCode } from '../services/billing';
+import { markPaymentPaid, listPlans, getPlanByCode, trimPendingInvites } from '../services/billing';
 
 const router = Router();
 router.use(authMiddleware, tenantAdminMiddleware);
@@ -318,8 +318,7 @@ router.get('/operator-stats', async (req, res) => {
         o.id, o.name, o.email, o.role, o.is_enabled,
         COALESCE(chats.count, 0) AS total_chats,
         COALESCE(msgs.count, 0) AS total_messages,
-        COALESCE(resp.avg_seconds, 0) AS avg_response_sec,
-        COALESCE(ratings.avg_rating, 0) AS avg_rating
+        COALESCE(resp.avg_seconds, 0) AS avg_response_sec
       FROM operators o
       LEFT JOIN (
         SELECT assigned_operator_id, COUNT(*)::int AS count
@@ -344,18 +343,12 @@ router.get('/operator-stats', async (req, res) => {
         JOIN chats c ON c.id = sub.chat_id
         GROUP BY c.assigned_operator_id
       ) resp ON resp.assigned_operator_id = o.id
-      LEFT JOIN (
-        SELECT assigned_operator_id, AVG(rating) AS avg_rating
-        FROM chats WHERE rating IS NOT NULL AND assigned_operator_id IS NOT NULL
-        GROUP BY assigned_operator_id
-      ) ratings ON ratings.assigned_operator_id = o.id
       ${scope ? 'WHERE o.tenant_id = $1' : ''}
       ORDER BY o.id
     `, scope ? [scope] : []);
     res.json(result.rows.map(r => ({
       ...r,
       avg_response_sec: Math.round(Number(r.avg_response_sec)),
-      avg_rating: Math.round(Number(r.avg_rating) * 10) / 10,
     })));
   } catch (e) {
     console.error('admin route error:', e);
@@ -368,7 +361,7 @@ router.get('/chats', async (req, res) => {
     const scope = scopedTenant(req);
     const { status, operator_id, from, to, limit = '50', offset = '0' } = req.query;
     let sql = `
-      SELECT c.id, c.client_id, c.status, c.rating, c.assigned_operator_id,
+      SELECT c.id, c.client_id, c.client_name, c.status, c.assigned_operator_id, c.source,
              COALESCE(c.tenant_id, 0)::text || '_' || c.id::text AS public_code,
              o.name AS operator_name,
              extract(epoch from c.created_at) * 1000 AS created_at,
@@ -746,16 +739,12 @@ superRouter.get('/tenants', async (_req, res) => {
              (SELECT COUNT(*)::int FROM messages m
                 JOIN chats c ON c.id = m.chat_id AND c.tenant_id = t.id) AS messages_count,
              (SELECT COUNT(*)::int FROM invite_codes ic WHERE ic.tenant_id = t.id) AS invites_issued,
-             (SELECT COUNT(*)::int FROM invite_codes ic WHERE ic.tenant_id = t.id AND ic.used_by IS NOT NULL) AS invites_used,
-             (SELECT COALESCE(AVG(c.rating), 0) FROM chats c WHERE c.tenant_id = t.id AND c.rating IS NOT NULL) AS avg_rating
+             (SELECT COUNT(*)::int FROM invite_codes ic WHERE ic.tenant_id = t.id AND ic.used_by IS NOT NULL) AS invites_used
       FROM tenants t
       LEFT JOIN plans p ON p.id = t.plan_id
       ORDER BY t.id
     `);
-    res.json(result.rows.map((r: any) => ({
-      ...r,
-      avg_rating: Math.round(Number(r.avg_rating) * 10) / 10,
-    })));
+    res.json(result.rows);
   } catch (e) {
     console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
@@ -907,7 +896,12 @@ superRouter.put('/tenants/:id/subscription', async (req, res) => {
         WHERE t.id = $1`,
       [tenantId]
     );
-    res.json(row.rows[0]);
+    // Понижение тарифа/лимита: лишние неиспользованные инвайты сгорают — мест
+    // на новом тарифе меньше, и «запасные» коды перестают быть действительными.
+    const operatorLimit = row.rows[0]?.operator_limit ?? null;
+    const droppedInvites =
+      operatorLimit === null ? 0 : await trimPendingInvites(pool, tenantId, operatorLimit);
+    res.json({ ...row.rows[0], dropped_invites: droppedInvites });
   } catch (e) {
     console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });
@@ -961,8 +955,7 @@ superRouter.get('/dashboard', async (_req, res) => {
         (SELECT COUNT(*)::int FROM chats WHERE status = 'open') AS open_chats,
         (SELECT COUNT(*)::int FROM messages) AS messages,
         (SELECT COUNT(*)::int FROM invite_codes) AS invites,
-        (SELECT COUNT(*)::int FROM invite_codes WHERE used_by IS NOT NULL) AS invites_used,
-        (SELECT COALESCE(AVG(rating), 0) FROM chats WHERE rating IS NOT NULL) AS avg_rating
+        (SELECT COUNT(*)::int FROM invite_codes WHERE used_by IS NOT NULL) AS invites_used
     `);
     const daily = await pool.query(`
       SELECT to_char(day, 'YYYY-MM-DD') AS day, COALESCE(cnt, 0)::int AS count
@@ -974,7 +967,6 @@ superRouter.get('/dashboard', async (_req, res) => {
     `);
     res.json({
       ...totals.rows[0],
-      avg_rating: Math.round(Number(totals.rows[0].avg_rating) * 10) / 10,
       daily: daily.rows,
     });
   } catch (e) {

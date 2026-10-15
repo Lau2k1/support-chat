@@ -9,9 +9,14 @@ import { broadcastToRoom } from '../services/chat';
 import { forwardMessageToTelegram } from '../services/telegram';
 import { signFileUrl } from '../utils/signedUrl';
 import { UPLOADS_DIR, tenantRelPath } from '../utils/uploadPaths';
+import { MAX_UPLOAD_BYTES, UPLOAD_HINT, classifyAttachment } from '../utils/attachments';
 import { isActiveBilling } from '../services/billing';
 import type { OutgoingMessage } from '../ws/types';
 
+/**
+ * Вложения: картинки, видео и документы. Что принимаем и как классифицируем —
+ * в utils/attachments.ts (там же лимит 20 МБ, общий с Telegram Bot API).
+ */
 const upload = multer({
   storage: multer.diskStorage({
     // Изоляция тенантов: новые файлы кладём в подпапку `tenant-<id>/`. Тенант
@@ -26,11 +31,9 @@ const upload = multer({
       cb(null, crypto.randomUUID() + ext);
     },
   }),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: MAX_UPLOAD_BYTES },
   fileFilter: (_req, file, cb) => {
-    const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.doc', '.docx', '.txt'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, allowed.includes(ext));
+    cb(null, classifyAttachment(file.originalname) !== null);
   },
 });
 
@@ -121,10 +124,16 @@ router.post(
         const f = req.file as Express.Multer.File | undefined;
         if (f?.path) fs.promises.unlink(f.path).catch(() => {});
         if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-          res.status(413).json({ error: 'Файл слишком большой (макс. 10 МБ)' });
+          res.status(413).json({ error: 'Файл слишком большой (макс. 20 МБ)' });
           return;
         }
         res.status(400).json({ error: 'Upload error' });
+        return;
+      }
+      // fileFilter отбрасывает неподдерживаемое расширение молча — здесь оно
+      // уже неотличимо от «файл не передан», поэтому ответ один и понятный.
+      if (!req.file) {
+        res.status(400).json({ error: `Неподдерживаемый тип файла: ${UPLOAD_HINT}` });
         return;
       }
       next();
@@ -141,8 +150,7 @@ router.post(
     const operator = req.uploadOperator ?? null;
 
     try {
-      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.originalname);
-      const message_type = isImage ? 'image' : 'file';
+      const message_type = classifyAttachment(file.originalname) ?? 'file';
       // Изоляция тенантов: путь включает папку тенанта, если она известна.
       const rel = req.uploadTenantId != null ? tenantRelPath(req.uploadTenantId, file.filename) : file.filename;
       const fileUrl = `/uploads/${rel}`;
@@ -191,35 +199,6 @@ router.post(
   }
 );
 
-router.post('/rate/:chatId', async (req, res) => {
-  const chatId = Number(req.params.chatId);
-  if (!Number.isInteger(chatId) || chatId <= 0) {
-    return res.status(400).json({ error: 'Invalid chat id' });
-  }
-  const { rating } = req.body;
-  if (!rating || rating < 1 || rating > 5) {
-    return res.status(400).json({ error: 'Rating must be 1-5' });
-  }
-
-  const { operator, isOwner } = await resolveCaller(req, chatId);
-  if (!operator && !isOwner) {
-    return res.status(401).json({ error: 'Auth required' });
-  }
-  if (operator && operator.role !== 'superadmin') {
-    const chatCheck = await pool.query('SELECT tenant_id FROM chats WHERE id = $1', [chatId]);
-    if (!chatCheck.rows.length || chatCheck.rows[0].tenant_id !== operator.tenantId) {
-      return res.status(403).json({ error: 'Chat belongs to another tenant' });
-    }
-  }
-
-  const result = await pool.query(
-    'UPDATE chats SET rating = $1 WHERE id = $2 AND status = $3 RETURNING id',
-    [rating, chatId, 'closed']
-  );
-  if (!result.rows.length) return res.status(404).json({ error: 'Chat not found or not closed' });
-  res.json({ ok: true });
-});
-
 router.get('/stats', authMiddleware, async (req, res) => {
   const user = (req as AuthenticatedRequest).user!;
   const scope = user.role !== 'superadmin' ? ' AND c.tenant_id = $1' : '';
@@ -245,7 +224,6 @@ router.get('/stats', authMiddleware, async (req, res) => {
     ) sub
   `, statsScope ? [user.tenantId] : []);
 
-  const avgRating = await pool.query(`SELECT COALESCE(AVG(rating), 0) AS avg_rating FROM chats c WHERE rating IS NOT NULL${scope}`, scopeParams);
   const totalMessages = await pool.query(
     `SELECT COUNT(*)::int AS count FROM messages m JOIN chats c ON c.id = m.chat_id WHERE 1=1${scope}`,
     scopeParams
@@ -257,7 +235,6 @@ router.get('/stats', authMiddleware, async (req, res) => {
     closedChats: closedChats.rows[0].count,
     totalMessages: totalMessages.rows[0].count,
     avgResponseSec: Math.round(Number(avgResponse.rows[0].avg_seconds)),
-    avgRating: Math.round(Number(avgRating.rows[0].avg_rating) * 10) / 10,
   });
 });
 

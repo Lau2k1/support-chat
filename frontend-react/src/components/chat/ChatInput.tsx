@@ -18,6 +18,7 @@ import { chatApi } from '@/services/endpoints';
 import { useTyping } from '@/hooks/useTyping';
 import { useUIStore } from '@/stores/uiStore';
 import { LIMITS } from '@/utils/validation';
+import { UPLOAD_ACCEPT, uploadSizeError } from '@/utils/upload';
 import { imageFilesFromClipboard } from '@/utils/clipboard';
 import QuickRepliesMenu from '@/components/chat/QuickRepliesMenu';
 
@@ -95,10 +96,16 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !chatId) return;
+    const sizeErr = uploadSizeError(file);
+    if (sizeErr) {
+      showToast(sizeErr, 'error');
+      e.target.value = '';
+      return;
+    }
     try {
       await chatApi.uploadFile(chatId, file);
-    } catch {
-      showToast('Ошибка загрузки файла', 'error');
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Ошибка загрузки файла', 'error');
     }
     e.target.value = '';
   };
@@ -110,10 +117,15 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
     if (!files.length) return;
     e.preventDefault();
     for (const file of files) {
+      const sizeErr = uploadSizeError(file);
+      if (sizeErr) {
+        showToast(sizeErr, 'error');
+        continue;
+      }
       try {
         await chatApi.uploadFile(chatId, file);
-      } catch {
-        showToast('Ошибка загрузки изображения', 'error');
+      } catch (err: any) {
+        showToast(err?.response?.data?.error || 'Ошибка загрузки изображения', 'error');
       }
     }
   };
@@ -134,7 +146,13 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
         flexShrink: 0,
       }}
     >
-      <input type="file" ref={fileInputRef} onChange={handleFileUpload} hidden accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.txt" />
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        hidden
+        accept={UPLOAD_ACCEPT}
+      />
 
       <ToggleButtonGroup size="small" value={noteMode ? 'note' : ''} exclusive disabled={disabled}>
         <ToggleButton

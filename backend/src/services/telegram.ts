@@ -130,14 +130,15 @@ export function sendText(token: string, chatId: string, text: string): Promise<u
 async function sendMedia(
   token: string,
   chatId: string,
-  method: 'sendPhoto' | 'sendDocument',
+  method: 'sendPhoto' | 'sendVideo' | 'sendDocument',
   filePath: string,
   filename: string
 ): Promise<void> {
   const buf = await fs.promises.readFile(filePath);
   const fd = new FormData();
   fd.append('chat_id', chatId);
-  fd.append(method === 'sendPhoto' ? 'photo' : 'document', new Blob([buf]), filename || path.basename(filePath));
+  const field = method === 'sendPhoto' ? 'photo' : method === 'sendVideo' ? 'video' : 'document';
+  fd.append(field, new Blob([buf]), filename || path.basename(filePath));
   const res = await fetch(`${TG_API_BASE}/bot${token}/${method}`, { method: 'POST', body: fd });
   const data = (await res.json()) as TgResponse<unknown>;
   if (!data.ok) throw new Error(data.description || `Telegram API error (${res.status})`);
@@ -153,6 +154,9 @@ const SAFE_TG_EXT = new Set([
   '.ogg', '.oga', '.mp3', '.m4a', '.wav', '.mp4', '.webm', '.mov',
 ]);
 const MAX_TG_FILE_BYTES = 20 * 1024 * 1024;
+
+/** Форматы, которые Telegram принимает в sendVideo (остальное — документом). */
+const TG_VIDEO_EXT = new Set(['.mp4', '.mov', '.webm']);
 
 function safeExt(name?: string | null): string {
   const ext = (name ? path.extname(name) : '').toLowerCase();
@@ -258,7 +262,7 @@ async function normalizeContent(
   }
   if (msg.video) {
     const fileUrl = await dl(msg.video.file_id, msg.video.file_name || 'video.mp4');
-    return { content: msg.video.file_name || 'Видео', messageType: 'file', fileUrl };
+    return { content: msg.video.file_name || 'Видео', messageType: 'video', fileUrl };
   }
   return null;
 }
@@ -389,10 +393,20 @@ export async function forwardMessageToTelegram(chatId: number, message: MessageL
 
   const token = decryptToken(bot.bot_token);
   try {
-    if ((message.message_type === 'image' || message.message_type === 'file') && message.file_url) {
+    if (
+      (message.message_type === 'image' || message.message_type === 'video' || message.message_type === 'file') &&
+      message.file_url
+    ) {
       const rel = String(message.file_url).replace(/^\/uploads\//, '').split('?')[0];
       const full = path.join(UPLOADS_DIR, rel);
-      const method = message.message_type === 'image' ? 'sendPhoto' : 'sendDocument';
+      // sendVideo принимает только mp4/mov/webm — остальные форматы уходят
+      // документом, иначе Telegram отвечает ошибкой и сообщение теряется.
+      const method =
+        message.message_type === 'image'
+          ? 'sendPhoto'
+          : message.message_type === 'video' && TG_VIDEO_EXT.has(path.extname(rel).toLowerCase())
+            ? 'sendVideo'
+            : 'sendDocument';
       await sendMedia(token, chat.external_id, method, full, message.content);
     } else {
       await sendText(token, chat.external_id, message.content);
