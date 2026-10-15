@@ -7,6 +7,8 @@ import {
   Button,
   Typography,
   Alert,
+  Checkbox,
+  FormControlLabel,
   Link,
   Divider,
   ToggleButton,
@@ -34,6 +36,10 @@ export default function Register() {
   const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // Акцепт документов: два обязательных согласия + одно необязательное.
+  const [acceptOffer, setAcceptOffer] = useState(false);
+  const [acceptConsent, setAcceptConsent] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
 
@@ -74,6 +80,8 @@ export default function Register() {
     if (passErr) { setError(passErr); return; }
     if (password !== password2) { setError('Пароли не совпадают'); return; }
     if (mode === 'operator' && !inviteCode.trim()) { setError('Введите инвайт-код'); return; }
+    if (!acceptOffer) { setError('Подтвердите принятие Публичной оферты и Политики обработки персональных данных'); return; }
+    if (!acceptConsent) { setError('Необходимо согласие на обработку персональных данных'); return; }
 
     setLoading(true);
     try {
@@ -81,6 +89,9 @@ export default function Register() {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password,
+        acceptOffer,
+        acceptConsent,
+        marketingConsent,
         ...(mode === 'operator'
           ? { inviteCode: inviteCode.trim().toUpperCase() }
           : { company: company.trim() }),
@@ -182,6 +193,70 @@ export default function Register() {
               required
             />
           )}
+
+          <FormControlLabel
+            sx={{ alignItems: 'flex-start', mb: 1, mx: 0 }}
+            control={
+              <Checkbox
+                size="small"
+                checked={acceptOffer}
+                onChange={(e) => setAcceptOffer(e.target.checked)}
+                sx={{ pt: 0.25 }}
+              />
+            }
+            label={
+              <Typography variant="caption" color="text.secondary">
+                Я принимаю{' '}
+                <Link href="/legal/offer" target="_blank" rel="noopener" underline="hover">
+                  Публичную оферту
+                </Link>{' '}
+                и{' '}
+                <Link href="/legal/privacy" target="_blank" rel="noopener" underline="hover">
+                  Политику обработки персональных данных
+                </Link>
+                , а также подтверждаю, что использую Сервис в предпринимательских целях.
+              </Typography>
+            }
+          />
+
+          <FormControlLabel
+            sx={{ alignItems: 'flex-start', mb: 1, mx: 0 }}
+            control={
+              <Checkbox
+                size="small"
+                checked={acceptConsent}
+                onChange={(e) => setAcceptConsent(e.target.checked)}
+                sx={{ pt: 0.25 }}
+              />
+            }
+            label={
+              <Typography variant="caption" color="text.secondary">
+                Я даю{' '}
+                <Link href="/legal/consent" target="_blank" rel="noopener" underline="hover">
+                  согласие на обработку персональных данных
+                </Link>{' '}
+                в целях, указанных в согласии. Обязательно.
+              </Typography>
+            }
+          />
+
+          <FormControlLabel
+            sx={{ alignItems: 'flex-start', mb: 2, mx: 0 }}
+            control={
+              <Checkbox
+                size="small"
+                checked={marketingConsent}
+                onChange={(e) => setMarketingConsent(e.target.checked)}
+                sx={{ pt: 0.25 }}
+              />
+            }
+            label={
+              <Typography variant="caption" color="text.secondary">
+                Согласен получать информационные и маркетинговые сообщения. Необязательно.
+              </Typography>
+            }
+          />
+
           <Button
             fullWidth
             type="submit"
@@ -201,7 +276,19 @@ export default function Register() {
 
         <TelegramLoginButton onAuth={handleTelegram} disabled={loading} />
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
-          Создаст нового клиента (аккаунт + тариф)
+          Создаст нового клиента (аккаунт + тариф). Продолжая, вы принимаете{' '}
+          <Link href="/legal/offer" target="_blank" rel="noopener" underline="hover">
+            оферту
+          </Link>{' '}
+          и{' '}
+          <Link href="/legal/privacy" target="_blank" rel="noopener" underline="hover">
+            политику
+          </Link>{' '}
+          и даёте{' '}
+          <Link href="/legal/consent" target="_blank" rel="noopener" underline="hover">
+            согласие на обработку персональных данных
+          </Link>
+          .
         </Typography>
 
         <Box sx={{ textAlign: 'center', mt: 2 }}>

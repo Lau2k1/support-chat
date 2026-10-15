@@ -11,6 +11,7 @@ import {
 } from '../middleware/auth';
 import { LIMITS, validEmail, validPassword, validString, firstError } from '../utils/validate';
 import { notifyNewTenant } from '../services/notify';
+import { recordAcceptance } from '../legal';
 
 const router = Router();
 
@@ -80,7 +81,7 @@ router.post('/login', async (req, res) => {
 });
 
 router.post('/register', async (req, res) => {
-  const { name, email, password, inviteCode, company } = req.body ?? {};
+  const { name, email, password, inviteCode, company, acceptOffer, acceptConsent, marketingConsent } = req.body ?? {};
   // Two flows share this endpoint:
   //  - with an invite code → an operator joins an existing tenant;
   //  - without one → a client self-registers and becomes the admin of a NEW tenant.
@@ -94,6 +95,11 @@ router.post('/register', async (req, res) => {
     hasInvite && !INVITE_RE.test(String(inviteCode).trim()) ? 'Некорректный инвайт-код' : null,
     !hasInvite && companyStr.length > LIMITS.tenantName
       ? `Название компании: максимум ${LIMITS.tenantName} символов`
+      : null,
+    // Акцепт оферты и согласие на обработку ПДн — обязательные условия
+    // регистрации (ст. 9, 18.1 ФЗ-152). Без них аккаунт не создаётся.
+    acceptOffer !== true || acceptConsent !== true
+      ? 'Необходимо принять Публичную оферту и дать согласие на обработку персональных данных'
       : null
   );
   if (err) return res.status(400).json({ error: err });
@@ -141,6 +147,14 @@ router.post('/register', async (req, res) => {
         'UPDATE invite_codes SET used_by = $1, used_at = CURRENT_TIMESTAMP WHERE id = $2',
         [newOp.id, invite.id]
       );
+      await recordAcceptance(client, {
+        operatorId: newOp.id,
+        tenantId: newOp.tenant_id,
+        email: normEmail,
+        source: 'invite',
+        marketingConsent: marketingConsent === true,
+        req,
+      });
       await client.query('COMMIT');
 
       const token = signToken(newOp);
@@ -172,6 +186,14 @@ router.post('/register', async (req, res) => {
       [String(name).trim(), normEmail, hash, 'admin', tenantId]
     );
     const newOp = opResult.rows[0];
+    await recordAcceptance(client, {
+      operatorId: newOp.id,
+      tenantId,
+      email: normEmail,
+      source: 'register',
+      marketingConsent: marketingConsent === true,
+      req,
+    });
     await client.query('COMMIT');
 
     // Лид: сообщаем владельцу, что кто-то зарегистрировался и ждёт оплаты.

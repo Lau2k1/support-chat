@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Файлы cookie — SupportChat</title>
+    <meta name="robots" content="index, follow" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23007bff'/%3E%3Cpath d='M9 12h14M9 16h10M9 20h7' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/landing/legal/legal.css" />
+  </head>
+  <body>
+    <header class="legal-header">
+      <div class="legal-header__inner">
+        <a class="legal-brand" href="/">
+          <span class="legal-brand__mark" aria-hidden="true"></span>
+          <span>SupportChat</span>
+        </a>
+        <a class="legal-back" href="/">← Вернуться на сайт</a>
+      </div>
+    </header>
+
+    <main class="legal-main">
+      <article class="legal-doc">
+        <h1>Файлы cookie и локальное хранилище</h1>
+        <p class="legal-meta">
+          <span class="legal-chip">Редакция 1.0</span>
+          <span>от 15 октября 2026 г.</span>
+          <span>·</span>
+          <span>Дополнение к <a href="/legal/privacy">Политике обработки ПДн</a></span>
+        </p>
+
+        <p class="legal-doclede">
+          Сервис SupportChat использует только технически необходимые файлы cookie и локальное хранилище
+          браузера. Аналитические, рекламные и профилирующие cookie не применяются: сторонние системы
+          веб-аналитики (Google Analytics, Яндекс.Метрика, пиксели рекламных сетей и подобные) на сайте и
+          в панели не подключены.
+        </p>
+
+        <div class="legal-note">
+          <strong>Коротко.</strong> Мы не отслеживаем посетителей. Cookie нужны исключительно для входа
+          в панель и работы виджета чата, а локальное хранилище — для запоминания настроек по вашему
+          выбору.
+        </div>
+
+        <h2>1. Технически необходимые cookie</h2>
+        <div class="legal-req">
+          <table>
+            <tr>
+              <td>sc_token</td>
+              <td>Сессия входа в панель. Устанавливается после входа, доступна только серверу
+                (HttpOnly), передаётся по защищённому соединению. Срок жизни — как правило, 12 часов с
+                момента входа либо до выхода из аккаунта.</td>
+            </tr>
+          </table>
+        </div>
+        <p>
+          Эти cookie необходимы для работы Сервиса: без них вход в панель невозможен. Согласие на их
+          использование не требуется, поскольку они обеспечивают функцию, прямо запрошенную
+          пользователем.
+        </p>
+
+        <h2>2. Локальное хранилище браузера (localStorage)</h2>
+        <p>
+          Данные хранятся в браузере пользователя и не передаются на сервер автоматически. Пользователь
+          может удалить их в настройках браузера в любой момент.
+        </p>
+        <div class="legal-req">
+          <table>
+            <tr>
+              <td>sc_theme_mode</td>
+              <td>Выбранная тема оформления панели (светлая, тёмная, как в системе).</td>
+            </tr>
+            <tr>
+              <td>sc_remember / sc_remember_email</td>
+              <td>Запоминание адреса электронной почты на странице входа — только если пользователь сам
+                установил соответствующую отметку.</td>
+            </tr>
+            <tr>
+              <td>sc_cookie_consent</td>
+              <td>Отметка о подтверждении уведомления об использовании cookie, чтобы не показывать его
+                повторно.</td>
+            </tr>
+            <tr>
+              <td>activeChatId / activeChatToken</td>
+              <td>Используются виджетом чата на сайте владельца аккаунта: позволяют продолжить переписку
+                после перезагрузки страницы. Хранятся в браузере посетителя сайта.</td>
+            </tr>
+          </table>
+        </div>
+
+        <h2>3. Функции третьих лиц</h2>
+        <ol>
+          <li><strong>Вход через Telegram.</strong> При использовании кнопки входа через Telegram
+            загружается виджет сервиса Telegram (oauth.telegram.org), который может устанавливать
+            собственные cookie на стороне Telegram. Их обработка регулируется правилами Telegram.</li>
+          <li><strong>Веб-шрифты.</strong> Для отображения шрифта интерфейса страницы могут загружать
+            файлы шрифтов с сервера Google Fonts, которому при этом передаётся IP-адрес посетителя.
+            Собственные cookie при этом не устанавливаются.</li>
+          <li><strong>Оплата.</strong> Оплата тарифа проводится вне сайта — на стороне платёжного сервиса
+            CryptoBot (Telegram). Cookie этого сервиса на сайте не устанавливаются.</li>
+        </ol>
+
+        <h2>4. Как управлять cookie</h2>
+        <ol>
+          <li>Любой браузер позволяет просматривать, блокировать и удалять cookie и данные локального
+            хранилища — в разделе настроек «Конфиденциальность» или «Данные сайтов».</li>
+          <li>Отключение технически необходимых cookie приведёт к невозможности входа в панель и
+            сохранения настроек; остальные функции сайта продолжат работать.</li>
+          <li>Уведомление об использовании cookie на сайте можно скрыть, подтвердив его; отметка
+            хранится в браузере и может быть удалена вместе с другими данными сайта.</li>
+        </ol>
+
+        <h2>5. Изменения документа</h2>
+        <p>
+          Актуальная редакция документа всегда доступна по адресу
+          <a href="/legal/cookies">sct.chat/legal/cookies</a>. При подключении новых сервисов, требующих
+          установки cookie, документ будет обновлён до начала их использования.
+        </p>
+
+        <h2>6. Контакты</h2>
+        <div class="legal-req">
+          <table>
+            <tr>
+              <td>Вопросы по обработке данных</td>
+              <td><a href="mailto:support@sct.chat">support@sct.chat</a></td>
+            </tr>
+            <tr>
+              <td>Связь с менеджером</td>
+              <td><a href="https://t.me/sctManager" target="_blank" rel="noopener">Telegram: @sctManager</a></td>
+            </tr>
+          </table>
+        </div>
+
+        <p class="legal-sign">Редакция 1.0 от 15 октября 2026 г.</p>
+      </article>
+
+      <footer class="legal-footer">
+        <div class="legal-footer__inner">
+          <nav class="legal-links" aria-label="Юридические документы">
+            <a href="/legal/offer">Публичная оферта</a>
+            <a href="/legal/privacy">Политика обработки ПДн</a>
+            <a href="/legal/consent">Согласие на обработку ПДн</a>
+            <a href="/legal/dpa">Поручение на обработку ПДн</a>
+            <a href="/legal/cookies" aria-current="page">Файлы cookie</a>
+          </nav>
+          <div>© 2026 SupportChat. <a href="mailto:support@sct.chat">support@sct.chat</a> · <a href="https://t.me/sctManager" target="_blank" rel="noopener">@sctManager</a></div>
+        </div>
+      </footer>
+    </main>
+  </body>
+</html>

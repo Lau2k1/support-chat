@@ -164,6 +164,21 @@ export default function Login() {
         </Divider>
 
         <TelegramLoginButton onAuth={handleTelegram} disabled={loading} />
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
+          Продолжая, вы принимаете{' '}
+          <Link href="/legal/offer" target="_blank" rel="noopener" underline="hover">
+            оферту
+          </Link>{' '}
+          и{' '}
+          <Link href="/legal/privacy" target="_blank" rel="noopener" underline="hover">
+            политику
+          </Link>{' '}
+          и даёте{' '}
+          <Link href="/legal/consent" target="_blank" rel="noopener" underline="hover">
+            согласие на обработку персональных данных
+          </Link>
+          .
+        </Typography>
 
         <Box sx={{ textAlign: 'center', mt: 2 }}>
           <Link component={RouterLink} to="/register" variant="body2" sx={{ fontWeight: 600 }}>

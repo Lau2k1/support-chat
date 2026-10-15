@@ -41,8 +41,19 @@ export const authApi = {
   login: (email: string, password: string) =>
     api.post<{ token: string }>('/login', { email, password }),
   /** Without inviteCode → self-signup admin (creates a new tenant); with it → operator. */
-  register: (data: { name: string; email: string; password: string; inviteCode?: string; company?: string }) =>
-    api.post<{ token: string; role: string }>('/register', data),
+  register: (data: {
+    name: string;
+    email: string;
+    password: string;
+    inviteCode?: string;
+    company?: string;
+    /** Акцепт Публичной оферты и Политики — без него аккаунт не создаётся. */
+    acceptOffer: boolean;
+    /** Согласие на обработку персональных данных (ст. 9 ФЗ-152). */
+    acceptConsent: boolean;
+    /** Необязательное согласие на информационные и маркетинговые сообщения. */
+    marketingConsent?: boolean;
+  }) => api.post<{ token: string; role: string }>('/register', data),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.post<{ token: string }>('/me/password', { currentPassword, newPassword }),
 

@@ -8,6 +8,7 @@ import { router } from '@/router';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import ChangePasswordDialog from '@/components/common/ChangePasswordDialog';
 import TelegramLinkDialog from '@/components/common/TelegramLinkDialog';
+import CookieNotice from '@/components/common/CookieNotice';
 import Toast from '@/components/common/Toast';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -23,6 +24,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <ConfirmDialog />
       <ChangePasswordDialog />
       <TelegramLinkDialog />
+      <CookieNotice />
       <Toast />
     </ThemeProvider>
   </React.StrictMode>

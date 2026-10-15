@@ -16,6 +16,7 @@ import {
 import { uniqueTenantSlug, slugifyTenant } from './auth';
 import { LIMITS } from '../utils/validate';
 import { notifyNewTenant } from '../services/notify';
+import { recordAcceptance } from '../legal';
 
 const router = Router();
 
@@ -114,6 +115,16 @@ router.post('/auth/telegram/login', async (req, res) => {
        RETURNING id, name, role, token_version, tenant_id`,
       [displayNameOf(user), tenantId, user.id, user.username, user.photoUrl]
     );
+    // Акцепт документов входом через Telegram: согласие даётся действием
+    // (кнопка сопровождается явным уведомлением на странице входа).
+    await recordAcceptance(client, {
+      operatorId: opResult.rows[0].id,
+      tenantId,
+      email: null,
+      source: 'telegram',
+      marketingConsent: false,
+      req,
+    });
     await client.query('COMMIT');
 
     // Лид: сообщаем владельцу, что клиент зашёл через Telegram и ждёт оплаты.

@@ -397,3 +397,27 @@ CREATE TABLE IF NOT EXISTS notified_events (
     key TEXT PRIMARY KEY,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+-- ---------------------------------------------------------------------------
+-- Акцепт юридических документов (оферта, политика, согласие на обработку ПДн,
+-- поручение). Запись — доказательство воли пользователя: храним редакции
+-- документов, момент, способ принятия и технические данные соединения
+-- (IP, User-Agent). Пишется в той же транзакции, что и создание аккаунта.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS legal_acceptances (
+    id SERIAL PRIMARY KEY,
+    operator_id INTEGER REFERENCES operators(id) ON DELETE SET NULL,
+    tenant_id INTEGER REFERENCES tenants(id) ON DELETE SET NULL,
+    email VARCHAR(255),
+    source VARCHAR(32) NOT NULL,            -- register | invite | telegram
+    offer_version VARCHAR(16) NOT NULL,
+    privacy_version VARCHAR(16) NOT NULL,
+    consent_version VARCHAR(16) NOT NULL,
+    dpa_version VARCHAR(16) NOT NULL,
+    marketing_consent BOOLEAN NOT NULL DEFAULT false,
+    ip VARCHAR(64),
+    user_agent TEXT,
+    accepted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_legal_acceptances_operator ON legal_acceptances(operator_id);
+CREATE INDEX IF NOT EXISTS idx_legal_acceptances_tenant ON legal_acceptances(tenant_id);

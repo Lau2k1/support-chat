@@ -116,6 +116,19 @@ a {
   background: var(--blue-light);
 }
 
+/* Кнопка Telegram рассчитана на тёмный/синий фон CTA — «стеклянная». */
+.btn--tg {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.btn--tg:hover {
+  background: rgba(255, 255, 255, 0.26);
+  border-color: #fff;
+  transform: translateY(-1px);
+}
+
 /* ---------- Nav ---------- */
 .nav {
   position: sticky;
@@ -805,7 +818,7 @@ a {
 
 .footer__cols {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 24px;
 }
 
@@ -830,6 +843,61 @@ a {
   padding-top: 20px;
   color: #64748b;
   font-size: 13px;
+}
+
+/* ---------- Уведомление о cookie ---------- */
+.cookie-notice {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  padding: 0 18px 18px;
+}
+
+.cookie-notice[hidden] {
+  display: none;
+}
+
+.cookie-notice__inner {
+  max-width: 880px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  background: #0f172a;
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 14px 18px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.35);
+}
+
+.cookie-notice__inner p {
+  margin: 0;
+  flex: 1 1 380px;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.cookie-notice__inner a {
+  color: #93c5fd;
+  text-decoration: underline;
+}
+
+.cookie-notice__btn {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 680px) {
+  .cookie-notice__inner {
+    align-items: stretch;
+  }
+
+  .cookie-notice__btn {
+    width: 100%;
+  }
 }
 
 section[id] {
@@ -860,6 +928,9 @@ section[id] {
   .footer__inner {
     grid-template-columns: 1fr;
     gap: 28px;
+  }
+  .footer__cols {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 

@@ -205,6 +205,19 @@ app.use(express.static(frontendPath, { index: false }));
 // Статика лендинга: /landing/styles.css и т.п.
 app.use('/landing', express.static(landingPath, { index: false }));
 
+// Юридические документы: /legal/<doc> (оферта, политика, согласие, поручение,
+// cookie). Отдаём на обоих доменах — на них ссылаются и лендинг, и форма
+// регистрации в панели. Белый список, чтобы маршрут не превратился в
+// произвольную выдачу файлов.
+const LEGAL_DOCS = new Set(['offer', 'privacy', 'consent', 'dpa', 'cookies']);
+app.get('/legal/:doc', (req, res, next) => {
+  const doc = String(req.params.doc || '').toLowerCase();
+  if (!LEGAL_DOCS.has(doc)) return next();
+  res.sendFile(path.join(landingPath, 'legal', `${doc}.html`), (err) => {
+    if (err && !res.headersSent) res.status(404).send('Not found');
+  });
+});
+
 // SEC-01: uploads are served through an explicit controller (not express.static),
 // so a file's content type can never make the browser execute it. Only raster
 // images are inlined; everything else is forced to download as an opaque binary.
