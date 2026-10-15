@@ -811,10 +811,14 @@ superRouter.put('/tenants/:id/subscription', async (req, res) => {
     if (body.paidUntil !== undefined) {
       let value: string | null = null;
       if (body.paidUntil !== null && String(body.paidUntil) !== '') {
-        const d = new Date(String(body.paidUntil));
+        const raw = String(body.paidUntil);
+        const d = new Date(raw);
         if (Number.isNaN(d.getTime())) {
           return res.status(400).json({ error: 'Неверная дата окончания' });
         }
+        // «2026-11-01» без времени означает «до конца этого дня», иначе подписка
+        // истекла бы ровно в полночь и на день раньше, чем ждёт владелец.
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) d.setUTCHours(23, 59, 59, 999);
         value = d.toISOString();
       }
       params.push(value);
