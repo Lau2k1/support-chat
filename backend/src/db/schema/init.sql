@@ -414,7 +414,10 @@ CREATE TABLE IF NOT EXISTS legal_acceptances (
     consent_version VARCHAR(16) NOT NULL,
     dpa_version VARCHAR(16) NOT NULL,
     consumer_version VARCHAR(16),
-    client_type VARCHAR(16) NOT NULL DEFAULT 'business',  -- business | consumer
+    -- Заявленная цель приобретения. Отдельный выбор статуса не запрашивается:
+    -- заявлением является факт акцепта оферты, адресованной профессиональным
+    -- пользователям (оферта, разд. 12).
+    client_type VARCHAR(16) NOT NULL DEFAULT 'business',
     marketing_consent BOOLEAN NOT NULL DEFAULT false,
     ip VARCHAR(64),
     user_agent TEXT,

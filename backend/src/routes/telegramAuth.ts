@@ -116,15 +116,13 @@ router.post('/auth/telegram/login', async (req, res) => {
       [displayNameOf(user), tenantId, user.id, user.username, user.photoUrl]
     );
     // Акцепт документов входом через Telegram: согласие даётся действием
-    // (кнопка сопровождается явным уведомлением на странице входа).
+    // (кнопка сопровождается явным уведомлением на странице входа). Это же
+    // действие является заявлением о профессиональной цели приобретения.
     await recordAcceptance(client, {
       operatorId: opResult.rows[0].id,
       tenantId,
       email: null,
       source: 'telegram',
-      // Вход через Telegram создаёт клиентский аккаунт для поддержки своих
-      // клиентов — заявление о профессиональной цели (оферта, разд. 12).
-      clientType: 'business',
       marketingConsent: false,
       req,
     });

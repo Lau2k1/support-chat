@@ -23,12 +23,13 @@ export type AcceptanceSource = 'register' | 'invite' | 'telegram';
 /**
  * Заявленная цель приобретения Сервиса.
  *
- * `business` — предпринимательская/профессиональная деятельность (сервис продаётся
- * как B2B-инструмент); `consumer` — личные нужды, применяется Приложение № 2.
- * Это заявление клиента используется как доказательство при споре о статусе,
- * поэтому пишется в одной строке с акцептом документов.
+ * Отдельный выбор статуса при регистрации не запрашивается: оферта адресована
+ * лицам, приобретающим Сервис для профессионального использования, поэтому
+ * заявлением о цели является сам факт акцепта (оферта, разд. 12; Приложение № 2,
+ * разд. 2). Значение фиксируется в записи об акцепте как доказательство при споре
+ * о применении законодательства о защите прав потребителей.
  */
-export type ClientType = 'business' | 'consumer';
+const DECLARED_CLIENT_TYPE = 'business';
 
 interface Queryable {
   query: (sql: string, params?: unknown[]) => Promise<unknown>;
@@ -38,9 +39,9 @@ interface Queryable {
  * Фиксирует акцепт оферты и согласие на обработку персональных данных.
  *
  * Запись — это доказательство воли пользователя: храним редакции документов,
- * момент времени, способ принятия, заявленный статус (B2B/потребитель) и
- * технические данные соединения. Вызывается в той же транзакции, что и создание
- * учётной записи, чтобы не появилось аккаунтов без подтверждённого акцепта.
+ * момент времени, способ принятия, заявленную цель приобретения и технические
+ * данные соединения. Вызывается в той же транзакции, что и создание учётной
+ * записи, чтобы не появилось аккаунтов без подтверждённого акцепта.
  */
 export async function recordAcceptance(
   client: Queryable,
@@ -49,7 +50,6 @@ export async function recordAcceptance(
     tenantId: number | null;
     email: string | null;
     source: AcceptanceSource;
-    clientType: ClientType;
     marketingConsent: boolean;
     req: Request;
   }
@@ -71,7 +71,7 @@ export async function recordAcceptance(
       LEGAL.consent,
       LEGAL.dpa,
       LEGAL.consumer,
-      params.clientType,
+      DECLARED_CLIENT_TYPE,
       params.marketingConsent,
       (params.req.ip || '').slice(0, 64),
       ua ? ua.slice(0, 500) : null,
