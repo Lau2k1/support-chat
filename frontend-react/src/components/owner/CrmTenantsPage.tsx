@@ -24,16 +24,12 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { superadminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
 import { LIMITS, isSlug, validateRequired } from '@/utils/validation';
-import { daysLeft, pluralDays, toDateInput, endOfLocalDay } from '@/utils/format';
+import { subscriptionState, toDateInput, endOfLocalDay } from '@/utils/format';
 import type { Plan, Tenant } from '@/types';
 
 /** Строка под названием тарифа в таблице клиентов: срок и состояние оплаты. */
 function subscriptionHint(tenant: Tenant): string {
-  if (tenant.billing_status !== 'active') return 'не оплачен';
-  const days = daysLeft(tenant.paid_until);
-  if (days === null) return 'бессрочно';
-  if (days === 0) return 'срок истёк';
-  return `осталось ${pluralDays(days)}`;
+  return subscriptionState(tenant.paid_until, tenant.billing_status === 'active').text;
 }
 
 export default function CrmTenantsPage() {

@@ -24,7 +24,7 @@ import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import { billingApi } from '@/services/endpoints';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
-import { formatDateTime, daysLeft, daysWord } from '@/utils/format';
+import { formatDateTime, daysWord, subscriptionState } from '@/utils/format';
 import type { BillingOverview, Payment, Plan, PromoQuote } from '@/types';
 
 function money(cents: number): string {
@@ -191,15 +191,16 @@ export default function BillingPage() {
 
   const billing = data.billing;
   const active = !!billing?.active;
-  // «Сколько дней осталось» — null, когда срок не задан (бессрочная подписка).
-  const days = daysLeft(billing?.paidUntil);
-  const daysTone = !active
-    ? 'text.secondary'
-    : days === 0
-      ? 'error.main'
-      : days !== null && days <= 5
+  // Сколько осталось от подписки и как это подсветить.
+  const sub = subscriptionState(billing?.paidUntil, active);
+  const daysTone =
+    sub.level === 'ok'
+      ? 'success.main'
+      : sub.level === 'soon'
         ? 'warning.main'
-        : 'success.main';
+        : sub.level === 'expired'
+          ? 'error.main'
+          : 'text.secondary';
   const selectedPlan = data.plans.find((p) => p.code === selected) ?? null;
   const promoApplied = promo?.valid && promo.amountCents !== undefined;
   const priceCents = promoApplied ? promo!.amountCents! : selectedPlan?.price_cents ?? null;
@@ -226,22 +227,22 @@ export default function BillingPage() {
               bgcolor: 'action.hover',
             }}
           >
-            {billing?.paidUntil ? (
+            {sub.days !== null && sub.days > 0 ? (
               <>
                 <Typography sx={{ fontSize: 34, fontWeight: 800, lineHeight: 1.1, color: daysTone }}>
-                  {days}
+                  {sub.days}
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600, color: daysTone }}>
-                  {daysWord(days ?? 0)} осталось
+                  {daysWord(sub.days)} осталось
                 </Typography>
               </>
             ) : (
               <>
-                <Box sx={{ color: active ? 'success.main' : 'text.disabled' }}>
+                <Box sx={{ color: daysTone }}>
                   <EventAvailableIcon />
                 </Box>
-                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5 }}>
-                  {active ? 'Бессрочно' : 'Не оплачен'}
+                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5, color: daysTone }}>
+                  {sub.text.charAt(0).toUpperCase() + sub.text.slice(1)}
                 </Typography>
               </>
             )}

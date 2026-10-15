@@ -53,15 +53,17 @@ export function formatDuration(seconds: number | null | undefined): string {
 }
 
 /**
- * Days left until a subscription end date, rounded up — an end date later today
- * still counts as a whole remaining day. Returns null when there is no end date
- * at all (бессрочная подписка) and 0 once the date has passed.
+ * Календарных дней до даты окончания: 15 октября → 14 ноября = 30 дней.
+ * Именно календарные дни, а не остаток часов, — тогда «+30 дней» в CRM и
+ * таймер в панели показывают одно и то же число. null — срока нет вовсе;
+ * отрицательное значение — подписка уже истекла.
  */
 export function daysLeft(until: string | number | Date | null | undefined): number | null {
   if (until === null || until === undefined || until === '') return null;
   const d = toDate(until);
   if (isNaN(d.getTime())) return null;
-  return Math.max(0, Math.ceil((d.getTime() - Date.now()) / 86400000));
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  return Math.round((startOfDay(d) - startOfDay(new Date())) / 86400000);
 }
 
 /** «день» / «дня» / «дней» — the word alone, for a count shown separately. */
@@ -76,6 +78,39 @@ export function daysWord(days: number): string {
 /** «1 день», «3 дня», «11 дней» — the count with the right Russian form. */
 export function pluralDays(days: number): string {
   return `${days} ${daysWord(days)}`;
+}
+
+/** Состояние подписки — одно и то же в панели, боковом меню и CRM. */
+export type SubscriptionLevel = 'ok' | 'soon' | 'expired' | 'unpaid' | 'forever';
+
+export interface SubscriptionState {
+  level: SubscriptionLevel;
+  /** Календарных дней до конца срока; null — срока нет. */
+  days: number | null;
+  /** Готовая подпись для интерфейса. */
+  text: string;
+}
+
+/**
+ * Состояние подписки по сроку и признаку оплаты. Последний день действия —
+ * ещё не «истекла»: доступ есть до конца суток, поэтому подсвечиваем его как
+ * предупреждение, а не как ошибку.
+ */
+export function subscriptionState(
+  until: string | number | Date | null | undefined,
+  active: boolean
+): SubscriptionState {
+  if (!active) return { level: 'unpaid', days: null, text: 'не оплачен' };
+
+  const hasDate = until !== null && until !== undefined && until !== '';
+  const d = toDate(hasDate ? until : NaN);
+  if (!hasDate || isNaN(d.getTime())) return { level: 'forever', days: null, text: 'бессрочно' };
+
+  if (d.getTime() < Date.now()) return { level: 'expired', days: 0, text: 'срок истёк' };
+
+  const days = daysLeft(until) ?? 0;
+  if (days === 0) return { level: 'soon', days, text: 'последний день' };
+  return { level: days <= 5 ? 'soon' : 'ok', days, text: `осталось ${pluralDays(days)}` };
 }
 
 /** «YYYY-MM-DD» from a date field → конец этого дня по локальному времени, ISO. */

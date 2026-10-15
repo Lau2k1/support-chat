@@ -18,7 +18,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { wsManager } from '@/services/ws';
 import ThemeToggle from '@/components/common/ThemeToggle';
-import { daysLeft, pluralDays } from '@/utils/format';
+import { pluralDays, subscriptionState } from '@/utils/format';
 
 type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'billing' | 'ticket-templates' | 'tickets';
 
@@ -55,22 +55,11 @@ export default function AdminSideNav({ current, onChange }: Props) {
   const billingActive = useAuthStore((s) => s.billingActive);
   const tenantId = useAuthStore((s) => s.tenantId);
 
-  // Остаток подписки: null — бессрочно, 0 — срок вышел.
-  const days = daysLeft(billing?.paidUntil);
-  const daysTone = !billingActive
-    ? '#94a3b8'
-    : days === 0
-      ? '#f87171'
-      : days !== null && days <= 5
-        ? '#fbbf24'
-        : '#4ade80';
-  const daysText = !billingActive
-    ? 'не оплачен'
-    : days === null
-      ? 'бессрочно'
-      : days === 0
-        ? 'срок истёк'
-        : `${pluralDays(days)}`;
+  // Остаток подписки: цвет точки и подпись — из общего помощника.
+  const sub = subscriptionState(billing?.paidUntil, billingActive);
+  const daysTone =
+    sub.level === 'ok' ? '#4ade80' : sub.level === 'soon' ? '#fbbf24' : sub.level === 'expired' ? '#f87171' : '#94a3b8';
+  const daysText = sub.days !== null && sub.days > 0 ? pluralDays(sub.days) : sub.text;
 
   const handleLogout = () => {
     showConfirm({
