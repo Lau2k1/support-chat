@@ -157,6 +157,7 @@ export async function resolveOperator(token: string): Promise<AuthUser | null> {
     `SELECT o.id, o.name, o.role, o.is_enabled, o.token_version, o.tenant_id,
             o.email, o.telegram_id, o.telegram_username, (o.password IS NOT NULL) AS has_password,
             t.billing_status, t.paid_until,
+            (t.plan_id IS NOT NULL) AS has_plan,
             COALESCE(p.tickets_enabled, false) AS plan_tickets
      FROM operators o
      LEFT JOIN tenants t ON t.id = o.tenant_id
@@ -174,6 +175,14 @@ export async function resolveOperator(token: string): Promise<AuthUser | null> {
   // while its subscription is active (see services/billing.ts).
   const tenantActive = tenantId === null ? true : isActiveBilling(op.billing_status, op.paid_until);
 
+  // Plan capabilities apply only to tenants that actually bought a plan. A
+  // tenant with no plan at all is a legacy / lifetime workspace (grandfathered
+  // before billing existed) and keeps the full feature set — silently stripping
+  // working features from an existing customer would be worse than a permissive
+  // default. Brand-new signups have no plan either, but they are 'unpaid' and
+  // the billing gate above already blocks every write.
+  const planGated = tenantId !== null && op.has_plan === true;
+
   return {
     id: op.id,
     name: op.name,
@@ -182,10 +191,10 @@ export async function resolveOperator(token: string): Promise<AuthUser | null> {
     tenantActive,
     tenantBillingStatus: op.billing_status ?? null,
     tenantPaidUntil: paidUntil,
-    // The superadmin owns no tenant and bypasses every plan gate, so report the
-    // full feature set instead of an empty one.
+    // The superadmin bypasses every plan gate, so report the full feature set
+    // instead of an empty one.
     features: {
-      tickets: tenantId === null ? true : op.plan_tickets === true,
+      tickets: !planGated || op.plan_tickets === true,
     },
     email: op.email ?? null,
     telegramId: op.telegram_id ?? null,
