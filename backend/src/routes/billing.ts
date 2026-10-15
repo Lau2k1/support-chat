@@ -11,6 +11,7 @@ import {
   markPaymentPaid,
 } from '../services/billing';
 import { createInvoice, getInvoice, isConfigured as cryptoConfigured } from '../services/cryptobot';
+import { notifyPaymentRequest } from '../services/notify';
 
 /**
  * Tenant billing: view the current subscription, pick a plan, apply a promo code
@@ -137,6 +138,19 @@ router.post('/checkout', async (req, res) => {
     }
 
     // No online provider configured → the owner confirms the payment manually.
+    // Это и есть «заявка»: сообщаем владельцу сразу, чтобы лид не остыл.
+    const owner = (
+      await pool.query('SELECT name, slug FROM tenants WHERE id = $1', [tenantId])
+    ).rows[0] as { name: string; slug: string } | undefined;
+    notifyPaymentRequest({
+      tenantName: owner?.name ?? `#${tenantId}`,
+      slug: owner?.slug ?? '—',
+      planName: plan.name,
+      amountCents: quote.amountCents,
+      promoCode: promo?.code ?? null,
+      paymentId,
+    });
+
     res.status(201).json({
       free: false,
       payment: ins.rows[0],

@@ -386,3 +386,14 @@ CREATE TABLE IF NOT EXISTS system_alerts (
 
 CREATE INDEX IF NOT EXISTS idx_system_alerts_created ON system_alerts(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_system_alerts_status ON system_alerts(status);
+
+-- ---------------------------------------------------------------------------
+-- Owner notifications that must fire at most once: subscription expiry
+-- reminders, "subscription expired" notes and similar. The key is the event
+-- identity (e.g. 'expiring:12:2026-11-14:5'), so a container restart never
+-- re-sends the same message and the daily check stays idempotent.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS notified_events (
+    key TEXT PRIMARY KEY,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

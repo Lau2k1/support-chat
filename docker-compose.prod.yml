@@ -80,6 +80,11 @@ services:
       # Monitoring: protects GET /status (used by deploy/monitor.sh + owner CRM).
       # Leave empty to disable the endpoint entirely (503).
       STATUS_TOKEN: ${STATUS_TOKEN:-}
+      # Owner notifications (registrations, payment requests, payments, expiring
+      # subscriptions) go to the same alert bot as the host monitoring script.
+      # Empty = notifications are silently disabled.
+      ALERT_TELEGRAM_TOKEN: ${ALERT_TELEGRAM_TOKEN:-}
+      ALERT_TELEGRAM_CHAT_ID: ${ALERT_TELEGRAM_CHAT_ID:-}
       # Telegram login (Login Widget). Empty = login via Telegram is disabled and
       # the panel hides the button. Requires /setdomain <APP_DOMAIN> in BotFather.
       TELEGRAM_LOGIN_BOT_TOKEN: ${TELEGRAM_LOGIN_BOT_TOKEN:-}

@@ -1,4 +1,5 @@
 import { pool } from '../db';
+import { notifyPaymentPaid } from './notify';
 
 /**
  * Billing domain logic shared by the tenant billing routes and the owner CRM:
@@ -136,14 +137,24 @@ export async function markPaymentPaid(
     }
 
     const plan = (await client.query('SELECT * FROM plans WHERE id = $1', [payment.plan_id])).rows[0] ?? null;
+    const tenant = (await client.query('SELECT name, slug FROM tenants WHERE id = $1', [payment.tenant_id]))
+      .rows[0] as { name: string; slug: string } | undefined;
 
     // Consume one promo activation (guarded so we never exceed max_activations).
     if (payment.promo_code_id) {
-      await client.query(
+      const consumed = await client.query(
         `UPDATE promo_codes SET used_count = used_count + 1
          WHERE id = $1 AND (max_activations IS NULL OR used_count < max_activations)`,
         [payment.promo_code_id]
       );
+      // Лимит мог исчерпаться между оформлением и оплатой. Платёж всё равно
+      // активируем (деньги уже пришли), но в лог пишем — иначе расхождение
+      // счётчика активаций останется незамеченным.
+      if (!consumed.rowCount) {
+        console.warn(
+          `[billing] промокод #${payment.promo_code_id} исчерпан — платёж #${paymentId} активирован без списания`
+        );
+      }
     }
 
     await client.query(
@@ -154,18 +165,32 @@ export async function markPaymentPaid(
       [paymentId, opts.method ?? null, opts.confirmedBy ?? null]
     );
 
-    await client.query(
+    const sub = await client.query(
       `UPDATE tenants
        SET billing_status = 'active',
            plan_id = $2,
            operator_limit = COALESCE($3, operator_limit),
            paid_until = GREATEST(COALESCE(paid_until, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP) + make_interval(days => $4),
            billing_updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1`,
+       WHERE id = $1
+       RETURNING paid_until`,
       [payment.tenant_id, payment.plan_id, plan?.operator_limit ?? null, payment.period_days]
     );
 
     await client.query('COMMIT');
+
+    // Оплата — событие, о котором владелец должен узнать сразу (в CRM он может
+    // и не заглянуть). Отправляется после COMMIT и не влияет на результат.
+    notifyPaymentPaid({
+      tenantName: tenant?.name ?? `#${payment.tenant_id}`,
+      slug: tenant?.slug ?? '—',
+      planName: plan?.name ?? 'без тарифа',
+      amountCents: payment.amount_cents,
+      days: payment.period_days,
+      method: opts.method ?? payment.method,
+      paidUntil: sub.rows[0]?.paid_until ?? null,
+    });
+
     return { ok: true, tenantId: payment.tenant_id };
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch { /* ignore */ }

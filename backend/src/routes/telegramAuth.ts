@@ -15,6 +15,7 @@ import {
 } from '../services/telegramLogin';
 import { uniqueTenantSlug, slugifyTenant } from './auth';
 import { LIMITS } from '../utils/validate';
+import { notifyNewTenant } from '../services/notify';
 
 const router = Router();
 
@@ -114,6 +115,14 @@ router.post('/auth/telegram/login', async (req, res) => {
       [displayNameOf(user), tenantId, user.id, user.username, user.photoUrl]
     );
     await client.query('COMMIT');
+
+    // Лид: сообщаем владельцу, что клиент зашёл через Telegram и ждёт оплаты.
+    notifyNewTenant({
+      tenantName: tenantName || slug,
+      slug,
+      email: null,
+      source: 'вход через Telegram',
+    });
 
     const token = issueSession(res, opResult.rows[0]);
     console.log(`Telegram signup: operator id=${opResult.rows[0].id} tenant=${tenantId} tg=${user.id}`);

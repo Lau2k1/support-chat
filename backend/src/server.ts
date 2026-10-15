@@ -22,6 +22,7 @@ import telegramAuthRoutes from './routes/telegramAuth';
 import { handleConnection } from './ws/handler';
 import type { ClientWs } from './ws/types';
 import { startUploadsCleanup } from './services/uploads';
+import { runSubscriptionReminders } from './services/subscriptionReminders';
 import { startAutoCloseTimer } from './services/chat';
 import { pool } from './db';
 import { resolveOperator, tokenFromRequest } from './middleware/auth';
@@ -396,6 +397,16 @@ wss.on('connection', (socket, req) => {
 startAutoCloseTimer(wss);
 // SEC-02: hourly sweep of orphaned upload files.
 startUploadsCleanup();
+
+// Напоминания владельцу об окончании подписок: раз в 6 часов, уведомления
+// одноразовые (пороги 5 дней и последний день — см. services/subscriptionReminders).
+const reminders = setInterval(() => {
+  void runSubscriptionReminders();
+}, 6 * 60 * 60 * 1000);
+reminders.unref();
+setTimeout(() => {
+  void runSubscriptionReminders();
+}, 30_000).unref();
 
 const PORT = Number(process.env.PORT) || 3000;
 server.listen(PORT, () => console.log(`🚀 Server started on :${PORT}`));

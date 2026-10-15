@@ -10,6 +10,7 @@ import {
   type AuthenticatedRequest,
 } from '../middleware/auth';
 import { LIMITS, validEmail, validPassword, validString, firstError } from '../utils/validate';
+import { notifyNewTenant } from '../services/notify';
 
 const router = Router();
 
@@ -172,6 +173,9 @@ router.post('/register', async (req, res) => {
     );
     const newOp = opResult.rows[0];
     await client.query('COMMIT');
+
+    // Лид: сообщаем владельцу, что кто-то зарегистрировался и ждёт оплаты.
+    notifyNewTenant({ tenantName, slug, email: normEmail, source: 'регистрация на сайте' });
 
     const token = signToken(newOp);
     res.cookie(AUTH_COOKIE, token, authCookieOptions());
