@@ -32,6 +32,7 @@ import TagSelectorModal from '@/components/chat/TagSelectorModal';
 import ArchiveFiltersComponent from '@/components/archive/ArchiveFilters';
 import ArchiveList from '@/components/archive/ArchiveList';
 import PaywallBanner from '@/components/common/PaywallBanner';
+import FeatureLocked from '@/components/common/FeatureLocked';
 import TicketsPage from '@/components/tickets/TicketsPage';
 import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -41,6 +42,14 @@ import { wsManager } from '@/services/ws';
 import { chatApi, statsApi, cannedApi } from '@/services/endpoints';
 import type { Chat, ArchiveFilters, Stats, DailyStat } from '@/types';
 import { formatDuration } from '@/utils/format';
+
+/** Upgrade copy for the ticket section (plan gated — sold from «Профи»). */
+const TICKETS_LOCK = {
+  title: 'Тикет-система',
+  description:
+    'Сложные обращения не теряются в переписке: шаблоны с полями, статусы «решено» / «не решено», архив и статистика по тикетам.',
+  requiredPlan: 'Профи',
+};
 
 type ViewType = 'chats' | 'archive' | 'stats' | 'tickets';
 
@@ -55,6 +64,7 @@ export default function OperatorDashboard() {
   const { currentChatId, messages, setCurrentChat, addTab, setMessages, setAllTags, setCannedResponses, setUnread } = useChatStore();
   const showConfirm = useUIStore((s) => s.showConfirm);
   const billingActive = useAuthStore((s) => s.billingActive);
+  const canUseTickets = useAuthStore((s) => s.canUseTickets);
 
   useWebSocket();
 
@@ -126,7 +136,8 @@ export default function OperatorDashboard() {
           )}
           {currentView === 'archive' && <ArchiveView />}
           {currentView === 'stats' && <StatsView />}
-          {currentView === 'tickets' && <TicketsPage />}
+          {currentView === 'tickets' &&
+            (canUseTickets ? <TicketsPage /> : <FeatureLocked {...TICKETS_LOCK} />)}
         </Box>
       </Box>
 

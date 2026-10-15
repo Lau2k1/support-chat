@@ -3,6 +3,8 @@ import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
+import LockIcon from '@mui/icons-material/Lock';
+import { useAuthStore } from '@/stores/authStore';
 
 type ViewType = 'chats' | 'archive' | 'stats' | 'tickets';
 
@@ -19,6 +21,8 @@ const navItems: { view: ViewType; icon: React.ReactNode; label: string }[] = [
 ];
 
 export default function SideNav({ currentView, onViewChange }: SideNavProps) {
+  const canUseTickets = useAuthStore((s) => s.canUseTickets);
+
   return (
     <Box
       sx={{
@@ -54,7 +58,22 @@ export default function SideNav({ currentView, onViewChange }: SideNavProps) {
             },
           }}
         >
-          {item.icon}
+          {item.view === 'tickets' && !canUseTickets ? (
+            <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+              {item.icon}
+              <LockIcon
+                sx={{
+                  position: 'absolute',
+                  right: -7,
+                  bottom: -3,
+                  fontSize: 12,
+                  color: '#fbbf24',
+                }}
+              />
+            </Box>
+          ) : (
+            item.icon
+          )}
           <Typography sx={{ fontSize: 10, fontWeight: 600, mt: 0.3, letterSpacing: 0.3 }}>
             {item.label}
           </Typography>

@@ -12,6 +12,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import KeyIcon from '@mui/icons-material/Key';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import TelegramIcon from '@mui/icons-material/Telegram';
+import LockIcon from '@mui/icons-material/Lock';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -19,6 +20,9 @@ import { wsManager } from '@/services/ws';
 import ThemeToggle from '@/components/common/ThemeToggle';
 
 type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'billing' | 'ticket-templates' | 'tickets';
+
+/** Sections that require a plan with the ticket system (sold from «Профи»). */
+const GATED_PAGES: Page[] = ['tickets', 'ticket-templates'];
 
 const items: { page: Page; icon: React.ReactNode; label: string }[] = [
   { page: 'operators', icon: <PeopleIcon fontSize="small" />, label: 'Операторы' },
@@ -45,6 +49,7 @@ export default function AdminSideNav({ current, onChange }: Props) {
   const showChangePassword = useUIStore((s) => s.showChangePassword);
   const showTelegram = useUIStore((s) => s.showTelegram);
   const telegramLinked = useAuthStore((s) => s.user?.telegram?.linked ?? false);
+  const canUseTickets = useAuthStore((s) => s.canUseTickets);
 
   const handleLogout = () => {
     showConfirm({
@@ -103,6 +108,9 @@ export default function AdminSideNav({ current, onChange }: Props) {
           >
             {item.icon}
             {item.label}
+            {GATED_PAGES.includes(item.page) && !canUseTickets && (
+              <LockIcon sx={{ fontSize: 13, ml: 'auto', color: '#64748b' }} />
+            )}
           </Box>
         ))}
       </Box>

@@ -19,8 +19,10 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     } else if (status === 402) {
-      // Billing gate: the tenant is unpaid. Surface a toast; the panel also shows
-      // a persistent paywall banner and the billing section.
+      // Payment required, for two reasons: the tenant's subscription is unpaid
+      // (PAYMENT_REQUIRED), or the call touches a feature its plan does not
+      // include (PLAN_UPGRADE_REQUIRED, e.g. tickets below «Профи»). Either way
+      // the server's own message is the clearest thing to show.
       useUIStore
         .getState()
         .showToast(error.response?.data?.error || 'Функции доступны после оплаты тарифа', 'warning');

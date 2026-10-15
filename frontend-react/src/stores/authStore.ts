@@ -19,6 +19,10 @@ export interface CurrentUser {
   };
   /** False for Telegram-only accounts (no password set). */
   hasPassword?: boolean;
+  /** Capabilities unlocked by the tenant's plan. */
+  features?: {
+    tickets: boolean;
+  };
 }
 
 interface AuthState {
@@ -29,6 +33,8 @@ interface AuthState {
   tenantId: number | null;
   /** False while the tenant has an unpaid subscription (superadmin: always true). */
   billingActive: boolean;
+  /** False when the plan does not include the ticket system (sold from «Профи»). */
+  canUseTickets: boolean;
   /** True once the initial /me probe finished (prevents a /login bounce on reload). */
   authReady: boolean;
   /** Re-reads the session from the cookie after a successful login/register. */
@@ -48,6 +54,9 @@ function derive(user: CurrentUser | null) {
     tenantId: user?.tenantId ?? null,
     // Default to true so a legacy /me payload never flashes the paywall.
     billingActive: user ? (user.billing?.active ?? true) : false,
+    // Same reasoning: an unknown payload must not lock a paying customer out.
+    // The server is the real gate either way.
+    canUseTickets: user ? (user.features?.tickets ?? true) : false,
   };
 }
 
@@ -68,6 +77,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isSuperadmin: false,
   tenantId: null,
   billingActive: false,
+  canUseTickets: false,
   authReady: false,
 
   // Called right after a successful /login or /register (cookie already set by the API).

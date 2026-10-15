@@ -204,6 +204,7 @@ router.get('/me', authMiddleware, (req, res) => {
       username: user.telegramUsername ?? null,
     },
     hasPassword: user.hasPassword !== false,
+    features: user.features,
   });
 });
 

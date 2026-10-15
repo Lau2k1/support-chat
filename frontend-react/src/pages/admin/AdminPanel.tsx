@@ -11,13 +11,23 @@ import TelegramBotPage from '@/components/admin/TelegramBotPage';
 import BillingPage from '@/components/admin/BillingPage';
 import TicketTemplatesPage from '@/components/admin/TicketTemplatesPage';
 import TicketsPage from '@/components/tickets/TicketsPage';
+import FeatureLocked from '@/components/common/FeatureLocked';
 import PaywallBanner from '@/components/common/PaywallBanner';
 import { useAuthStore } from '@/stores/authStore';
 
 type AdminPage = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'billing' | 'ticket-templates' | 'tickets';
 
+/** Copy for the upgrade placeholder shared by both ticket sections. */
+const TICKETS_LOCK = {
+  title: 'Тикет-система',
+  description:
+    'Сложные обращения не теряются в переписке: шаблоны с полями, статусы «решено» / «не решено», архив и статистика по тикетам.',
+  requiredPlan: 'Профи',
+};
+
 export default function AdminPanel() {
   const billingActive = useAuthStore((s) => s.billingActive);
+  const canUseTickets = useAuthStore((s) => s.canUseTickets);
   // A brand-new (unpaid) tenant lands straight on the billing section; paying
   // customers start on the daily-driver page.
   const [page, setPage] = useState<AdminPage>(billingActive ? 'operators' : 'billing');
@@ -52,8 +62,18 @@ export default function AdminPanel() {
           {page === 'stats' && <AdminStatsPage />}
           {page === 'telegram' && <TelegramBotPage />}
           {page === 'billing' && <BillingPage />}
-          {page === 'ticket-templates' && <TicketTemplatesPage />}
-          {page === 'tickets' && <TicketsPage isAdmin />}
+          {page === 'ticket-templates' &&
+            (canUseTickets ? (
+              <TicketTemplatesPage />
+            ) : (
+              <FeatureLocked {...TICKETS_LOCK} onUpgrade={() => setPage('billing')} />
+            ))}
+          {page === 'tickets' &&
+            (canUseTickets ? (
+              <TicketsPage isAdmin />
+            ) : (
+              <FeatureLocked {...TICKETS_LOCK} onUpgrade={() => setPage('billing')} />
+            ))}
         </Box>
       </Box>
     </Box>

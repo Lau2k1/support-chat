@@ -215,22 +215,28 @@ CREATE TABLE IF NOT EXISTS plans (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO plans (code, name, price_cents, operator_limit, description, features, sort_order, is_active) VALUES
+-- Feature gating is a *plan capability*, never a string match against the
+-- display copy in `features` (that text gets reworded freely). The ticket
+-- system is sold from «Профи» upwards.
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS tickets_enabled BOOLEAN NOT NULL DEFAULT false;
+
+INSERT INTO plans (code, name, price_cents, operator_limit, description, features, sort_order, is_active, tickets_enabled) VALUES
   ('start', 'Старт', 899, 3, 'Для небольшой команды на старте',
-   '["Виджет на сайт и Telegram-бот","Автораспределение чатов","Теги и быстрые ответы","Файлы, история и оценки","Статистика и аудит","Изоляция данных по брендам"]'::jsonb, 1, true),
+   '["Виджет на сайт и Telegram-бот","Автораспределение чатов","Теги и быстрые ответы","Файлы, история и оценки","Статистика и аудит","Изоляция данных по брендам"]'::jsonb, 1, true, false),
   ('pro', 'Профи', 1399, 10, 'Для растущей поддержки',
-   '["Виджет на сайт и Telegram-бот","Автораспределение чатов","Теги и быстрые ответы","Файлы, история и оценки","Статистика и аудит","Изоляция данных по брендам","Тикет-система с шаблонами полей","Архив и статистика по тикетам"]'::jsonb, 2, true),
+   '["Виджет на сайт и Telegram-бот","Автораспределение чатов","Теги и быстрые ответы","Файлы, история и оценки","Статистика и аудит","Изоляция данных по брендам","Тикет-система с шаблонами полей","Архив и статистика по тикетам"]'::jsonb, 2, true, true),
   ('business', 'Бизнес', 1999, 30, 'Для сети брендов и команд',
-   '["Виджет на сайт и Telegram-бот","Автораспределение чатов","Теги и быстрые ответы","Файлы, история и оценки","Статистика и аудит","Изоляция данных по брендам","Тикет-система с шаблонами полей","Архив и статистика по тикетам","Приоритетная поддержка"]'::jsonb, 3, true),
+   '["Виджет на сайт и Telegram-бот","Автораспределение чатов","Теги и быстрые ответы","Файлы, история и оценки","Статистика и аудит","Изоляция данных по брендам","Тикет-система с шаблонами полей","Архив и статистика по тикетам","Приоритетная поддержка"]'::jsonb, 3, true, true),
   ('custom', 'Custom', NULL, NULL, 'Большие объёмы, SLA и white-label',
-   '["Всё из «Бизнес»","Операторы без лимита","Персональный SLA","Помощь с миграцией","Индивидуальные доработки"]'::jsonb, 4, true)
+   '["Всё из «Бизнес»","Операторы без лимита","Персональный SLA","Помощь с миграцией","Индивидуальные доработки"]'::jsonb, 4, true, true)
 ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   price_cents = EXCLUDED.price_cents,
   operator_limit = EXCLUDED.operator_limit,
   description = EXCLUDED.description,
   features = EXCLUDED.features,
-  sort_order = EXCLUDED.sort_order;
+  sort_order = EXCLUDED.sort_order,
+  tickets_enabled = EXCLUDED.tickets_enabled;
 
 -- Tenant billing state. Existing tenants (created before this feature) are
 -- grandfathered as 'active' by the ADD COLUMN default; the default is then

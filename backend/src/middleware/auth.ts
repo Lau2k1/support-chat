@@ -77,6 +77,12 @@ export function authCookieOptions() {
 
 export type OperatorRole = 'superadmin' | 'admin' | 'operator';
 
+/** Plan capabilities of the caller's tenant. Display text is never consulted. */
+export interface TenantFeatures {
+  /** Ticket system — sold from the «Профи» plan upwards. */
+  tickets: boolean;
+}
+
 export interface AuthUser {
   id: number;
   name: string;
@@ -88,6 +94,8 @@ export interface AuthUser {
   /** Raw billing state of the tenant (for the panel's paywall banner). */
   tenantBillingStatus?: string | null;
   tenantPaidUntil?: string | null;
+  /** Features unlocked by the tenant's plan (superadmin: everything). */
+  features: TenantFeatures;
   /** Email — null for accounts created through Telegram. */
   email?: string | null;
   /** Telegram account attached to this operator (Login Widget). */
@@ -148,9 +156,11 @@ export async function resolveOperator(token: string): Promise<AuthUser | null> {
   const result = await pool.query(
     `SELECT o.id, o.name, o.role, o.is_enabled, o.token_version, o.tenant_id,
             o.email, o.telegram_id, o.telegram_username, (o.password IS NOT NULL) AS has_password,
-            t.billing_status, t.paid_until
+            t.billing_status, t.paid_until,
+            COALESCE(p.tickets_enabled, false) AS plan_tickets
      FROM operators o
      LEFT JOIN tenants t ON t.id = o.tenant_id
+     LEFT JOIN plans p ON p.id = t.plan_id
      WHERE o.id = $1`,
     [payload.id]
   );
@@ -172,6 +182,11 @@ export async function resolveOperator(token: string): Promise<AuthUser | null> {
     tenantActive,
     tenantBillingStatus: op.billing_status ?? null,
     tenantPaidUntil: paidUntil,
+    // The superadmin owns no tenant and bypasses every plan gate, so report the
+    // full feature set instead of an empty one.
+    features: {
+      tickets: tenantId === null ? true : op.plan_tickets === true,
+    },
     email: op.email ?? null,
     telegramId: op.telegram_id ?? null,
     telegramUsername: op.telegram_username ?? null,
@@ -188,6 +203,36 @@ const UNPAID_EXEMPT_PREFIXES = ['/billing', '/superadmin', '/me', '/logout', '/l
 function isUnpaidExempt(originalUrl: string): boolean {
   const path = originalUrl.split('?')[0];
   return UNPAID_EXEMPT_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
+/**
+ * Endpoints that belong to a plan capability rather than to the base product.
+ *
+ * Only state-changing calls are refused: reads stay open so a tenant that
+ * downgrades keeps access to the data it already created, and so the panel can
+ * show the feature with an upgrade prompt instead of an error.
+ */
+const FEATURE_GATED_PREFIXES: Array<{ prefix: string; feature: keyof TenantFeatures; label: string }> = [
+  {
+    prefix: '/tickets',
+    feature: 'tickets',
+    label: 'Тикет-система доступна на тарифе «Профи» и выше',
+  },
+  {
+    prefix: '/ticket-templates',
+    feature: 'tickets',
+    label: 'Тикет-система доступна на тарифе «Профи» и выше',
+  },
+];
+
+function missingFeature(user: AuthUser, originalUrl: string): string | null {
+  const path = originalUrl.split('?')[0];
+  for (const gate of FEATURE_GATED_PREFIXES) {
+    if ((path === gate.prefix || path.startsWith(`${gate.prefix}/`)) && !user.features[gate.feature]) {
+      return gate.label;
+    }
+  }
+  return null;
 }
 
 export async function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -212,6 +257,16 @@ export async function authMiddleware(req: express.Request, res: express.Response
       !isUnpaidExempt(req.originalUrl)
     ) {
       return res.status(402).json({ error: 'Функции доступны после оплаты тарифа', code: 'PAYMENT_REQUIRED' });
+    }
+
+    // Plan gate: writes to features the tenant's plan does not include. Separate
+    // from the billing gate above — here the subscription *is* paid, it just is
+    // not the plan that sells this feature.
+    if (user.role !== 'superadmin' && req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+      const missing = missingFeature(user, req.originalUrl);
+      if (missing) {
+        return res.status(402).json({ error: missing, code: 'PLAN_UPGRADE_REQUIRED' });
+      }
     }
 
     next();
