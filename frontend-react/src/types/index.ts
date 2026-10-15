@@ -130,6 +130,14 @@ export interface Settings {
   widget_origins?: string;
 }
 
+/** Данные раздела «Виджет»: slug тенанта и готовый адрес встраивания. */
+export interface WidgetInfo {
+  slug: string;
+  widgetUrl: string;
+  /** Домены, которым разрешено встраивание (пусто = только сам виджет). */
+  origins: string[];
+}
+
 export interface Stats {
   totalChats: number;
   openChats: number;

@@ -34,6 +34,7 @@ import type {
   TelegramWidgetData,
   TelegramLoginConfig,
   TelegramLinkState,
+  WidgetInfo,
 } from '@/types';
 
 export const authApi = {
@@ -146,6 +147,8 @@ export const adminApi = {
     api.put<{ bot: TelegramBot }>('/admin/telegram-bot/toggle', tenantId ? { is_active, tenantId } : { is_active }),
   disconnectTelegramBot: (tenantId?: number) =>
     api.delete('/admin/telegram-bot', { params: tenantId ? { tenantId } : undefined }),
+  getWidget: (tenantId?: number) =>
+    api.get<WidgetInfo>('/admin/widget', { params: tenantId ? { tenantId } : undefined }),
 };
 
 export const superadminApi = {

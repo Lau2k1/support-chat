@@ -12,6 +12,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import KeyIcon from '@mui/icons-material/Key';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import TelegramIcon from '@mui/icons-material/Telegram';
+import WidgetsIcon from '@mui/icons-material/Widgets';
 import LockIcon from '@mui/icons-material/Lock';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
@@ -20,7 +21,7 @@ import { wsManager } from '@/services/ws';
 import ThemeToggle from '@/components/common/ThemeToggle';
 import { pluralDays, subscriptionState } from '@/utils/format';
 
-type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'billing' | 'ticket-templates' | 'tickets';
+type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'widget' | 'billing' | 'ticket-templates' | 'tickets';
 
 /** Sections that require a plan with the ticket system (sold from «Профи»). */
 const GATED_PAGES: Page[] = ['tickets', 'ticket-templates'];
@@ -33,6 +34,7 @@ const items: { page: Page; icon: React.ReactNode; label: string }[] = [
   { page: 'stats', icon: <BarChartIcon fontSize="small" />, label: 'Статистика' },
   { page: 'audit', icon: <FactCheckIcon fontSize="small" />, label: 'Аудит' },
   { page: 'telegram', icon: <SendIcon fontSize="small" />, label: 'Telegram-бот' },
+  { page: 'widget', icon: <WidgetsIcon fontSize="small" />, label: 'Виджет на сайт' },
   { page: 'settings', icon: <SettingsIcon fontSize="small" />, label: 'Настройки' },
   { page: 'tags', icon: <LabelIcon fontSize="small" />, label: 'Теги' },
   { page: 'billing', icon: <CreditCardIcon fontSize="small" />, label: 'Оплата' },

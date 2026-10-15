@@ -8,6 +8,7 @@ import SettingsPage from '@/components/admin/SettingsPage';
 import AuditPage from '@/components/admin/AuditPage';
 import AdminStatsPage from '@/components/admin/AdminStatsPage';
 import TelegramBotPage from '@/components/admin/TelegramBotPage';
+import WidgetPage from '@/components/admin/WidgetPage';
 import BillingPage from '@/components/admin/BillingPage';
 import TicketTemplatesPage from '@/components/admin/TicketTemplatesPage';
 import TicketsPage from '@/components/tickets/TicketsPage';
@@ -15,7 +16,7 @@ import FeatureLocked from '@/components/common/FeatureLocked';
 import PaywallBanner from '@/components/common/PaywallBanner';
 import { useAuthStore } from '@/stores/authStore';
 
-type AdminPage = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'billing' | 'ticket-templates' | 'tickets';
+type AdminPage = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'widget' | 'billing' | 'ticket-templates' | 'tickets';
 
 /** Copy for the upgrade placeholder shared by both ticket sections. */
 const TICKETS_LOCK = {
@@ -61,6 +62,7 @@ export default function AdminPanel() {
           {page === 'audit' && <AuditPage />}
           {page === 'stats' && <AdminStatsPage />}
           {page === 'telegram' && <TelegramBotPage />}
+          {page === 'widget' && <WidgetPage />}
           {page === 'billing' && <BillingPage />}
           {page === 'ticket-templates' &&
             (canUseTickets ? (
@@ -88,6 +90,7 @@ const pageTitles: Record<AdminPage, string> = {
   audit: 'Аудит чатов',
   stats: 'Статистика по операторам',
   telegram: 'Telegram-бот',
+  widget: 'Виджет на сайт',
   billing: 'Тариф и оплата',
   'ticket-templates': 'Шаблоны тикетов',
   tickets: 'Тикеты',

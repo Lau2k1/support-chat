@@ -462,6 +462,54 @@ router.put('/settings', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Widget (per tenant)
+// ---------------------------------------------------------------------------
+
+/** Хост, на котором живёт widget.html: маркетинговый домен либо хост запроса. */
+function widgetBaseUrl(req: express.Request): string {
+  const raw = (process.env.DOMAIN || '')
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/+$/, '');
+  return raw ? `https://${raw}` : `${req.protocol}://${req.get('host')}`;
+}
+
+/**
+ * Данные для раздела «Виджет»: slug тенанта и готовый адрес виджета. Раньше slug
+ * знал только владелец платформы (CRM), поэтому клиент физически не мог собрать
+ * сниппет встраивания — приходилось диктовать его в переписке.
+ */
+router.get('/widget', async (req, res) => {
+  try {
+    const tenantId = scopedTenant(req);
+    if (tenantId === null) return res.status(400).json({ error: 'tenantId required for superadmin' });
+    const t = await pool.query('SELECT slug FROM tenants WHERE id = $1', [tenantId]);
+    if (!t.rows.length) return res.status(404).json({ error: 'Тенант не найден' });
+
+    let origins: string[] = [];
+    const s = await pool.query("SELECT value FROM settings WHERE tenant_id = $1 AND key = 'widget_origins'", [tenantId]);
+    if (s.rows.length) {
+      try {
+        const list = JSON.parse(s.rows[0].value);
+        if (Array.isArray(list)) origins = list.filter((o: unknown): o is string => typeof o === 'string');
+      } catch {
+        // Повреждённое значение настройки не должно ломать страницу.
+      }
+    }
+
+    const slug = t.rows[0].slug as string;
+    res.json({
+      slug,
+      widgetUrl: `${widgetBaseUrl(req)}/widget.html?tenant=${encodeURIComponent(slug)}`,
+      origins,
+    });
+  } catch (e) {
+    console.error('admin route error:', e);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Tags (per tenant)
 // ---------------------------------------------------------------------------
 
