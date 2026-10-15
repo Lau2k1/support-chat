@@ -81,6 +81,12 @@ export default function FeatureLocked({ title, description, requiredPlan, onUpgr
           <Button variant="contained" onClick={onUpgrade} sx={{ mt: 1 }}>
             Перейти к тарифам
           </Button>
+        ) : isAdmin ? (
+          // Admin, but standing in a panel that has no billing section — point
+          // them at the place where the plan actually changes.
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+            Сменить тариф можно в админ-панели, раздел «Оплата».
+          </Typography>
         ) : (
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
             Попросите администратора аккаунта сменить тариф.
