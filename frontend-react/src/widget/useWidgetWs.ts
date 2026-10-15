@@ -299,9 +299,9 @@ export function useWidgetWs(): WidgetWsState & WidgetWsActions {
         headers: token ? { 'X-Client-Token': token } : {},
         body: formData,
       });
-    } catch (e) {
-      // Сеть недоступна — наверх уходит понятный клиенту текст, причина в cause.
-      throw new Error('Не удалось загрузить файл: нет связи', { cause: e });
+    } catch {
+      // Сеть недоступна — показываем понятный клиенту текст вместо «Failed to fetch».
+      throw new Error('Не удалось загрузить файл: нет связи');
     }
 
     if (!res.ok) {
