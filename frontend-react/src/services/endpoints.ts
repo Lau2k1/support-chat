@@ -17,6 +17,7 @@ import type {
   TelegramBot,
   BillingOverview,
   PromoQuote,
+  Plan,
   CheckoutResult,
   Payment,
   CrmPayment,
@@ -155,6 +156,22 @@ export const superadminApi = {
     api.put<Tenant>(`/superadmin/tenants/${id}`, data),
   setTenantStatus: (id: number, status: 'active' | 'suspended') =>
     api.put<Tenant>(`/superadmin/tenants/${id}/status`, { status }),
+  /** Plan catalog for the CRM (assigning plans to clients by hand). */
+  getPlans: () => api.get<Plan[]>('/superadmin/plans'),
+  /**
+   * Manual subscription change. Only the fields you send are touched:
+   * `planCode` (null снимает тариф), `paidUntil` (null = бессрочно),
+   * `billingStatus`, `operatorLimit`.
+   */
+  updateTenantSubscription: (
+    id: number,
+    data: {
+      planCode?: string | null;
+      paidUntil?: string | null;
+      billingStatus?: 'active' | 'unpaid';
+      operatorLimit?: number | null;
+    }
+  ) => api.put<Tenant>(`/superadmin/tenants/${id}/subscription`, data),
   deleteTenant: (id: number) =>
     api.delete<{ ok: boolean; id: number; name: string; slug: string }>(`/superadmin/tenants/${id}`),
   issueInvites: (id: number, data: { count: number; expiresInHours?: number }) =>

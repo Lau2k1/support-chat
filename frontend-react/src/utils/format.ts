@@ -51,3 +51,46 @@ export function formatDuration(seconds: number | null | undefined): string {
   const restMin = minutes % 60;
   return restMin ? `${hours}ч ${restMin}м` : `${hours}ч`;
 }
+
+/**
+ * Days left until a subscription end date, rounded up — an end date later today
+ * still counts as a whole remaining day. Returns null when there is no end date
+ * at all (бессрочная подписка) and 0 once the date has passed.
+ */
+export function daysLeft(until: string | number | Date | null | undefined): number | null {
+  if (until === null || until === undefined || until === '') return null;
+  const d = toDate(until);
+  if (isNaN(d.getTime())) return null;
+  return Math.max(0, Math.ceil((d.getTime() - Date.now()) / 86400000));
+}
+
+/** «день» / «дня» / «дней» — the word alone, for a count shown separately. */
+export function daysWord(days: number): string {
+  const mod10 = days % 10;
+  const mod100 = days % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'день';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'дня';
+  return 'дней';
+}
+
+/** «1 день», «3 дня», «11 дней» — the count with the right Russian form. */
+export function pluralDays(days: number): string {
+  return `${days} ${daysWord(days)}`;
+}
+
+/** «YYYY-MM-DD» from a date field → конец этого дня по локальному времени, ISO. */
+export function endOfLocalDay(dateStr: string): string | null {
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length !== 3 || parts.some((p) => !Number.isFinite(p))) return null;
+  const [year, month, day] = parts;
+  return new Date(year, month - 1, day, 23, 59, 59, 999).toISOString();
+}
+
+/** ISO-дата → «YYYY-MM-DD» по локальному времени (для <input type="date">). */
+export function toDateInput(iso: string | number | Date | null | undefined): string {
+  if (iso === null || iso === undefined || iso === '') return '';
+  const d = toDate(iso);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}

@@ -20,10 +20,11 @@ import {
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
+import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import { billingApi } from '@/services/endpoints';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
-import { formatDateTime } from '@/utils/format';
+import { formatDateTime, daysLeft, daysWord } from '@/utils/format';
 import type { BillingOverview, Payment, Plan, PromoQuote } from '@/types';
 
 function money(cents: number): string {
@@ -190,6 +191,15 @@ export default function BillingPage() {
 
   const billing = data.billing;
   const active = !!billing?.active;
+  // «Сколько дней осталось» — null, когда срок не задан (бессрочная подписка).
+  const days = daysLeft(billing?.paidUntil);
+  const daysTone = !active
+    ? 'text.secondary'
+    : days === 0
+      ? 'error.main'
+      : days !== null && days <= 5
+        ? 'warning.main'
+        : 'success.main';
   const selectedPlan = data.plans.find((p) => p.code === selected) ?? null;
   const promoApplied = promo?.valid && promo.amountCents !== undefined;
   const priceCents = promoApplied ? promo!.amountCents! : selectedPlan?.price_cents ?? null;
@@ -203,30 +213,64 @@ export default function BillingPage() {
         Функции сервиса доступны сразу после оплаты или активации промокода.
       </Typography>
 
-      {/* Current subscription */}
+      {/* Current subscription: which plan is active and how long is left */}
       <Card sx={{ p: 2.5, mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-          <Chip
-            icon={active ? <CheckCircleIcon /> : undefined}
-            label={active ? 'Тариф активен' : 'Тариф не оплачен'}
-            color={active ? 'success' : 'warning'}
-          />
-          {billing?.planName && (
-            <Typography sx={{ fontWeight: 600 }}>
-              Тариф: {billing.planName}
-              {billing.operatorLimit ? ` · до ${billing.operatorLimit} операторов` : ' · без лимита операторов'}
-            </Typography>
-          )}
-          {billing?.paidUntil && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
+          <Box
+            sx={{
+              minWidth: 132,
+              px: 2,
+              py: 1.5,
+              borderRadius: 2,
+              textAlign: 'center',
+              bgcolor: 'action.hover',
+            }}
+          >
+            {billing?.paidUntil ? (
+              <>
+                <Typography sx={{ fontSize: 34, fontWeight: 800, lineHeight: 1.1, color: daysTone }}>
+                  {days}
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: daysTone }}>
+                  {daysWord(days ?? 0)} осталось
+                </Typography>
+              </>
+            ) : (
+              <>
+                <Box sx={{ color: active ? 'success.main' : 'text.disabled' }}>
+                  <EventAvailableIcon />
+                </Box>
+                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5 }}>
+                  {active ? 'Бессрочно' : 'Не оплачен'}
+                </Typography>
+              </>
+            )}
+          </Box>
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, flex: 1, minWidth: 240 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+              <Chip
+                size="small"
+                icon={active ? <CheckCircleIcon /> : undefined}
+                label={active ? 'Подписка активна' : 'Подписка не оплачена'}
+                color={active ? 'success' : 'warning'}
+              />
+              <Typography sx={{ fontWeight: 700, fontSize: 17 }}>
+                {billing?.planName ? `Тариф «${billing.planName}»` : 'Тариф не назначен'}
+              </Typography>
+            </Box>
             <Typography variant="body2" color="text.secondary">
-              Оплачено до: {formatDateTime(billing.paidUntil)}
+              {billing?.operatorLimit
+                ? `До ${billing.operatorLimit} операторов по тарифу`
+                : 'Без ограничения по числу операторов'}
+              {billing?.paidUntil ? ` · оплачено до ${formatDateTime(billing.paidUntil)}` : ''}
             </Typography>
-          )}
-          {!data.providerConfigured && !active && (
-            <Typography variant="body2" color="text.secondary">
-              Онлайн-оплата временно недоступна — заявка будет подтверждена вручную.
-            </Typography>
-          )}
+            {!data.providerConfigured && !active && (
+              <Typography variant="body2" color="text.secondary">
+                Онлайн-оплата временно недоступна — заявка будет подтверждена вручную.
+              </Typography>
+            )}
+          </Box>
         </Box>
       </Card>
 

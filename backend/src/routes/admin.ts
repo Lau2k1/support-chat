@@ -19,7 +19,7 @@ import {
 } from '../utils/validate';
 import { startOfDay, endOfDay } from '../utils/dateRange';
 import { getOperatorsWithStatus, type OperatorBusyStatus } from '../services/chat';
-import { markPaymentPaid } from '../services/billing';
+import { markPaymentPaid, listPlans, getPlanByCode } from '../services/billing';
 
 const router = Router();
 router.use(authMiddleware, tenantAdminMiddleware);
@@ -691,6 +691,7 @@ superRouter.get('/tenants', async (_req, res) => {
   try {
     const result = await pool.query(`
       SELECT t.id, t.slug, t.name, t.status, t.operator_limit, t.created_at,
+             t.billing_status, t.paid_until, t.plan_id, p.name AS plan_name, p.code AS plan_code,
              (SELECT COUNT(*)::int FROM operators o WHERE o.tenant_id = t.id) AS operators_count,
              (SELECT COUNT(*)::int FROM chats c WHERE c.tenant_id = t.id) AS chats_count,
              (SELECT COUNT(*)::int FROM chats c WHERE c.tenant_id = t.id AND c.status = 'open') AS open_chats,
@@ -700,6 +701,7 @@ superRouter.get('/tenants', async (_req, res) => {
              (SELECT COUNT(*)::int FROM invite_codes ic WHERE ic.tenant_id = t.id AND ic.used_by IS NOT NULL) AS invites_used,
              (SELECT COALESCE(AVG(c.rating), 0) FROM chats c WHERE c.tenant_id = t.id AND c.rating IS NOT NULL) AS avg_rating
       FROM tenants t
+      LEFT JOIN plans p ON p.id = t.plan_id
       ORDER BY t.id
     `);
     res.json(result.rows.map((r: any) => ({
@@ -735,6 +737,125 @@ superRouter.put('/tenants/:id', async (req, res) => {
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Tenant not found' });
     res.json(result.rows[0]);
+  } catch (e) {
+    console.error('admin route error:', e);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+/** Plan catalog for the CRM — the owner assigns plans to clients by hand. */
+superRouter.get('/plans', async (_req, res) => {
+  try {
+    res.json(await listPlans());
+  } catch (e) {
+    console.error('admin route error:', e);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+/**
+ * Manual subscription change for a client: offline payments, individual deals,
+ * make-good periods. Mirrors what a confirmed payment does (see
+ * services/billing.ts → markPaymentPaid), except the owner sets the end date
+ * explicitly instead of extending the term by a fixed number of days.
+ *
+ * Every field is optional — sending one changes only that one thing:
+ *   planCode      — код тарифа, null/'' снимает тариф
+ *   paidUntil     — ISO-дата окончания, null/'' делает подписку бессрочной
+ *   billingStatus — 'active' | 'unpaid'
+ *   operatorLimit — явный лимит мест (иначе берётся из тарифа)
+ */
+superRouter.put('/tenants/:id/subscription', async (req, res) => {
+  try {
+    const tenantId = Number(req.params.id);
+    if (!Number.isInteger(tenantId) || tenantId <= 0) {
+      return res.status(400).json({ error: 'Неверный ID тенанта' });
+    }
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    const hasPlan = body.planCode !== undefined && body.planCode !== null && String(body.planCode) !== '';
+
+    // --- тариф -------------------------------------------------------------
+    let planLimit: number | null | undefined;
+    if (body.planCode !== undefined) {
+      let planId: number | null = null;
+      if (hasPlan) {
+        const plan = await getPlanByCode(String(body.planCode));
+        if (!plan) return res.status(400).json({ error: 'Тариф не найден' });
+        planId = plan.id;
+        planLimit = plan.operator_limit ?? null;
+      }
+      params.push(planId);
+      sets.push(`plan_id = $${params.length}`);
+    }
+
+    // --- лимит мест --------------------------------------------------------
+    // Явное значение важнее тарифа. Иначе при назначении тарифа лимит берётся
+    // из него — ровно как при подтверждении оплаты. Снятие тарифа лимит не
+    // трогает: у «Custom» лимита нет вовсе, и затирать его нельзя.
+    if (body.operatorLimit !== undefined) {
+      if (body.operatorLimit !== null) {
+        const limitErr = validInt(body.operatorLimit, 'Лимит мест', { min: 0 });
+        if (limitErr) return res.status(400).json({ error: limitErr });
+      }
+      params.push(body.operatorLimit);
+      sets.push(`operator_limit = $${params.length}`);
+    } else if (planLimit !== undefined) {
+      params.push(planLimit);
+      sets.push(`operator_limit = $${params.length}`);
+    }
+
+    // --- срок --------------------------------------------------------------
+    if (body.paidUntil !== undefined) {
+      let value: string | null = null;
+      if (body.paidUntil !== null && String(body.paidUntil) !== '') {
+        const d = new Date(String(body.paidUntil));
+        if (Number.isNaN(d.getTime())) {
+          return res.status(400).json({ error: 'Неверная дата окончания' });
+        }
+        value = d.toISOString();
+      }
+      params.push(value);
+      sets.push(`paid_until = $${params.length}`);
+    }
+
+    // --- статус подписки ---------------------------------------------------
+    if (body.billingStatus !== undefined) {
+      const status = String(body.billingStatus);
+      if (status !== 'active' && status !== 'unpaid') {
+        return res.status(400).json({ error: 'Статус: active или unpaid' });
+      }
+      params.push(status);
+      sets.push(`billing_status = $${params.length}`);
+    } else if (hasPlan) {
+      // Выдать тариф и оставить клиента неоплаченным — почти всегда ошибка
+      // оператора, поэтому назначение тарифа сразу включает подписку.
+      sets.push("billing_status = 'active'");
+    }
+
+    if (!sets.length) return res.status(400).json({ error: 'Нечего менять' });
+
+    params.push(tenantId);
+    const updated = await pool.query(
+      `UPDATE tenants
+          SET ${sets.join(', ')}, billing_updated_at = CURRENT_TIMESTAMP
+        WHERE id = $${params.length}
+        RETURNING id`,
+      params
+    );
+    if (!updated.rows.length) return res.status(404).json({ error: 'Tenant not found' });
+
+    const row = await pool.query(
+      `SELECT t.id, t.slug, t.name, t.status, t.billing_status, t.paid_until,
+              t.plan_id, t.operator_limit, p.name AS plan_name, p.code AS plan_code
+         FROM tenants t
+         LEFT JOIN plans p ON p.id = t.plan_id
+        WHERE t.id = $1`,
+      [tenantId]
+    );
+    res.json(row.rows[0]);
   } catch (e) {
     console.error('admin route error:', e);
     res.status(500).json({ error: 'DB Error' });

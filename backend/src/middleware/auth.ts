@@ -94,6 +94,8 @@ export interface AuthUser {
   /** Raw billing state of the tenant (for the panel's paywall banner). */
   tenantBillingStatus?: string | null;
   tenantPaidUntil?: string | null;
+  /** Human-readable name of the tenant's plan, when one is assigned. */
+  tenantPlanName?: string | null;
   /** Features unlocked by the tenant's plan (superadmin: everything). */
   features: TenantFeatures;
   /** Email — null for accounts created through Telegram. */
@@ -156,7 +158,7 @@ export async function resolveOperator(token: string): Promise<AuthUser | null> {
   const result = await pool.query(
     `SELECT o.id, o.name, o.role, o.is_enabled, o.token_version, o.tenant_id,
             o.email, o.telegram_id, o.telegram_username, (o.password IS NOT NULL) AS has_password,
-            t.billing_status, t.paid_until,
+            t.billing_status, t.paid_until, p.name AS plan_name,
             (t.plan_id IS NOT NULL) AS has_plan,
             COALESCE(p.tickets_enabled, false) AS plan_tickets
      FROM operators o
@@ -191,6 +193,7 @@ export async function resolveOperator(token: string): Promise<AuthUser | null> {
     tenantActive,
     tenantBillingStatus: op.billing_status ?? null,
     tenantPaidUntil: paidUntil,
+    tenantPlanName: op.plan_name ?? null,
     // The superadmin bypasses every plan gate, so report the full feature set
     // instead of an empty one.
     features: {

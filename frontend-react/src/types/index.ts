@@ -12,6 +12,8 @@ export interface Tenant {
   name: string;
   status: 'active' | 'suspended';
   billing_status?: 'active' | 'unpaid';
+  plan_id?: number | null;
+  plan_code?: string | null;
   plan_name?: string | null;
   paid_until?: string | null;
   created_at?: string;

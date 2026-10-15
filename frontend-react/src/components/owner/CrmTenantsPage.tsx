@@ -11,6 +11,8 @@ import {
   Paper,
   Button,
   Chip,
+  MenuItem,
+  Alert,
   TextField,
   Dialog,
   DialogTitle,
@@ -22,7 +24,17 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { superadminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
 import { LIMITS, isSlug, validateRequired } from '@/utils/validation';
-import type { Tenant } from '@/types';
+import { daysLeft, pluralDays, toDateInput, endOfLocalDay } from '@/utils/format';
+import type { Plan, Tenant } from '@/types';
+
+/** Строка под названием тарифа в таблице клиентов: срок и состояние оплаты. */
+function subscriptionHint(tenant: Tenant): string {
+  if (tenant.billing_status !== 'active') return 'не оплачен';
+  const days = daysLeft(tenant.paid_until);
+  if (days === null) return 'бессрочно';
+  if (days === 0) return 'срок истёк';
+  return `осталось ${pluralDays(days)}`;
+}
 
 export default function CrmTenantsPage() {
   const navigate = useNavigate();
@@ -42,6 +54,13 @@ export default function CrmTenantsPage() {
   const [limitTenant, setLimitTenant] = useState<Tenant | null>(null);
   const [limitValue, setLimitValue] = useState('');
 
+  // Subscription (plan) dialog
+  const [subTenant, setSubTenant] = useState<Tenant | null>(null);
+  const [subPlan, setSubPlan] = useState('');
+  const [subStatus, setSubStatus] = useState<'active' | 'unpaid'>('active');
+  const [subUntil, setSubUntil] = useState('');
+  const [plans, setPlans] = useState<Plan[]>([]);
+
   // Delete tenant dialog
   const [deleteTenant, setDeleteTenant] = useState<Tenant | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState('');
@@ -56,6 +75,14 @@ export default function CrmTenantsPage() {
   }, [showToast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Каталог тарифов нужен диалогу выдачи — он не меняется, берём один раз.
+  useEffect(() => {
+    superadminApi
+      .getPlans()
+      .then((res) => setPlans(res.data))
+      .catch(() => {});
+  }, []);
 
   const handleCreate = async () => {
     const nameErr = validateRequired(name, 'Название', LIMITS.tenantName);
@@ -135,6 +162,41 @@ export default function CrmTenantsPage() {
     }
   };
 
+  /** Открыть диалог подписки: поля заполняются текущими значениями клиента. */
+  const handleOpenSubscription = (t: Tenant) => {
+    setSubPlan(t.plan_code ?? '');
+    setSubStatus(t.billing_status ?? 'unpaid');
+    setSubUntil(toDateInput(t.paid_until));
+    setSubTenant(t);
+  };
+
+  /** Быстрый срок: сегодня + N дней (в локальной зоне, как и поле даты). */
+  const presetUntil = (days: number) => {
+    setSubUntil(toDateInput(new Date(Date.now() + days * 86400000)));
+  };
+
+  const handleSaveSubscription = async () => {
+    if (!subTenant) return;
+    setBusy(true);
+    try {
+      // Тариф отправляем, только если он действительно менялся: иначе сервер
+      // заново применил бы лимит мест из тарифа и затёр ручную настройку.
+      const planChanged = (subTenant.plan_code ?? '') !== subPlan;
+      await superadminApi.updateTenantSubscription(subTenant.id, {
+        billingStatus: subStatus,
+        paidUntil: subUntil ? endOfLocalDay(subUntil) : null,
+        ...(planChanged ? { planCode: subPlan === '' ? null : subPlan } : {}),
+      });
+      showToast('Подписка обновлена');
+      setSubTenant(null);
+      load();
+    } catch (e: any) {
+      showToast(e?.response?.data?.error || 'Не удалось сохранить подписку', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleOpenDelete = (t: Tenant) => {
     setDeleteConfirm('');
     setDeleteTenant(t);
@@ -161,6 +223,8 @@ export default function CrmTenantsPage() {
       () => {}
     );
   };
+
+  const selectedPlan = plans.find((p) => p.code === subPlan) ?? null;
 
   return (
     <Box>
@@ -201,6 +265,7 @@ export default function CrmTenantsPage() {
             <TableRow>
               <HeadCell>Клиент</HeadCell>
               <HeadCell>Статус</HeadCell>
+              <HeadCell>Тариф</HeadCell>
               <HeadCell>Лимит мест</HeadCell>
               <HeadCell>Операторы</HeadCell>
               <HeadCell>Чаты / открыто</HeadCell>
@@ -225,6 +290,12 @@ export default function CrmTenantsPage() {
                   />
                 </TableCell>
                 <TableCell>
+                  <Typography sx={{ fontWeight: 600 }}>{t.plan_name ?? '— без тарифа —'}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {subscriptionHint(t)}
+                  </Typography>
+                </TableCell>
+                <TableCell>
                   {t.operator_limit === null || t.operator_limit === undefined ? '∞' : t.operator_limit}
                 </TableCell>
                 <TableCell>{t.operators_count ?? 0}</TableCell>
@@ -239,6 +310,9 @@ export default function CrmTenantsPage() {
                       onClick={() => navigate(`/crm?view=tenant&id=${t.id}`)}
                     >
                       Управление
+                    </Button>
+                    <Button size="small" variant="contained" color="success" onClick={() => handleOpenSubscription(t)}>
+                      Тариф
                     </Button>
                     <Button size="small" variant="contained" onClick={() => handleOpenIssue(t)}>
                       Выдать инвайты
@@ -263,7 +337,7 @@ export default function CrmTenantsPage() {
             ))}
             {!tenants.length && (
               <TableRow>
-                <TableCell colSpan={7} sx={{ textAlign: 'center', color: 'text.secondary', py: 3 }}>
+                <TableCell colSpan={8} sx={{ textAlign: 'center', color: 'text.secondary', py: 3 }}>
                   Тенантов пока нет
                 </TableCell>
               </TableRow>
@@ -342,6 +416,83 @@ export default function CrmTenantsPage() {
         <DialogActions>
           <Button onClick={() => setLimitTenant(null)}>Отмена</Button>
           <Button variant="contained" onClick={handleSaveLimit} disabled={busy}>Сохранить</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Subscription: выдать или сменить тариф вручную */}
+      <Dialog open={!!subTenant} onClose={() => setSubTenant(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Тариф — {subTenant?.name}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Ручная выдача тарифа: клиент оплатил напрямую или вы даёте доступ на свой срок. Платёж в CRM при этом
+            не создаётся.
+          </Typography>
+
+          <TextField
+            select
+            fullWidth
+            label="Тариф"
+            value={subPlan}
+            onChange={(e) => {
+              const next = e.target.value;
+              setSubPlan(next);
+              // Выдача тарифа и есть включение подписки, поэтому статус
+              // переключаем сразу — поле остаётся редактируемым.
+              if (next && subStatus === 'unpaid') setSubStatus('active');
+            }}
+            sx={{ mb: 2 }}
+          >
+            <MenuItem value="">— без тарифа —</MenuItem>
+            {plans.map((p) => (
+              <MenuItem key={p.code} value={p.code}>
+                {p.name}
+                {p.operator_limit !== null ? ` · до ${p.operator_limit} операторов` : ' · без лимита'}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            fullWidth
+            label="Оплата"
+            value={subStatus}
+            onChange={(e) => setSubStatus(e.target.value as 'active' | 'unpaid')}
+            sx={{ mb: 2 }}
+          >
+            <MenuItem value="active">Активна</MenuItem>
+            <MenuItem value="unpaid">Не оплачена</MenuItem>
+          </TextField>
+
+          <TextField
+            fullWidth
+            type="date"
+            label="Действует до"
+            value={subUntil}
+            onChange={(e) => setSubUntil(e.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }}
+            helperText="Пусто = бессрочно. Дата включительно, до конца дня."
+          />
+
+          <Box sx={{ display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
+            <Button size="small" variant="outlined" onClick={() => presetUntil(30)}>+30 дней</Button>
+            <Button size="small" variant="outlined" onClick={() => presetUntil(90)}>+90 дней</Button>
+            <Button size="small" variant="outlined" onClick={() => presetUntil(365)}>+1 год</Button>
+            <Button size="small" variant="outlined" onClick={() => setSubUntil('')}>Бессрочно</Button>
+          </Box>
+
+          {selectedPlan && subPlan !== (subTenant?.plan_code ?? '') && (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              Лимит мест клиента станет{' '}
+              <b>{selectedPlan.operator_limit === null ? 'без лимита' : selectedPlan.operator_limit}</b> — как в тарифе
+              «{selectedPlan.name}».
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSubTenant(null)}>Отмена</Button>
+          <Button variant="contained" onClick={handleSaveSubscription} disabled={busy}>
+            Сохранить
+          </Button>
         </DialogActions>
       </Dialog>
 

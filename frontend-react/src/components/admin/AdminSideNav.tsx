@@ -18,6 +18,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { wsManager } from '@/services/ws';
 import ThemeToggle from '@/components/common/ThemeToggle';
+import { daysLeft, pluralDays } from '@/utils/format';
 
 type Page = 'operators' | 'invites' | 'tags' | 'settings' | 'audit' | 'stats' | 'telegram' | 'billing' | 'ticket-templates' | 'tickets';
 
@@ -50,6 +51,25 @@ export default function AdminSideNav({ current, onChange }: Props) {
   const showTelegram = useUIStore((s) => s.showTelegram);
   const telegramLinked = useAuthStore((s) => s.user?.telegram?.linked ?? false);
   const canUseTickets = useAuthStore((s) => s.canUseTickets);
+  const billing = useAuthStore((s) => s.user?.billing);
+  const billingActive = useAuthStore((s) => s.billingActive);
+
+  // Остаток подписки: null — бессрочно, 0 — срок вышел.
+  const days = daysLeft(billing?.paidUntil);
+  const daysTone = !billingActive
+    ? '#94a3b8'
+    : days === 0
+      ? '#f87171'
+      : days !== null && days <= 5
+        ? '#fbbf24'
+        : '#4ade80';
+  const daysText = !billingActive
+    ? 'не оплачен'
+    : days === null
+      ? 'бессрочно'
+      : days === 0
+        ? 'срок истёк'
+        : `${pluralDays(days)}`;
 
   const handleLogout = () => {
     showConfirm({
@@ -116,6 +136,27 @@ export default function AdminSideNav({ current, onChange }: Props) {
       </Box>
 
       <Box sx={{ px: 2, py: 1.5, borderTop: '1px solid #334155' }}>
+        <Box
+          onClick={() => onChange('billing')}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            mb: 1.4,
+            px: 1,
+            py: 0.9,
+            borderRadius: 1,
+            bgcolor: 'rgba(255,255,255,0.05)',
+            cursor: 'pointer',
+            '&:hover': { bgcolor: 'rgba(255,255,255,0.09)' },
+          }}
+        >
+          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: daysTone, flexShrink: 0 }} />
+          <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0' }}>
+            {billing?.planName ?? 'Тариф не назначен'}
+          </Typography>
+          <Typography sx={{ fontSize: 11, color: daysTone, ml: 'auto', whiteSpace: 'nowrap' }}>{daysText}</Typography>
+        </Box>
         <Box
           onClick={() => navigate('/operator')}
           sx={{

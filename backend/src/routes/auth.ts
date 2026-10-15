@@ -198,6 +198,7 @@ router.get('/me', authMiddleware, (req, res) => {
       active: user.tenantActive,
       status: user.tenantBillingStatus ?? null,
       paidUntil: user.tenantPaidUntil ?? null,
+      planName: user.tenantPlanName ?? null,
     },
     telegram: {
       linked: Boolean(user.telegramId),

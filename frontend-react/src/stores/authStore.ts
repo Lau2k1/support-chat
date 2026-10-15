@@ -12,6 +12,8 @@ export interface CurrentUser {
     active: boolean;
     status: string | null;
     paidUntil: string | null;
+    /** Name of the active plan, when one is assigned. */
+    planName?: string | null;
   };
   telegram?: {
     linked: boolean;
