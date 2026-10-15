@@ -53,6 +53,7 @@ export default function AdminSideNav({ current, onChange }: Props) {
   const canUseTickets = useAuthStore((s) => s.canUseTickets);
   const billing = useAuthStore((s) => s.user?.billing);
   const billingActive = useAuthStore((s) => s.billingActive);
+  const tenantId = useAuthStore((s) => s.tenantId);
 
   // Остаток подписки: null — бессрочно, 0 — срок вышел.
   const days = daysLeft(billing?.paidUntil);
@@ -136,27 +137,30 @@ export default function AdminSideNav({ current, onChange }: Props) {
       </Box>
 
       <Box sx={{ px: 2, py: 1.5, borderTop: '1px solid #334155' }}>
-        <Box
-          onClick={() => onChange('billing')}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            mb: 1.4,
-            px: 1,
-            py: 0.9,
-            borderRadius: 1,
-            bgcolor: 'rgba(255,255,255,0.05)',
-            cursor: 'pointer',
-            '&:hover': { bgcolor: 'rgba(255,255,255,0.09)' },
-          }}
-        >
-          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: daysTone, flexShrink: 0 }} />
-          <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0' }}>
-            {billing?.planName ?? 'Тариф не назначен'}
-          </Typography>
-          <Typography sx={{ fontSize: 11, color: daysTone, ml: 'auto', whiteSpace: 'nowrap' }}>{daysText}</Typography>
-        </Box>
+        {/* У владельца платформы нет тенанта — ему этот индикатор не о чем. */}
+        {tenantId !== null && (
+          <Box
+            onClick={() => onChange('billing')}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              mb: 1.4,
+              px: 1,
+              py: 0.9,
+              borderRadius: 1,
+              bgcolor: 'rgba(255,255,255,0.05)',
+              cursor: 'pointer',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.09)' },
+            }}
+          >
+            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: daysTone, flexShrink: 0 }} />
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0' }}>
+              {billing?.planName ?? 'Тариф не назначен'}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: daysTone, ml: 'auto', whiteSpace: 'nowrap' }}>{daysText}</Typography>
+          </Box>
+        )}
         <Box
           onClick={() => navigate('/operator')}
           sx={{
