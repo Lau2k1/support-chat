@@ -413,6 +413,8 @@ CREATE TABLE IF NOT EXISTS legal_acceptances (
     privacy_version VARCHAR(16) NOT NULL,
     consent_version VARCHAR(16) NOT NULL,
     dpa_version VARCHAR(16) NOT NULL,
+    consumer_version VARCHAR(16),
+    client_type VARCHAR(16) NOT NULL DEFAULT 'business',  -- business | consumer
     marketing_consent BOOLEAN NOT NULL DEFAULT false,
     ip VARCHAR(64),
     user_agent TEXT,
@@ -421,3 +423,9 @@ CREATE TABLE IF NOT EXISTS legal_acceptances (
 
 CREATE INDEX IF NOT EXISTS idx_legal_acceptances_operator ON legal_acceptances(operator_id);
 CREATE INDEX IF NOT EXISTS idx_legal_acceptances_tenant ON legal_acceptances(tenant_id);
+
+-- Редакция 1.1 оферты: Приложение № 2 (условия для клиентов-потребителей) и
+-- заявленный клиентом статус (business | consumer). Отдельные ALTER нужны для
+-- баз, где таблица была создана предыдущей редакцией схемы.
+ALTER TABLE legal_acceptances ADD COLUMN IF NOT EXISTS consumer_version VARCHAR(16);
+ALTER TABLE legal_acceptances ADD COLUMN IF NOT EXISTS client_type VARCHAR(16) NOT NULL DEFAULT 'business';

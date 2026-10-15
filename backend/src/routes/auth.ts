@@ -11,7 +11,7 @@ import {
 } from '../middleware/auth';
 import { LIMITS, validEmail, validPassword, validString, firstError } from '../utils/validate';
 import { notifyNewTenant } from '../services/notify';
-import { recordAcceptance } from '../legal';
+import { recordAcceptance, type ClientType } from '../legal';
 
 const router = Router();
 
@@ -81,12 +81,18 @@ router.post('/login', async (req, res) => {
 });
 
 router.post('/register', async (req, res) => {
-  const { name, email, password, inviteCode, company, acceptOffer, acceptConsent, marketingConsent } = req.body ?? {};
+  const { name, email, password, inviteCode, company, acceptOffer, acceptConsent, marketingConsent, clientType } =
+    req.body ?? {};
   // Two flows share this endpoint:
   //  - with an invite code → an operator joins an existing tenant;
   //  - without one → a client self-registers and becomes the admin of a NEW tenant.
   const hasInvite = typeof inviteCode === 'string' && inviteCode.trim().length > 0;
   const companyStr = typeof company === 'string' ? company.trim() : '';
+  // Заявленная цель приобретения: B2B (по умолчанию) или личные нужды. Для
+  // самостоятельной регистрации выбор обязателен — это доказательство статуса
+  // клиента при споре (оферта, разд. 12; Приложение № 2).
+  const clientTypeRaw = typeof clientType === 'string' ? clientType.trim() : '';
+  const declaredClientType: ClientType = clientTypeRaw === 'consumer' ? 'consumer' : 'business';
 
   const err = firstError(
     validString(name, 'Имя', { max: LIMITS.operatorName }),
@@ -100,6 +106,9 @@ router.post('/register', async (req, res) => {
     // регистрации (ст. 9, 18.1 ФЗ-152). Без них аккаунт не создаётся.
     acceptOffer !== true || acceptConsent !== true
       ? 'Необходимо принять Публичную оферту и дать согласие на обработку персональных данных'
+      : null,
+    !hasInvite && clientTypeRaw !== 'business' && clientTypeRaw !== 'consumer'
+      ? 'Укажите цель приобретения Сервиса: для бизнеса или для личных нужд'
       : null
   );
   if (err) return res.status(400).json({ error: err });
@@ -152,6 +161,9 @@ router.post('/register', async (req, res) => {
         tenantId: newOp.tenant_id,
         email: normEmail,
         source: 'invite',
+        // Оператор присоединяется к аккаунту клиента по инвайту — приобретение
+        // совершает клиент (B2B), сам оператор ничего не приобретает.
+        clientType: 'business',
         marketingConsent: marketingConsent === true,
         req,
       });
@@ -191,6 +203,7 @@ router.post('/register', async (req, res) => {
       tenantId,
       email: normEmail,
       source: 'register',
+      clientType: declaredClientType,
       marketingConsent: marketingConsent === true,
       req,
     });

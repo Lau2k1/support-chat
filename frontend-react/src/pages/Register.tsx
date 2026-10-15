@@ -40,6 +40,9 @@ export default function Register() {
   const [acceptOffer, setAcceptOffer] = useState(false);
   const [acceptConsent, setAcceptConsent] = useState(false);
   const [marketingConsent, setMarketingConsent] = useState(false);
+  // Заявленная цель приобретения (оферта, разд. 12). Пусто = выбор не сделан:
+  // требуем явного волеизъявления, а не выбранного за клиента значения.
+  const [clientType, setClientType] = useState<'' | 'business' | 'consumer'>('');
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
 
@@ -48,6 +51,10 @@ export default function Register() {
       setMode(next);
       setError('');
     }
+  };
+
+  const handleClientType = (_: unknown, next: '' | 'business' | 'consumer' | null) => {
+    setClientType(next ?? '');
   };
 
   /** Telegram signup creates a new client (tenant + admin) and signs in. */
@@ -80,6 +87,10 @@ export default function Register() {
     if (passErr) { setError(passErr); return; }
     if (password !== password2) { setError('Пароли не совпадают'); return; }
     if (mode === 'operator' && !inviteCode.trim()) { setError('Введите инвайт-код'); return; }
+    if (mode === 'admin' && !clientType) {
+      setError('Укажите цель приобретения Сервиса: для бизнеса или для личных нужд');
+      return;
+    }
     if (!acceptOffer) { setError('Подтвердите принятие Публичной оферты и Политики обработки персональных данных'); return; }
     if (!acceptConsent) { setError('Необходимо согласие на обработку персональных данных'); return; }
 
@@ -94,7 +105,7 @@ export default function Register() {
         marketingConsent,
         ...(mode === 'operator'
           ? { inviteCode: inviteCode.trim().toUpperCase() }
-          : { company: company.trim() }),
+          : { company: company.trim(), clientType: clientType as 'business' | 'consumer' }),
       });
       await login();
       navigate('/');
@@ -194,6 +205,48 @@ export default function Register() {
             />
           )}
 
+          {mode === 'admin' && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+                Для чего приобретаете Сервис?
+              </Typography>
+              <ToggleButtonGroup
+                value={clientType}
+                exclusive
+                onChange={handleClientType}
+                fullWidth
+                size="small"
+              >
+                <ToggleButton value="business" sx={{ textTransform: 'none', fontWeight: 600, py: 0.75 }}>
+                  Для бизнеса
+                </ToggleButton>
+                <ToggleButton value="consumer" sx={{ textTransform: 'none', fontWeight: 600, py: 0.75 }}>
+                  Для личных нужд
+                </ToggleButton>
+              </ToggleButtonGroup>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                {clientType === 'business'
+                  ? 'Для поддержки своих клиентов и заказчиков.'
+                  : clientType === 'consumer'
+                    ? 'Для личных нужд применяется Приложение № 2.'
+                    : 'Выберите вариант — это обязательное условие регистрации.'}
+              </Typography>
+            </Box>
+          )}
+
+          {mode === 'admin' && clientType === 'consumer' && (
+            <Alert severity="info" sx={{ mb: 1.5 }}>
+              Сервис рассчитан на профессиональное использование. Приобретая его для личных нужд, вы
+              принимаете{' '}
+              <Link href="/legal/consumer" target="_blank" rel="noopener" underline="hover">
+                Приложение № 2
+              </Link>
+              : отказаться от договора можно в любой момент (возврат за вычетом фактически понесённых
+              расходов), автоматические списания не производятся, споры рассматриваются по правилам о
+              защите прав потребителей.
+            </Alert>
+          )}
+
           <FormControlLabel
             sx={{ alignItems: 'flex-start', mb: 1, mx: 0 }}
             control={
@@ -213,8 +266,12 @@ export default function Register() {
                 и{' '}
                 <Link href="/legal/privacy" target="_blank" rel="noopener" underline="hover">
                   Политику обработки персональных данных
+                </Link>{' '}
+                (а при приобретении для личных нужд — также{' '}
+                <Link href="/legal/consumer" target="_blank" rel="noopener" underline="hover">
+                  Приложение № 2
                 </Link>
-                , а также подтверждаю, что использую Сервис в предпринимательских целях.
+                ), а также подтверждаю, что указал достоверную цель приобретения Сервиса.
               </Typography>
             }
           />
@@ -276,7 +333,8 @@ export default function Register() {
 
         <TelegramLoginButton onAuth={handleTelegram} disabled={loading} />
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
-          Создаст нового клиента (аккаунт + тариф). Продолжая, вы принимаете{' '}
+          Создаст нового клиента (аккаунт + тариф). Продолжая, вы подтверждаете, что приобретаете
+          Сервис для профессиональной деятельности, принимаете{' '}
           <Link href="/legal/offer" target="_blank" rel="noopener" underline="hover">
             оферту
           </Link>{' '}

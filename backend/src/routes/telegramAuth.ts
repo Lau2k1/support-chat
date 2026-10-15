@@ -122,6 +122,9 @@ router.post('/auth/telegram/login', async (req, res) => {
       tenantId,
       email: null,
       source: 'telegram',
+      // Вход через Telegram создаёт клиентский аккаунт для поддержки своих
+      // клиентов — заявление о профессиональной цели (оферта, разд. 12).
+      clientType: 'business',
       marketingConsent: false,
       req,
     });

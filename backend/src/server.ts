@@ -205,11 +205,11 @@ app.use(express.static(frontendPath, { index: false }));
 // Статика лендинга: /landing/styles.css и т.п.
 app.use('/landing', express.static(landingPath, { index: false }));
 
-// Юридические документы: /legal/<doc> (оферта, политика, согласие, поручение,
-// cookie). Отдаём на обоих доменах — на них ссылаются и лендинг, и форма
-// регистрации в панели. Белый список, чтобы маршрут не превратился в
-// произвольную выдачу файлов.
-const LEGAL_DOCS = new Set(['offer', 'privacy', 'consent', 'dpa', 'cookies']);
+// Юридические документы: /legal/<doc> (оферта, условия для потребителей,
+// политика, согласие, поручение, cookie). Отдаём на обоих доменах — на них
+// ссылаются и лендинг, и форма регистрации в панели. Белый список, чтобы
+// маршрут не превратился в произвольную выдачу файлов.
+const LEGAL_DOCS = new Set(['offer', 'consumer', 'privacy', 'consent', 'dpa', 'cookies']);
 app.get('/legal/:doc', (req, res, next) => {
   const doc = String(req.params.doc || '').toLowerCase();
   if (!LEGAL_DOCS.has(doc)) return next();

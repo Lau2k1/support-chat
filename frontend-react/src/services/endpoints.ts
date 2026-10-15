@@ -53,6 +53,12 @@ export const authApi = {
     acceptConsent: boolean;
     /** Необязательное согласие на информационные и маркетинговые сообщения. */
     marketingConsent?: boolean;
+    /**
+     * Заявленная цель приобретения (оферта, разд. 12): `business` — для поддержки
+     * своих клиентов, `consumer` — для личных нужд (тогда применяется Приложение № 2).
+     * Для самостоятельной регистрации обязателен.
+     */
+    clientType?: 'business' | 'consumer';
   }) => api.post<{ token: string; role: string }>('/register', data),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.post<{ token: string }>('/me/password', { currentPassword, newPassword }),

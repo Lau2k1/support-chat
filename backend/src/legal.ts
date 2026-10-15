@@ -8,16 +8,27 @@ import type { Request } from 'express';
  * об акцепте будет ссылаться на несуществующую редакцию.
  */
 export const LEGAL = {
-  offer: '1.0',
+  offer: '1.1',
   privacy: '1.0',
   consent: '1.0',
   dpa: '1.0',
+  consumer: '1.0',
   cookies: '1.0',
   effectiveDate: '2026-10-15',
 } as const;
 
 /** Каким способом пользователь принял документы. */
 export type AcceptanceSource = 'register' | 'invite' | 'telegram';
+
+/**
+ * Заявленная цель приобретения Сервиса.
+ *
+ * `business` — предпринимательская/профессиональная деятельность (сервис продаётся
+ * как B2B-инструмент); `consumer` — личные нужды, применяется Приложение № 2.
+ * Это заявление клиента используется как доказательство при споре о статусе,
+ * поэтому пишется в одной строке с акцептом документов.
+ */
+export type ClientType = 'business' | 'consumer';
 
 interface Queryable {
   query: (sql: string, params?: unknown[]) => Promise<unknown>;
@@ -27,9 +38,9 @@ interface Queryable {
  * Фиксирует акцепт оферты и согласие на обработку персональных данных.
  *
  * Запись — это доказательство воли пользователя: храним редакции документов,
- * момент времени, способ принятия и технические данные соединения. Вызывается
- * в той же транзакции, что и создание учётной записи, чтобы не появилось
- * аккаунтов без подтверждённого акцепта.
+ * момент времени, способ принятия, заявленный статус (B2B/потребитель) и
+ * технические данные соединения. Вызывается в той же транзакции, что и создание
+ * учётной записи, чтобы не появилось аккаунтов без подтверждённого акцепта.
  */
 export async function recordAcceptance(
   client: Queryable,
@@ -38,6 +49,7 @@ export async function recordAcceptance(
     tenantId: number | null;
     email: string | null;
     source: AcceptanceSource;
+    clientType: ClientType;
     marketingConsent: boolean;
     req: Request;
   }
@@ -46,8 +58,9 @@ export async function recordAcceptance(
   await client.query(
     `INSERT INTO legal_acceptances
        (operator_id, tenant_id, email, source, offer_version, privacy_version,
-        consent_version, dpa_version, marketing_consent, ip, user_agent)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        consent_version, dpa_version, consumer_version, client_type,
+        marketing_consent, ip, user_agent)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
     [
       params.operatorId,
       params.tenantId,
@@ -57,6 +70,8 @@ export async function recordAcceptance(
       LEGAL.privacy,
       LEGAL.consent,
       LEGAL.dpa,
+      LEGAL.consumer,
+      params.clientType,
       params.marketingConsent,
       (params.req.ip || '').slice(0, 64),
       ua ? ua.slice(0, 500) : null,
