@@ -129,6 +129,9 @@ export default function Recover() {
             <TelegramLoginButton
               onAuth={handleTelegram}
               onUnavailable={() => setWidgetUnavailable(true)}
+              onUnauthorized={() =>
+                setError('Подтверждение через Telegram не завершено — попробуйте ещё раз')
+              }
               disabled={loading}
             />
 

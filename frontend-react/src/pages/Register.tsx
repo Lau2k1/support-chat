@@ -274,7 +274,13 @@ export default function Register() {
           </Typography>
         </Divider>
 
-        <TelegramLoginButton onAuth={handleTelegram} disabled={loading} />
+        <TelegramLoginButton
+          onAuth={handleTelegram}
+          onUnauthorized={() =>
+            setError('Подтверждение через Telegram не завершено — попробуйте ещё раз')
+          }
+          disabled={loading}
+        />
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
           Создаст нового клиента (аккаунт + тариф). Продолжая, вы подтверждаете, что приобретаете
           Сервис для профессиональной деятельности, принимаете{' '}

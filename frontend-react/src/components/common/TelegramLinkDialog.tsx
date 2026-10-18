@@ -110,7 +110,13 @@ export default function TelegramLinkDialog() {
             <Typography variant="body2" color="text.secondary">
               Привяжите свой Telegram, чтобы входить в панель одним нажатием — без ввода почты и пароля.
             </Typography>
-            <TelegramLoginButton onAuth={handleAuth} disabled={busy} />
+            <TelegramLoginButton
+              onAuth={handleAuth}
+              onUnauthorized={() =>
+                showToast('Вход через Telegram не завершён — попробуйте ещё раз', 'error')
+              }
+              disabled={busy}
+            />
             <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
               Данные подтверждает Telegram — пароль мы не увидим.
             </Typography>

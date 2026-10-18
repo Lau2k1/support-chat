@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Box } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { authApi } from '@/services/endpoints';
 import type { TelegramWidgetData } from '@/types';
 
@@ -7,6 +7,8 @@ interface Props {
   onAuth: (user: TelegramWidgetData) => void;
   /** Виджет недоступен: Telegram не настроен или скрипт не загрузился. */
   onUnavailable?: () => void;
+  /** Окно Telegram закрыли, не завершив вход: виджет прислал 'unauthorized'. */
+  onUnauthorized?: () => void;
   disabled?: boolean;
 }
 
@@ -24,18 +26,25 @@ interface Props {
  * Renders nothing when Telegram login is not configured, so the panel degrades
  * gracefully before the bot token is in place.
  */
-export default function TelegramLoginButton({ onAuth, onUnavailable, disabled = false }: Props) {
+export default function TelegramLoginButton({
+  onAuth,
+  onUnavailable,
+  onUnauthorized,
+  disabled = false,
+}: Props) {
   const holder = useRef<HTMLDivElement | null>(null);
   const botUsername = useRef<string | null>(null);
   const callback = useRef(onAuth);
   const unavailable = useRef(onUnavailable);
+  const unauthorized = useRef(onUnauthorized);
   const [ready, setReady] = useState(false);
 
   // Keep the latest callbacks without re-injecting the widget script.
   useEffect(() => {
     callback.current = onAuth;
     unavailable.current = onUnavailable;
-  }, [onAuth, onUnavailable]);
+    unauthorized.current = onUnauthorized;
+  }, [onAuth, onUnavailable, onUnauthorized]);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,7 +79,11 @@ export default function TelegramLoginButton({ onAuth, onUnavailable, disabled = 
       }
       if (data.event === 'auth_user' && data.auth_data) {
         callback.current(data.auth_data);
+        return;
       }
+      // Окно Telegram закрыли, не завершив вход: раньше это выглядело как
+      // «кнопка ничего не делает», теперь показываем сообщение.
+      if (data.event === 'unauthorized') unauthorized.current?.();
     };
     window.addEventListener('message', onMessage);
     return () => {
@@ -101,13 +114,19 @@ export default function TelegramLoginButton({ onAuth, onUnavailable, disabled = 
 
   return (
     <Box
-      ref={holder}
       sx={{
         display: 'flex',
-        justifyContent: 'center',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 0.75,
         opacity: disabled ? 0.6 : 1,
         pointerEvents: disabled ? 'none' : 'auto',
       }}
-    />
+    >
+      <Box ref={holder} />
+      <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
+        Откроется окно Telegram — подтвердите вход
+      </Typography>
+    </Box>
   );
 }

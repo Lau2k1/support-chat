@@ -168,7 +168,13 @@ export default function Login() {
           </Typography>
         </Divider>
 
-        <TelegramLoginButton onAuth={handleTelegram} disabled={loading} />
+        <TelegramLoginButton
+          onAuth={handleTelegram}
+          onUnauthorized={() =>
+            setError('Вход через Telegram не завершён — попробуйте ещё раз')
+          }
+          disabled={loading}
+        />
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
           Продолжая, вы принимаете{' '}
           <Link href="/legal/offer" target="_blank" rel="noopener" underline="hover">
