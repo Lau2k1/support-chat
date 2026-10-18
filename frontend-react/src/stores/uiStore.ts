@@ -20,6 +20,8 @@ interface UIState {
   hideChangePassword: () => void;
   showTelegram: () => void;
   hideTelegram: () => void;
+  /** Закрыть диалоги и подсказки при смене пользователя. */
+  reset: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -42,4 +44,6 @@ export const useUIStore = create<UIState>((set) => ({
 
   showTelegram: () => set({ telegramOpen: true }),
   hideTelegram: () => set({ telegramOpen: false }),
+
+  reset: () => set({ confirmDialog: null, toast: null, changePasswordOpen: false, telegramOpen: false }),
 }));

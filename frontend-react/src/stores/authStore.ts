@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { isSameSession, resetClientSession } from '@/stores/sessionReset';
 
 /** Shape returned by GET /me (the JWT itself lives in an HttpOnly cookie). */
 export interface CurrentUser {
@@ -72,6 +73,14 @@ async function fetchMe(): Promise<CurrentUser | null> {
   }
 }
 
+/**
+ * Другой пользователь — значит, данные прошлой сессии в памяти надо стереть.
+ * Проверяем до записи нового пользователя, иначе сравнивать будет не с чем.
+ */
+function switchedSession(user: CurrentUser | null): boolean {
+  return !isSameSession(user, useAuthStore.getState().user);
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
@@ -85,10 +94,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   // Called right after a successful /login or /register (cookie already set by the API).
   login: async () => {
     const user = await fetchMe();
+    if (switchedSession(user)) resetClientSession();
     set({ ...derive(user), authReady: true });
   },
 
   logout: async () => {
+    // Сбрасываем клиентское состояние и сокет, затем снимаем cookie: иначе
+    // следующий вошедший оператор увидит чаты предыдущего.
+    resetClientSession();
     // Clear local state first so the UI redirects immediately, then drop the cookie.
     set({ ...derive(null), authReady: true });
     try {
@@ -100,11 +113,13 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   checkAuth: async () => {
     const user = await fetchMe();
+    if (switchedSession(user)) resetClientSession();
     set({ ...derive(user), authReady: true });
   },
 
   refresh: async () => {
     const user = await fetchMe();
+    if (switchedSession(user)) resetClientSession();
     set({ ...derive(user) });
   },
 }));

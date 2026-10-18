@@ -21,6 +21,9 @@ export function useWebSocket() {
     setOnlineOperators,
     currentChatId,
   } = useChatStore();  const { logout } = useAuthStore();
+  // Смена пользователя закрывает сокет (см. stores/sessionReset), поэтому
+  // вход другим аккаунтом должен поднять соединение заново.
+  const userId = useAuthStore((s) => s.user?.id ?? null);
   const showToast = useUIStore((s) => s.showToast);
 
   const handleMessage = useCallback(
@@ -129,5 +132,5 @@ export function useWebSocket() {
     return () => {
       unsub();
     };
-  }, [handleMessage]);
+  }, [handleMessage, userId]);
 }

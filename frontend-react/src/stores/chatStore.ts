@@ -44,6 +44,8 @@ interface ChatState {
   setOperatorStatus: (status: 'online' | 'busy' | 'offline') => void;
   setNoteMode: (mode: boolean) => void;
   removeChat: (chatId: number) => void;
+  /** Полный сброс: смена пользователя не должна оставлять чужие чаты в памяти. */
+  reset: () => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -170,5 +172,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
         chatAssignees: restAssignees,
         chatTags: restChatTags,
       };
+    }),
+
+  /**
+   * Возврат к начальному состоянию. Данные чатов живут только в памяти вкладки
+   * и не привязаны к сессии, поэтому без сброса новый оператор видел список,
+   * имена и превью предыдущего тенанта до перезагрузки страницы.
+   */
+  reset: () =>
+    set({
+      currentChatId: null,
+      openTabs: [],
+      messages: {},
+      chatTimers: {},
+      chatUnread: {},
+      chatPreviews: {},
+      chatSources: {},
+      chatNames: {},
+      chatPublicCodes: {},
+      chatAssignees: {},
+      chatTags: {},
+      typingChatIds: new Set<number>(),
+      onlineOperators: [],
+      allTags: [],
+      cannedResponses: [],
+      operatorStatus: 'online',
+      noteMode: false,
     }),
 }));
