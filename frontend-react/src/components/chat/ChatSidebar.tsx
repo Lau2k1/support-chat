@@ -16,7 +16,6 @@ interface ChatSidebarProps {
 }
 
 type Group = 'waiting' | 'distributed' | 'mine';
-type Tab = 'all' | Group;
 
 const groupTitles: Record<Group, string> = {
   waiting: 'Ожидающие',
@@ -28,7 +27,6 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
   const { chatTimers, chatUnread, chatPreviews, chatSources, chatNames, chatPublicCodes, chatAssignees } = useChatStore();
   const myId = useAuthStore((s) => s.user?.id ?? null);
   const [search, setSearch] = useState('');
-  const [tab, setTab] = useState<Tab>('all');
   const [chatIds, setChatIds] = useState<number[]>([]);
   const [now, setNow] = useState(Date.now());
 
@@ -66,12 +64,6 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
   }
 
   const tabOrder: Group[] = ['distributed', 'waiting', 'mine'];
-  const tabs: { key: Tab; label: string; count: number }[] = [
-    { key: 'all', label: 'Все', count: filtered.length },
-    ...tabOrder.map((key) => ({ key: key as Tab, label: groupTitles[key], count: groups[key].length })),
-  ];
-
-  const visibleGroups = tab === 'all' ? tabOrder : [tab];
 
   return (
     <Box
@@ -85,7 +77,7 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
         flexShrink: 0,
       }}
     >
-      <Box sx={{ px: 1.25, pt: 1.25 }}>
+      <Box sx={{ px: 1.25, pt: 1.25, pb: 1.25 }}>
         <TextField
           fullWidth
           size="small"
@@ -104,49 +96,19 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
         />
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 0.5, px: 1.25, py: 1.25, overflowX: 'auto', flexShrink: 0 }}>
-        {tabs.map((t) => {
-          const active = t.key === tab;
-          return (
-            <Box
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              sx={{
-                px: 1.25,
-                py: 0.5,
-                borderRadius: 999,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                fontSize: 12,
-                fontWeight: 600,
-                bgcolor: active ? 'primary.main' : 'action.hover',
-                color: active ? 'primary.contrastText' : 'text.secondary',
-                transition: 'background-color .15s ease',
-                '&:hover': { bgcolor: active ? 'primary.dark' : 'action.selected' },
-              }}
-            >
-              {t.label}
-              <Box component="span" sx={{ ml: 0.5, opacity: 0.75 }}>{t.count}</Box>
-            </Box>
-          );
-        })}
-      </Box>
-
       <List sx={{ flex: 1, overflowY: 'auto', p: 0, borderTop: '1px solid', borderColor: 'divider' }}>
-        {visibleGroups.map((key) => {
+        {tabOrder.map((key) => {
           const ids = groups[key];
           if (ids.length === 0) return null;
           return (
             <Fragment key={key}>
-              {tab === 'all' && (
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ px: 2, pt: 1.25, pb: 0.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block' }}
-                >
-                  {groupTitles[key]}
-                </Typography>
-              )}
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ px: 2, pt: 1.25, pb: 0.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block' }}
+              >
+                {groupTitles[key]}
+              </Typography>
               {ids.map((id) => (
                 <ChatItem
                   key={id}
