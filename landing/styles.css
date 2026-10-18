@@ -129,6 +129,15 @@ a {
   transform: translateY(-1px);
 }
 
+/* Заметный, но аккуратный фокус вместо тёмной системной рамки
+   (её видно, например, после возврата на страницу из документации). */
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
 /* ---------- Nav ---------- */
 .nav {
   position: sticky;
@@ -143,7 +152,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
   height: 68px;
 }
 
@@ -165,10 +174,16 @@ a {
 
 .nav__links {
   display: flex;
-  gap: 26px;
+  gap: 22px;
   font-size: 15px;
   color: var(--muted);
   font-weight: 500;
+}
+
+/* Пункты меню не переносятся по словам — шапка уходит в бургер раньше,
+   чем строкам становится тесно. */
+.nav__links a {
+  white-space: nowrap;
 }
 
 .nav__links a:hover {
@@ -935,7 +950,13 @@ section[id] {
 }
 
 /* ---------- Mobile nav ---------- */
-@media (max-width: 800px) {
+@media (max-width: 1200px) {
+  .nav__links {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 1080px) {
   .nav__burger {
     display: inline-flex;
   }
