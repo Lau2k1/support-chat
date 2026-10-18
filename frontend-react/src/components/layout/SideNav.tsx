@@ -5,6 +5,9 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 import LockIcon from '@mui/icons-material/Lock';
 import { useAuthStore } from '@/stores/authStore';
+import { useChatStore } from '@/stores/chatStore';
+import UnreadBadge from '@/components/common/UnreadBadge';
+import { chatLayout } from '@/theme';
 
 type ViewType = 'chats' | 'archive' | 'stats' | 'tickets';
 
@@ -14,20 +17,24 @@ interface SideNavProps {
 }
 
 const navItems: { view: ViewType; icon: React.ReactNode; label: string }[] = [
-  { view: 'chats', icon: <ChatBubbleIcon fontSize="small" />, label: 'Чаты' },
-  { view: 'archive', icon: <Inventory2Icon fontSize="small" />, label: 'Архив' },
-  { view: 'tickets', icon: <ConfirmationNumberIcon fontSize="small" />, label: 'Тикеты' },
-  { view: 'stats', icon: <BarChartIcon fontSize="small" />, label: 'Стат.' },
+  { view: 'chats', icon: <ChatBubbleIcon />, label: 'Чаты' },
+  { view: 'archive', icon: <Inventory2Icon />, label: 'Архив' },
+  { view: 'tickets', icon: <ConfirmationNumberIcon />, label: 'Тикеты' },
+  { view: 'stats', icon: <BarChartIcon />, label: 'Стат.' },
 ];
 
 export default function SideNav({ currentView, onViewChange }: SideNavProps) {
   const canUseTickets = useAuthStore((s) => s.canUseTickets);
+  // Сводный счётчик непрочитанных по всем чатам — тот же, что видит список.
+  const unreadTotal = useChatStore((s) =>
+    Object.values(s.chatUnread).reduce((sum, n) => sum + (n || 0), 0)
+  );
 
   return (
     <Box
       sx={{
-        width: 70,
-        bgcolor: '#1e293b',
+        width: chatLayout.navWidth,
+        bgcolor: 'navBg',
         // The nav keeps its fixed dark chrome in both schemes, so the separator is a
         // translucent white rather than 'divider' (which is light in light mode and
         // would vanish against paper in dark mode).
@@ -35,7 +42,7 @@ export default function SideNav({ currentView, onViewChange }: SideNavProps) {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        pt: 1,
+        pt: 1.25,
         flexShrink: 0,
       }}
     >
@@ -48,13 +55,14 @@ export default function SideNav({ currentView, onViewChange }: SideNavProps) {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            py: 1.2,
+            py: 1.3,
             borderRadius: 0,
-            color: currentView === item.view ? '#fff' : '#94a3b8',
-            bgcolor: currentView === item.view ? '#334155' : 'transparent',
+            position: 'relative',
+            color: currentView === item.view ? 'navTextActive' : 'navText',
+            bgcolor: currentView === item.view ? 'navActive' : 'transparent',
             '&:hover': {
-              color: '#e2e8f0',
-              bgcolor: currentView === item.view ? '#334155' : 'rgba(255,255,255,0.05)',
+              color: 'navTextActive',
+              bgcolor: currentView === item.view ? 'navActive' : 'rgba(255,255,255,0.05)',
             },
           }}
         >
@@ -67,16 +75,22 @@ export default function SideNav({ currentView, onViewChange }: SideNavProps) {
                   right: -7,
                   bottom: -3,
                   fontSize: 12,
-                  color: '#fbbf24',
+                  color: 'statusBusy',
                 }}
               />
             </Box>
           ) : (
             item.icon
           )}
-          <Typography sx={{ fontSize: 10, fontWeight: 600, mt: 0.3, letterSpacing: 0.3 }}>
+          <Typography sx={{ fontSize: 11, fontWeight: 600, mt: 0.5, letterSpacing: 0.3 }}>
             {item.label}
           </Typography>
+          {item.view === 'chats' && unreadTotal > 0 && (
+            <UnreadBadge
+              count={unreadTotal}
+              sx={{ position: 'absolute', top: 8, right: 14, minWidth: 18, height: 18, fontSize: 10, px: 0.5 }}
+            />
+          )}
         </IconButton>
       ))}
     </Box>

@@ -113,6 +113,25 @@ export function subscriptionState(
   return { level: days <= 5 ? 'soon' : 'ok', days, text: `осталось ${pluralDays(days)}` };
 }
 
+/**
+ * Заголовок дня в переписке: «Сегодня», «Вчера» или «12 мая» (в прошлые годы —
+ * с годом). Сравниваются календарные сутки, а не разница в 24 часа, иначе
+ * сообщение в 00:30 уезжает во «вчера».
+ */
+export function formatDayLabel(ts: number | string | Date | null | undefined): string {
+  const d = toDate(ts);
+  if (isNaN(d.getTime())) return '';
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
+  if (diffDays === 0) return 'Сегодня';
+  if (diffDays === 1) return 'Вчера';
+  return d.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    ...(d.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' }),
+  });
+}
+
 /** «YYYY-MM-DD» from a date field → конец этого дня по локальному времени, ISO. */
 export function endOfLocalDay(dateStr: string): string | null {
   const parts = dateStr.split('-').map(Number);

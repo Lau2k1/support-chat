@@ -13,18 +13,24 @@ import {
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import KeyIcon from '@mui/icons-material/Key';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ForumIcon from '@mui/icons-material/Forum';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useUIStore } from '@/stores/uiStore';
 import { wsManager } from '@/services/ws';
 import ThemeToggle from '@/components/common/ThemeToggle';
+import StatusDot from '@/components/common/StatusDot';
+import UserAvatar from '@/components/common/UserAvatar';
+import { chatLayout } from '@/theme';
 
-const statusColors = { online: '#4ade80', busy: '#f59e0b', offline: '#94a3b8' };
 const statusLabels = { online: 'Онлайн', busy: 'Занят', offline: 'Оффлайн' };
+const roleLabels = { superadmin: 'Владелец', admin: 'Администратор', operator: 'Оператор' };
 
 export default function TopBar() {
   const { isAdmin, isSuperadmin, logout } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
   const { openTabs, currentChatId, chatPublicCodes, operatorStatus, setOperatorStatus } = useChatStore();
   const showConfirm = useUIStore((s) => s.showConfirm);
@@ -51,56 +57,72 @@ export default function TopBar() {
   return (
     <Box
       sx={{
-        height: 52,
+        height: chatLayout.topBarHeight,
         bgcolor: 'background.paper',
         borderBottom: '1px solid',
         borderColor: 'divider',
         display: 'flex',
         alignItems: 'center',
         px: 2,
-        gap: 1,
+        gap: 1.5,
         flexShrink: 0,
       }}
     >
-      <Typography variant="subtitle1" sx={{ fontWeight: 700, mr: 1 }} color="primary">
-        Support
-        <Box component="span" sx={{ color: 'text.secondary', fontWeight: 400 }}>
-          Chat
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+        <Box
+          sx={{
+            width: 30,
+            height: 30,
+            borderRadius: '50%',
+            // Фирменный градиент из токенов палитры: в тёмной схеме он светлее.
+            background: (t) => `linear-gradient(135deg, ${t.palette.primary.light} 0%, ${t.palette.primary.main} 100%)`,
+            color: 'primary.contrastText',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <ForumIcon sx={{ fontSize: 18 }} />
         </Box>
-      </Typography>
+        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+          Support
+          <Box component="span" sx={{ color: 'text.secondary', fontWeight: 400 }}>
+            Chat
+          </Box>
+        </Typography>
+      </Box>
 
       <Box sx={{ flex: 1, display: 'flex', gap: 0.5, overflowX: 'auto', px: 1 }}>
         {openTabs.map((tabId) => (
           <Chip
             key={tabId}
-            label={`Чат ${chatPublicCodes[String(tabId)] || `#${tabId}`}`}
+            label={chatPublicCodes[String(tabId)] || `#${tabId}`}
             color={tabId === currentChatId ? 'primary' : 'default'}
+            variant={tabId === currentChatId ? 'filled' : 'outlined'}
             size="small"
             onClick={() => useChatStore.getState().setCurrentChat(tabId)}
             onDelete={() => useChatStore.getState().removeTab(tabId)}
-            sx={{ fontWeight: 500 }}
+            sx={{ fontWeight: 600, fontSize: 12 }}
           />
         ))}
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
         <Button
           size="small"
           onClick={(e) => setAnchorEl(e.currentTarget)}
-          startIcon={
-            <Box
-              component="span"
-              sx={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                bgcolor: statusColors[operatorStatus],
-                display: 'inline-block',
-              }}
-            />
-          }
+          startIcon={<StatusDot status={operatorStatus} size={9} />}
+          endIcon={<ExpandMoreIcon sx={{ fontSize: 16 }} />}
+          sx={{
+            textTransform: 'none',
+            fontSize: 12,
+            fontWeight: 600,
+            color: 'text.primary',
+            borderColor: 'divider',
+            borderRadius: 999,
+            px: 1.25,
+          }}
           variant="outlined"
-          sx={{ textTransform: 'none', fontSize: 12, fontWeight: 600 }}
         >
           {statusLabels[operatorStatus]}
         </Button>
@@ -108,16 +130,7 @@ export default function TopBar() {
           {(['online', 'busy', 'offline'] as const).map((s) => (
             <MenuItem key={s} onClick={() => handleStatusChange(s)}>
               <ListItemIcon sx={{ minWidth: 28 }}>
-                <Box
-                  component="span"
-                  sx={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    bgcolor: statusColors[s],
-                    display: 'inline-block',
-                  }}
-                />
+                <StatusDot status={s} size={9} />
               </ListItemIcon>
               <ListItemText>{statusLabels[s]}</ListItemText>
             </MenuItem>
@@ -125,13 +138,21 @@ export default function TopBar() {
         </Menu>
 
         {isSuperadmin && (
-          <IconButton size="small" onClick={() => navigate('/crm')} sx={{ bgcolor: '#111827', color: '#fff', borderRadius: 1, px: 1 }}>
+          <IconButton
+            size="small"
+            onClick={() => navigate('/crm')}
+            sx={{ bgcolor: 'navBg', color: 'navTextActive', borderRadius: 1, px: 1 }}
+          >
             <AdminPanelSettingsIcon sx={{ fontSize: 16 }} />
             <Typography sx={{ fontSize: 11, fontWeight: 600, ml: 0.5 }}>CRM</Typography>
           </IconButton>
         )}
         {isAdmin && !isSuperadmin && (
-          <IconButton size="small" onClick={() => navigate('/admin')} sx={{ bgcolor: '#1e293b', color: '#fff', borderRadius: 1, px: 1 }}>
+          <IconButton
+            size="small"
+            onClick={() => navigate('/admin')}
+            sx={{ bgcolor: 'navBg', color: 'navTextActive', borderRadius: 1, px: 1 }}
+          >
             <AdminPanelSettingsIcon sx={{ fontSize: 16 }} />
             <Typography sx={{ fontSize: 11, fontWeight: 600, ml: 0.5 }}>Админ</Typography>
           </IconButton>
@@ -146,6 +167,25 @@ export default function TopBar() {
         <IconButton size="small" onClick={handleLogout} title="Выйти">
           <LogoutIcon fontSize="small" />
         </IconButton>
+
+        {user && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              pl: 1.5,
+              borderLeft: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
+            <UserAvatar name={user.name} variant="solid" size={32} />
+            <Box sx={{ display: { xs: 'none', sm: 'block' }, lineHeight: 1.25 }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{user.name}</Typography>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{roleLabels[user.role]}</Typography>
+            </Box>
+          </Box>
+        )}
       </Box>
     </Box>
   );

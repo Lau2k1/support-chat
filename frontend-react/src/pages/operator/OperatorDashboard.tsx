@@ -32,6 +32,8 @@ import ArchiveFiltersComponent from '@/components/archive/ArchiveFilters';
 import ArchiveList from '@/components/archive/ArchiveList';
 import PaywallBanner from '@/components/common/PaywallBanner';
 import FeatureLocked from '@/components/common/FeatureLocked';
+import UserAvatar from '@/components/common/UserAvatar';
+import { chatLayout } from '@/theme';
 import TicketsPage from '@/components/tickets/TicketsPage';
 import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -226,63 +228,82 @@ function ChatsView({
       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <Box
           sx={{
-            height: 50,
+            height: chatLayout.headerHeight,
             bgcolor: 'background.paper',
             px: 2,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            gap: 1.5,
             borderBottom: '1px solid',
             borderColor: 'divider',
-            fontWeight: 600,
-            fontSize: 14,
             flexShrink: 0,
           }}
         >
-           <Typography sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-            <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {currentChatId ? (chatName || (isTelegram ? 'Telegram' : 'Клиент')) : 'Выберите чат'}
-            </Box>
-            {currentChatId && (
-              <Chip
-                label={publicCode}
-                size="small"
-                sx={{ height: 20, fontSize: 11, fontFamily: 'monospace', bgcolor: 'action.hover' }}
-              />
-            )}
-            {currentChatId && isTelegram && (
-              <Chip
-                icon={<SendIcon sx={{ fontSize: 14 }} />}
-                label="Telegram"
-                size="small"
-                sx={{ height: 20, fontSize: 11, bgcolor: 'infoBg', color: 'info.main', '& .MuiChip-icon': { color: 'info.main' } }}
-              />
-            )}
-          </Typography>
-          {currentChatId && (
-            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexShrink: 0 }}>
-              {currentTags.map((t) => (
-                <Chip
-                  key={t.id}
-                  label={t.name}
-                  size="small"
-                  onDelete={() => handleRemoveTag(t.id)}
-                  title="Снять тег"
-                  sx={{ height: 22, fontSize: 11, bgcolor: t.color || 'primary.main', color: '#fff' }}
+          {currentChatId ? (
+            <>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+                <UserAvatar
+                  name={chatName}
+                  icon={isTelegram ? <SendIcon sx={{ fontSize: 18 }} /> : undefined}
+                  size={38}
                 />
-              ))}
-              <Button size="small" variant="outlined" startIcon={<SwapHorizIcon />} onClick={onOpenTransfer}>
-                Передать
-              </Button>
-              {!isObserver && (
-                <Button size="small" variant="outlined" color="error" startIcon={<CloseIcon />} onClick={() => onCloseChat(currentChatId)}>
-                  Закрыть
+                <Box sx={{ minWidth: 0 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                    <Typography noWrap sx={{ fontWeight: 600, fontSize: 15 }}>
+                      {chatName || (isTelegram ? 'Telegram' : 'Клиент')}
+                    </Typography>
+                    <Chip
+                      label={publicCode}
+                      size="small"
+                      sx={{ height: 20, fontSize: 11, fontFamily: 'monospace', bgcolor: 'action.hover' }}
+                    />
+                    {isTelegram && (
+                      <Chip
+                        icon={<SendIcon sx={{ fontSize: 14 }} />}
+                        label="Telegram"
+                        size="small"
+                        sx={{ height: 20, fontSize: 11, bgcolor: 'infoBg', color: 'info.main', '& .MuiChip-icon': { color: 'info.main' } }}
+                      />
+                    )}
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+                    {assignee ? `Оператор: ${assignee.name}` : 'Свободен — оператор не назначен'}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexShrink: 0 }}>
+                {currentTags.map((t) => (
+                  <Chip
+                    key={t.id}
+                    label={t.name}
+                    size="small"
+                    onDelete={() => handleRemoveTag(t.id)}
+                    title="Снять тег"
+                    sx={{ height: 22, fontSize: 11, bgcolor: t.color || 'primary.main', color: '#fff' }}
+                  />
+                ))}
+                <Button size="small" variant="outlined" startIcon={<SwapHorizIcon />} onClick={onOpenTransfer}>
+                  Передать
                 </Button>
-              )}
-              <IconButton size="small" onClick={onToggleRightPanel}>
-                <InfoIcon fontSize="small" />
-              </IconButton>
-            </Box>
+                {!isObserver && (
+                  <Button size="small" variant="outlined" color="error" startIcon={<CloseIcon />} onClick={() => onCloseChat(currentChatId)}>
+                    Закрыть
+                  </Button>
+                )}
+                <IconButton
+                  size="small"
+                  onClick={onToggleRightPanel}
+                  title="Информация о клиенте"
+                  sx={{ bgcolor: showRightPanel ? 'action.selected' : undefined }}
+                >
+                  <InfoIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            </>
+          ) : (
+            <Typography sx={{ fontWeight: 600, fontSize: 14, color: 'text.secondary' }}>Выберите чат</Typography>
           )}
         </Box>
 
@@ -319,7 +340,10 @@ function ChatsView({
       </Box>
 
       {showRightPanel && (
-        <RightPanel onInsertTemplate={(content) => chatInputRef.current?.insertTemplate(content)} />
+        <RightPanel
+          onInsertTemplate={(content) => chatInputRef.current?.insertTemplate(content)}
+          onOpenTagSelector={onOpenTagSelector}
+        />
       )}
     </Box>
   );
@@ -375,7 +399,7 @@ function ArchiveView() {
         <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           <ArchiveList chats={chats} selectedId={selectedId} onSelect={handleSelectArchiveChat} />
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            <Box sx={{ height: 50, bgcolor: 'background.paper', px: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', fontWeight: 600, fontSize: 14, flexShrink: 0 }}>
+            <Box sx={{ height: chatLayout.headerHeight, bgcolor: 'background.paper', px: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', fontWeight: 600, fontSize: 14, flexShrink: 0 }}>
               <Typography sx={{ fontWeight: 600 }}>
                 {selectedId
                   ? `${selectedChat?.client_name || 'Клиент'} · ${selectedChat?.public_code || `#${selectedId}`} (архив)`

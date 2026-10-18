@@ -3,7 +3,6 @@ import {
   Box,
   TextField,
   IconButton,
-  Button,
   ToggleButton,
   ToggleButtonGroup,
 } from '@mui/material';
@@ -191,18 +190,25 @@ export default function ChatInput({ chatId, onOpenTemplates, onOpenTagSelector, 
         inputRef={textInputRef}
         disabled={disabled}
         slotProps={{ htmlInput: { maxLength: LIMITS.message, onPaste: handlePaste } }}
-        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 999, bgcolor: 'background.default' } }}
       />
 
-      <Button
-        variant="contained"
+      <IconButton
         onClick={handleSend}
         disabled={disabled || !text.trim()}
-        endIcon={<SendIcon />}
-        sx={{ flexShrink: 0 }}
+        title="Отправить"
+        sx={{
+          width: 40,
+          height: 40,
+          flexShrink: 0,
+          bgcolor: 'primary.main',
+          color: 'primary.contrastText',
+          '&:hover': { bgcolor: 'primary.dark' },
+          '&.Mui-disabled': { bgcolor: 'action.disabledBackground', color: 'action.disabled' },
+        }}
       >
-        Отправить
-      </Button>
+        <SendIcon sx={{ fontSize: 18 }} />
+      </IconButton>
 
       <QuickRepliesMenu
         open={Boolean(quickAnchor)}

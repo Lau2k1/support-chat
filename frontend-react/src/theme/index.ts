@@ -50,6 +50,13 @@ export const theme = createTheme({
         warn: '#a16207',
         warnBg: 'rgba(234, 179, 8, 0.16)',
         infoBg: 'rgba(2, 132, 199, 0.12)',
+        navBg: '#1e293b',
+        navActive: '#334155',
+        navText: '#94a3b8',
+        navTextActive: '#ffffff',
+        statusOnline: '#4ade80',
+        statusBusy: '#f59e0b',
+        statusOffline: '#94a3b8',
       },
     },
     dark: {
@@ -88,6 +95,14 @@ export const theme = createTheme({
         warn: '#fbbf24',
         warnBg: 'rgba(251, 191, 36, 0.16)',
         infoBg: 'rgba(56, 189, 248, 0.13)',
+        // Same dark plate as in light mode: the rail is brand chrome, not paper.
+        navBg: '#1e293b',
+        navActive: '#334155',
+        navText: '#94a3b8',
+        navTextActive: '#ffffff',
+        statusOnline: '#4ade80',
+        statusBusy: '#fbbf24',
+        statusOffline: '#94a3b8',
       },
     },
   },
@@ -129,3 +144,18 @@ export const theme = createTheme({
     },
   },
 });
+
+/**
+ * Размеры каркаса панели оператора. Вынесены из компонентов, потому что три
+ * колонки подгоняются друг под друга: правишь одну — проверяешь, влезает ли
+ * центр на 1366px. Складываем: 76 (рейл) + 300 (список) + 300 (панель) = 676px
+ * постоянной ширины, остальное достаётся переписке.
+ */
+export const chatLayout = {
+  topBarHeight: 60,
+  navWidth: 76,
+  listWidth: 300,
+  panelWidth: 300,
+  /** Шапка открытого чата (и такая же в архиве). */
+  headerHeight: 64,
+} as const;

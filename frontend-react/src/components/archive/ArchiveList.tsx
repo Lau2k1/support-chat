@@ -1,7 +1,9 @@
-import { Box, Typography, List, ListItemButton, ListItemAvatar, ListItemText, Avatar, Chip } from '@mui/material';
+import { Box, Typography, List, ListItemButton, ListItemText, Chip } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import type { Chat } from '@/types';
 import { formatDateTime } from '@/utils/format';
+import UserAvatar from '@/components/common/UserAvatar';
+import { chatLayout } from '@/theme';
 
 interface ArchiveListProps {
   chats: Chat[];
@@ -13,7 +15,7 @@ export default function ArchiveList({ chats, selectedId, onSelect }: ArchiveList
   return (
     <Box
       sx={{
-        width: 300,
+        width: chatLayout.listWidth,
         flexShrink: 0,
         overflowY: 'auto',
         bgcolor: 'background.paper',
@@ -32,13 +34,13 @@ export default function ArchiveList({ chats, selectedId, onSelect }: ArchiveList
             key={chat.id}
             selected={chat.id === selectedId}
             onClick={() => onSelect(chat.id)}
-            sx={{ borderBottom: '1px solid', borderBottomColor: 'divider' }}
+            sx={{ borderBottom: '1px solid', borderBottomColor: 'divider', gap: 1.25 }}
           >
-            <ListItemAvatar>
-              <Avatar sx={{ width: 36, height: 36, bgcolor: chat.source === 'telegram' ? 'infoBg' : 'action.hover', color: chat.source === 'telegram' ? 'info.main' : 'text.secondary', fontSize: 14, fontWeight: 600 }}>
-                {chat.source === 'telegram' ? <SendIcon sx={{ fontSize: 18 }} /> : 'К'}
-              </Avatar>
-            </ListItemAvatar>
+            <UserAvatar
+              name={chat.client_name}
+              icon={chat.source === 'telegram' ? <SendIcon sx={{ fontSize: 18 }} /> : undefined}
+              size={36}
+            />
             <ListItemText
               primary={
                 <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>

@@ -1,20 +1,14 @@
 import { useState, useEffect, Fragment } from 'react';
-import {
-  Box,
-  TextField,
-  List,
-  ListItemButton,
-  ListItemAvatar,
-  ListItemText,
-  Avatar,
-  Typography,
-  Badge,
-} from '@mui/material';
+import { Box, TextField, InputAdornment, List, ListItemButton, Typography } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
 import SendIcon from '@mui/icons-material/Send';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
 import { formatElapsedTime } from '@/utils/format';
+import UserAvatar from '@/components/common/UserAvatar';
+import UnreadBadge from '@/components/common/UnreadBadge';
+import { chatLayout } from '@/theme';
 
 interface ChatSidebarProps {
   onSelectChat: (chatId: number) => void;
@@ -22,11 +16,19 @@ interface ChatSidebarProps {
 }
 
 type Group = 'waiting' | 'distributed' | 'mine';
+type Tab = 'all' | Group;
+
+const groupTitles: Record<Group, string> = {
+  waiting: 'Ожидающие',
+  distributed: 'Распределённые',
+  mine: 'Мои',
+};
 
 export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebarProps) {
   const { chatTimers, chatUnread, chatPreviews, chatSources, chatNames, chatPublicCodes, chatAssignees } = useChatStore();
   const myId = useAuthStore((s) => s.user?.id ?? null);
   const [search, setSearch] = useState('');
+  const [tab, setTab] = useState<Tab>('all');
   const [chatIds, setChatIds] = useState<number[]>([]);
   const [now, setNow] = useState(Date.now());
 
@@ -42,9 +44,14 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
     setChatIds(ids);
   }, [chatTimers]);
 
-  const filtered = chatIds.filter((id) =>
-    String(id).includes(search.toLowerCase())
-  );
+  // Ищем по имени, публичному коду и превью последнего сообщения — по числовому
+  // id фильтр не находил ничего, кроме самого id.
+  const needle = search.trim().toLowerCase();
+  const filtered = chatIds.filter((id) => {
+    if (!needle) return true;
+    return [chatNames[String(id)], chatPublicCodes[String(id)], chatPreviews[String(id)], String(id)]
+      .some((field) => (field || '').toLowerCase().includes(needle));
+  });
 
   // Group assignments:
   // - waiting:     chat has no operator yet (anyone may pick it up);
@@ -58,16 +65,18 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
     groups[g].push(id);
   }
 
-  const groupMeta: { key: Group; title: string }[] = [
-    { key: 'distributed', title: 'Распределённые' },
-    { key: 'waiting', title: 'Ожидающие' },
-    { key: 'mine', title: 'Мои' },
+  const tabOrder: Group[] = ['distributed', 'waiting', 'mine'];
+  const tabs: { key: Tab; label: string; count: number }[] = [
+    { key: 'all', label: 'Все', count: filtered.length },
+    ...tabOrder.map((key) => ({ key: key as Tab, label: groupTitles[key], count: groups[key].length })),
   ];
+
+  const visibleGroups = tab === 'all' ? tabOrder : [tab];
 
   return (
     <Box
       sx={{
-        width: 280,
+        width: chatLayout.listWidth,
         bgcolor: 'background.paper',
         borderRight: '1px solid',
         borderColor: 'divider',
@@ -76,25 +85,68 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
         flexShrink: 0,
       }}
     >
-      <Box sx={{ p: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
+      <Box sx={{ px: 1.25, pt: 1.25 }}>
         <TextField
           fullWidth
           size="small"
-          placeholder="Поиск..."
+          placeholder="Поиск по имени, коду, сообщению…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            },
+          }}
         />
       </Box>
 
-      <List sx={{ flex: 1, overflowY: 'auto', p: 0 }}>
-        {groupMeta.map(({ key, title }) => {
+      <Box sx={{ display: 'flex', gap: 0.5, px: 1.25, py: 1.25, overflowX: 'auto', flexShrink: 0 }}>
+        {tabs.map((t) => {
+          const active = t.key === tab;
+          return (
+            <Box
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              sx={{
+                px: 1.25,
+                py: 0.5,
+                borderRadius: 999,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                fontSize: 12,
+                fontWeight: 600,
+                bgcolor: active ? 'primary.main' : 'action.hover',
+                color: active ? 'primary.contrastText' : 'text.secondary',
+                transition: 'background-color .15s ease',
+                '&:hover': { bgcolor: active ? 'primary.dark' : 'action.selected' },
+              }}
+            >
+              {t.label}
+              <Box component="span" sx={{ ml: 0.5, opacity: 0.75 }}>{t.count}</Box>
+            </Box>
+          );
+        })}
+      </Box>
+
+      <List sx={{ flex: 1, overflowY: 'auto', p: 0, borderTop: '1px solid', borderColor: 'divider' }}>
+        {visibleGroups.map((key) => {
           const ids = groups[key];
           if (ids.length === 0) return null;
           return (
             <Fragment key={key}>
-              <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 0.5, fontWeight: 600, textTransform: 'uppercase', display: 'block' }}>
-                {title}
-              </Typography>
+              {tab === 'all' && (
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ px: 2, pt: 1.25, pb: 0.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block' }}
+                >
+                  {groupTitles[key]}
+                </Typography>
+              )}
               {ids.map((id) => (
                 <ChatItem
                   key={id}
@@ -118,7 +170,7 @@ export default function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebar
 
         {filtered.length === 0 && (
           <Typography color="text.secondary" sx={{ p: 2, textAlign: 'center', fontSize: 13 }}>
-            Нет чатов
+            {needle ? 'Ничего не найдено' : 'Нет чатов'}
           </Typography>
         )}
       </List>
@@ -174,57 +226,61 @@ function ChatItem({
       onClick={onClick}
       selected={isActive}
       sx={{
+        alignItems: 'flex-start',
+        gap: 1,
+        py: 1.25,
         borderLeft: '3px solid',
         borderLeftColor: stripeColor,
         bgcolor: isWaiting ? 'warnBg' : undefined,
         '&.Mui-selected': { bgcolor: 'action.selected' },
       }}
     >
-      <ListItemAvatar>
-        <Avatar sx={{ width: 34, height: 34, bgcolor: isTelegram ? 'infoBg' : 'action.hover', color: isTelegram ? 'info.main' : 'text.secondary', fontSize: 13, fontWeight: 600 }}>
-          {isTelegram ? <SendIcon sx={{ fontSize: 18 }} /> : 'К'}
-        </Avatar>
-      </ListItemAvatar>
-      <ListItemText
-        primary={
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 0.5 }}>
-            <Typography variant="body2" noWrap sx={{ fontWeight: 600, minWidth: 0 }}>
-              {label}
-            </Typography>
-            <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: 10, color: 'text.secondary', flexShrink: 0 }}>
-              {code}
-            </Typography>
-            {unread > 0 && (
-              <Badge badgeContent={unread > 99 ? '99+' : unread} color="primary" sx={{ ml: 0.5 }} />
-            )}
-          </Box>
-        }
-        secondary={
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-            {isObserver ? (
-              <Typography variant="caption" noWrap sx={{ minWidth: 0, flex: 1, color: 'info.main', display: 'flex', alignItems: 'center', gap: 0.25 }}>
-                <VisibilityIcon sx={{ fontSize: 11 }} />
-                {secondaryLine}
-              </Typography>
-            ) : (
-              <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0, flex: 1 }}>
-                {secondaryLine}
-              </Typography>
-            )}
+      <UserAvatar
+        name={name}
+        icon={isTelegram ? <SendIcon sx={{ fontSize: 18 }} /> : undefined}
+        size={38}
+        sx={{ mt: 0.25 }}
+      />
+
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <Typography variant="body2" noWrap sx={{ fontWeight: 600, minWidth: 0, flex: 1 }}>
+            {label}
+          </Typography>
+          <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: 10, color: 'text.secondary', flexShrink: 0 }}>
+            {code}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.25 }}>
+          {isObserver ? (
             <Typography
               variant="caption"
-              sx={{
-                fontFamily: 'monospace',
-                flexShrink: 0,
-                fontSize: 11,
-                color: isWaiting ? 'warn' : 'text.secondary',
-              }}
+              noWrap
+              sx={{ minWidth: 0, flex: 1, color: 'info.main', display: 'flex', alignItems: 'center', gap: 0.25 }}
             >
-              {elapsed}
+              <VisibilityIcon sx={{ fontSize: 11 }} />
+              {secondaryLine}
             </Typography>
-          </Box>
-        }
-      />
+          ) : (
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0, flex: 1 }}>
+              {secondaryLine}
+            </Typography>
+          )}
+          <Typography
+            variant="caption"
+            sx={{
+              fontFamily: 'monospace',
+              flexShrink: 0,
+              fontSize: 11,
+              color: isWaiting ? 'warn' : 'text.secondary',
+            }}
+          >
+            {elapsed}
+          </Typography>
+          {unread > 0 && <UnreadBadge count={unread} sx={{ height: 18, minWidth: 18, fontSize: 10, px: 0.5 }} />}
+        </Box>
+      </Box>
     </ListItemButton>
   );
 }
