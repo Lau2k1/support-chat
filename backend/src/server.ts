@@ -237,6 +237,14 @@ app.get('/legal/:doc', (req, res, next) => {
   });
 });
 
+// Документация платформы: /docs — единая страница руководства для клиентов
+// (что умеет каждая функция, с примерами). Статика в образе как /app/landing.
+app.get('/docs', (_req, res) => {
+  res.sendFile(path.join(landingPath, 'docs', 'index.html'), (err) => {
+    if (err && !res.headersSent) res.status(404).send('Not found');
+  });
+});
+
 // SEC-01: uploads are served through an explicit controller (not express.static),
 // so a file's content type can never make the browser execute it. Only raster
 // images and video are inlined; everything else is forced to download as an
