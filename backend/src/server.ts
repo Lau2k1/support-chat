@@ -90,6 +90,14 @@ app.use(helmet({
   frameguard: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // /uploads images are loaded from client sites
   crossOriginEmbedderPolicy: false,
+  // Дефолт helmet `same-origin` ломает вход через Telegram: окно авторизации
+  // виджета открывается из кросс-доменного фрейма oauth.telegram.org, и при
+  // несовпадении COOP браузер разрывает связь (window.open возвращает null,
+  // window.opener в окне — null). Виджет после этого молча ничего не отдаёт
+  // странице: и вход, и привязка Telegram выглядят «мёртвыми». Вариант
+  // `same-origin-allow-popups` оставляет защиту от чужого opener, но разрешает
+  // окна, которые открывает виджет (проверено в Chrome).
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
 }));
 app.use(cors({
   origin: allowedOrigins ?? (isProd ? false : true),
