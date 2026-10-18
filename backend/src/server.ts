@@ -127,10 +127,21 @@ const passwordLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Слишком много попыток, попробуйте позже' },
 });
+// Восстановление пароля через Telegram: отдельный счётчик, потому что свои 2 шага
+// не должны съедать бюджет смены пароля (и наоборот). Токен угадать нельзя, лимит
+// здесь — против стоимости bcrypt и скриптового мусора.
+const recoveryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.RECOVERY_RATE_LIMIT_MAX) || 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много попыток, попробуйте позже' },
+});
 app.use('/login', authLimiter);
 app.use('/register', authLimiter);
 app.use('/upload', uploadLimiter);
 app.use('/me/password', passwordLimiter);
+app.use('/auth/telegram/recovery', recoveryLimiter);
 
 // SEC-08: general API rate limit — abuse protection for every API endpoint.
 // /login, /register and /upload keep their stricter dedicated limits above.
@@ -333,7 +344,7 @@ app.use(uploadRoutes);
 // SPA pages (client-side routes) must be served before the authenticated admin routers —
 // otherwise /admin would hit authMiddleware and return 401 JSON instead of index.html.
 // На маркетинговом домене эти пути уводим в панель на APP_DOMAIN (302).
-app.get(['/login', '/register', '/operator', '/admin', '/crm'], (req, res) => {
+app.get(['/login', '/register', '/recover', '/operator', '/admin', '/crm'], (req, res) => {
   if (isLandingHost(req)) {
     return res.redirect(302, `https://${appDomain}${req.originalUrl}`);
   }

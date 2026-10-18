@@ -34,6 +34,7 @@ import type {
   TelegramWidgetData,
   TelegramLoginConfig,
   TelegramLinkState,
+  TelegramRecoveryStart,
   WidgetInfo,
 } from '@/types';
 
@@ -68,6 +69,16 @@ export const authApi = {
   linkTelegram: (data: TelegramWidgetData) =>
     api.post<{ ok: boolean; telegram: TelegramLinkState }>('/me/telegram/link', data),
   unlinkTelegram: () => api.post<{ ok: boolean; telegram: TelegramLinkState }>('/me/telegram/unlink'),
+
+  // Восстановление пароля через Telegram: шаг 1 подтверждает личность виджетом и
+  // выдаёт одноразовый токен, шаг 2 меняет пароль этим токеном.
+  telegramRecoveryStart: (data: TelegramWidgetData) =>
+    api.post<TelegramRecoveryStart>('/auth/telegram/recovery', data),
+  telegramRecoveryConfirm: (token: string, password: string) =>
+    api.post<{ token: string; role: string; tenantId: number | null }>(
+      '/auth/telegram/recovery/confirm',
+      { token, password }
+    ),
 };
 
 export const billingApi = {

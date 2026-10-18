@@ -141,11 +141,16 @@ export default function Login() {
             sx={{ mb: 1.5 }}
             required
           />
-          <FormControlLabel
-            control={<Checkbox size="small" checked={remember} onChange={(e) => setRemember(e.target.checked)} />}
-            label="Запомнить меня"
-            sx={{ mb: 1.5 }}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+            <FormControlLabel
+              control={<Checkbox size="small" checked={remember} onChange={(e) => setRemember(e.target.checked)} />}
+              label="Запомнить меня"
+              sx={{ mr: 0 }}
+            />
+            <Link component={RouterLink} to="/recover" variant="body2">
+              Забыли пароль?
+            </Link>
+          </Box>
           <Button
             fullWidth
             type="submit"

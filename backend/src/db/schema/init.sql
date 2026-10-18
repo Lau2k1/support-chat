@@ -49,6 +49,14 @@ ALTER TABLE operators ALTER COLUMN password DROP NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_operators_telegram_id
   ON operators(telegram_id) WHERE telegram_id IS NOT NULL;
 
+-- Восстановление пароля через Telegram. Одноразовый токен живёт в этих двух
+-- колонках: в базе лежит только SHA-256 от него, и он не читается из дампа или
+-- логов. Оба поля обнуляются сразу после смены пароля или новой попытки.
+-- Срок жизни — epoch в миллисекундах (BIGINT), а не TIMESTAMP: сравнение
+-- «истёк или нет» не зависит от часового пояса сессии базы.
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS reset_token_hash TEXT;
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS reset_token_expires BIGINT;
+
 CREATE TABLE IF NOT EXISTS chats (
     id SERIAL PRIMARY KEY,
     client_id INTEGER NOT NULL,

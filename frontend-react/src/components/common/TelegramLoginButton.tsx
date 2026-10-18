@@ -5,6 +5,8 @@ import type { TelegramWidgetData } from '@/types';
 
 interface Props {
   onAuth: (user: TelegramWidgetData) => void;
+  /** Виджет недоступен: Telegram не настроен или скрипт не загрузился. */
+  onUnavailable?: () => void;
   disabled?: boolean;
 }
 
@@ -22,16 +24,18 @@ interface Props {
  * Renders nothing when Telegram login is not configured, so the panel degrades
  * gracefully before the bot token is in place.
  */
-export default function TelegramLoginButton({ onAuth, disabled = false }: Props) {
+export default function TelegramLoginButton({ onAuth, onUnavailable, disabled = false }: Props) {
   const holder = useRef<HTMLDivElement | null>(null);
   const botUsername = useRef<string | null>(null);
   const callback = useRef(onAuth);
+  const unavailable = useRef(onUnavailable);
   const [ready, setReady] = useState(false);
 
-  // Keep the latest callback without re-injecting the widget script.
+  // Keep the latest callbacks without re-injecting the widget script.
   useEffect(() => {
     callback.current = onAuth;
-  }, [onAuth]);
+    unavailable.current = onUnavailable;
+  }, [onAuth, onUnavailable]);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,9 +45,12 @@ export default function TelegramLoginButton({ onAuth, disabled = false }: Props)
         if (cancelled) return;
         botUsername.current = res.data.enabled ? res.data.botUsername : null;
         setReady(Boolean(botUsername.current));
+        if (!botUsername.current) unavailable.current?.();
       })
       .catch(() => {
-        if (!cancelled) setReady(false);
+        if (cancelled) return;
+        setReady(false);
+        unavailable.current?.();
       });
     return () => {
       cancelled = true;

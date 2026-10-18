@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import bcrypt from 'bcrypt';
 import { pool } from '../db';
 import {
   signToken,
@@ -12,9 +13,14 @@ import {
   displayNameOf,
   telegramBotUsername,
   TELEGRAM_LOGIN_ENABLED,
+  RESET_TOKEN_TTL_MINUTES,
+  createResetToken,
+  hashResetToken,
+  maskEmail,
+  sendLoginBotMessage,
 } from '../services/telegramLogin';
 import { uniqueTenantSlug, slugifyTenant } from './auth';
-import { LIMITS } from '../utils/validate';
+import { LIMITS, validPassword } from '../utils/validate';
 import { notifyNewTenant } from '../services/notify';
 import { recordAcceptance } from '../legal';
 
@@ -149,6 +155,133 @@ router.post('/auth/telegram/login', async (req, res) => {
     return res.status(500).json({ error: 'Не удалось войти через Telegram' });
   } finally {
     client.release();
+  }
+});
+
+/**
+ * Сообщение в привязанный Telegram о том, что пароль изменён. Отправка не
+ * влияет на результат сброса: нет диалога с ботом — просто запись в лог.
+ */
+async function notifyPasswordChanged(chatId: number, name: string): Promise<void> {
+  const when = new Date().toLocaleString('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
+  await sendLoginBotMessage(
+    chatId,
+    [
+      '🔐 Пароль от SupportChat изменён',
+      '',
+      `Аккаунт: ${name}`,
+      `Время: ${when} (МСК)`,
+      '',
+      'Если это сделали не вы — напишите @sctManager и войдите через Telegram.',
+    ].join('\n')
+  );
+}
+
+/**
+ * Public: шаг 1 восстановления пароля — подтверждение личности. Пользователь жмёт
+ * тот же виджет Telegram, что и на входе, сервер проверяет подпись токеном бота и
+ * выдаёт одноразовый токен на 10 минут. Пароль на этом шаге не меняется.
+ *
+ * Аккаунт ищется по telegram_id, то есть доступ восстанавливает только владелец
+ * привязанного Telegram. Аккаунты без привязки владелец разбирает вручную
+ * (@sctManager): почтовой рассылки на платформе нет.
+ */
+router.post('/auth/telegram/recovery', async (req, res) => {
+  if (!TELEGRAM_LOGIN_ENABLED()) {
+    return res.status(503).json({ error: 'Восстановление через Telegram не настроено' });
+  }
+
+  const { user, error } = verifyWidgetPayload(req.body, TOKEN());
+  if (!user) return res.status(400).json({ error: error || 'Не удалось проверить Telegram' });
+
+  try {
+    const found = await pool.query(
+      'SELECT id, name, email, is_enabled FROM operators WHERE telegram_id = $1',
+      [user.id]
+    );
+    if (!found.rows.length) {
+      return res.status(404).json({
+        error: 'К этому Telegram аккаунт не привязан. Если Telegram не привязан к аккаунту — напишите @sctManager.',
+      });
+    }
+
+    const op = found.rows[0] as { id: number; name: string; email: string | null; is_enabled: boolean };
+    if (!op.is_enabled) {
+      return res.status(403).json({ error: 'Аккаунт отключён — напишите @sctManager' });
+    }
+
+    const reset = createResetToken();
+    await pool.query(
+      'UPDATE operators SET reset_token_hash = $1, reset_token_expires = $2 WHERE id = $3',
+      [reset.hash, reset.expiresAt.getTime(), op.id]
+    );
+    console.log(`Password recovery requested: operator id=${op.id} tg=${user.id}`);
+    return res.json({
+      token: reset.token,
+      expiresAt: reset.expiresAt.toISOString(),
+      ttlMinutes: RESET_TOKEN_TTL_MINUTES,
+      name: op.name,
+      email: maskEmail(op.email),
+    });
+  } catch (e) {
+    console.error('Telegram recovery error:', e);
+    return res.status(500).json({ error: 'Не удалось начать восстановление' });
+  }
+});
+
+/**
+ * Public: шаг 2 — новый пароль по одноразовому токену. Токен гасится этим же
+ * запросом (повторно им не воспользоваться), token_version растёт — остальные
+ * сессии аккаунта выходят из системы, а текущий клиент получает новую.
+ */
+router.post('/auth/telegram/recovery/confirm', async (req, res) => {
+  const { token, password } = (req.body ?? {}) as { token?: unknown; password?: unknown };
+  if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) {
+    return res.status(400).json({ error: 'Ссылка восстановления недействительна — начните заново' });
+  }
+  const policyError = validPassword(password);
+  if (policyError) return res.status(400).json({ error: policyError });
+
+  try {
+    const found = await pool.query(
+      `SELECT id, name, role, token_version, tenant_id, telegram_id, is_enabled
+         FROM operators
+        WHERE reset_token_hash = $1 AND reset_token_expires > $2`,
+      [hashResetToken(token), Date.now()]
+    );
+    if (!found.rows.length) {
+      return res.status(400).json({ error: 'Ссылка восстановления устарела — начните заново' });
+    }
+
+    const op = found.rows[0];
+    if (!op.is_enabled) {
+      return res.status(403).json({ error: 'Аккаунт отключён — напишите @sctManager' });
+    }
+
+    const hash = await bcrypt.hash(String(password), 10);
+    const updated = await pool.query(
+      `UPDATE operators
+          SET password = $1, token_version = token_version + 1,
+              reset_token_hash = NULL, reset_token_expires = NULL
+        WHERE id = $2
+        RETURNING id, name, role, token_version, tenant_id`,
+      [hash, op.id]
+    );
+    const u = updated.rows[0];
+
+    // Новый пароль — значит, человек у экрана; сразу выдаём сессию ему.
+    const session = issueSession(res, u);
+    const telegramId = Number(op.telegram_id);
+    if (Number.isFinite(telegramId)) void notifyPasswordChanged(telegramId, u.name);
+    console.log(`Password recovered via Telegram: operator id=${u.id}`);
+    return res.json({ token: session, role: u.role, tenantId: u.tenant_id });
+  } catch (e) {
+    console.error('Telegram recovery confirm error:', e);
+    return res.status(500).json({ error: 'Не удалось изменить пароль' });
   }
 });
 

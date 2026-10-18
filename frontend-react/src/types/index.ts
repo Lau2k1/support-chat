@@ -309,6 +309,18 @@ export interface TelegramLinkState {
   username: string | null;
 }
 
+/** Ответ шага 1 восстановления пароля через Telegram (см. /recover). */
+export interface TelegramRecoveryStart {
+  /** Одноразовый токен: им подтверждается шаг 2. */
+  token: string;
+  expiresAt: string;
+  ttlMinutes: number;
+  /** Имя аккаунта — чтобы человек убедился, что восстанавливает свой. */
+  name: string;
+  /** Email под маской («i***@mail.ru») либо null, если его нет. */
+  email: string | null;
+}
+
 export interface OnlineOperator {
   id: number;
   name: string;

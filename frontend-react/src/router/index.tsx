@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import App from '@/App';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
+import Recover from '@/pages/Recover';
 import OperatorDashboard from '@/pages/operator/OperatorDashboard';
 import AdminPanel from '@/pages/admin/AdminPanel';
 import OwnerDashboard from '@/pages/owner/OwnerDashboard';
@@ -29,6 +30,10 @@ export const router = createBrowserRouter([
   {
     path: '/register',
     element: <Register />,
+  },
+  {
+    path: '/recover',
+    element: <Recover />,
   },
   {
     path: '/',
