@@ -1,6 +1,17 @@
 import { create } from 'zustand';
 import type { Message, OnlineOperator, Tag, CannedResponse } from '@/types';
 
+/** Строка снимка чатов из WS-события `init_operator`. */
+export interface ChatSnapshotRow {
+  id: number;
+  updated_at: number;
+  source?: string | null;
+  client_name?: string | null;
+  public_code?: string | null;
+  assigned_operator_id?: number | null;
+  operator_name?: string | null;
+}
+
 interface ChatState {
   currentChatId: number | null;
   openTabs: number[];
@@ -44,6 +55,11 @@ interface ChatState {
   setOperatorStatus: (status: 'online' | 'busy' | 'offline') => void;
   setNoteMode: (mode: boolean) => void;
   removeChat: (chatId: number) => void;
+  /**
+   * Снимок чатов из `init_operator`. Авторитетен для состава списка, а не
+   * только для полей отдельных чатов (см. реализацию).
+   */
+  applyChatsSnapshot: (chats: ChatSnapshotRow[], at?: number) => void;
   /** Полный сброс: смена пользователя не должна оставлять чужие чаты в памяти. */
   reset: () => void;
 }
@@ -171,6 +187,70 @@ export const useChatStore = create<ChatState>((set, get) => ({
         chatPublicCodes: restPublicCodes,
         chatAssignees: restAssignees,
         chatTags: restChatTags,
+      };
+    }),
+
+  /**
+   * Снимок чатов `init_operator` приходит при каждом подключении оператора
+   * (в том числе при переподключении) и описывает все открытые чаты тенанта,
+   * поэтому он авторитетен для состава списка: чаты, которых в нём нет,
+   * убираются. Иначе закрытые или переданные, пока оператор был оффлайн,
+   * остаются в панели до перезагрузки страницы.
+   *
+   * У исчезнувших чатов чистится всё — история, превью, непрочитанные, вкладка;
+   * у живых непрочитанные и превью сохраняются, чтобы переподключение не
+   * сбрасывало счётчики.
+   *
+   * `at` — время снимка на сервере: чат, о котором мы узнали позже (его
+   * `new_chat` обогнал ответ), имеет более свежий updated_at и сохраняется.
+   */
+  applyChatsSnapshot: (chats, at) =>
+    set((s) => {
+      const keep = new Set(chats.map((c) => String(c.id)));
+      // Без метки времени снимок не авторитетен: пустой список от старого
+      // сервера не должен стирать весь список чатов у оператора.
+      const snapshotAt = Number(at);
+      const authoritative = Number.isFinite(snapshotAt);
+      const gone = (key: string) =>
+        authoritative && !keep.has(key) && (Number(s.chatTimers[key]) || 0) <= snapshotAt;
+      const withoutGone = <T,>(map: Record<string, T>): Record<string, T> =>
+        Object.fromEntries(Object.entries(map).filter(([key]) => !gone(key)));
+
+      const chatTimers = withoutGone(s.chatTimers);
+      const chatSources = withoutGone(s.chatSources);
+      const chatNames = withoutGone(s.chatNames);
+      const chatPublicCodes = withoutGone(s.chatPublicCodes);
+      const chatAssignees = withoutGone(s.chatAssignees);
+
+      for (const chat of chats) {
+        const key = String(chat.id);
+        // max: сообщение, пришедшее во время снимка, свежее — таймер не откатываем.
+        chatTimers[key] = Math.max(Number(chatTimers[key]) || 0, Number(chat.updated_at) || 0);
+        if (chat.source) chatSources[key] = chat.source;
+        if (chat.client_name) chatNames[key] = chat.client_name;
+        if (chat.public_code) chatPublicCodes[key] = chat.public_code;
+        // Назначение не сбрасываем: событие `chat_assigned` могло прийти позже снимка.
+        if (chat.assigned_operator_id && chat.operator_name) {
+          chatAssignees[key] = { id: chat.assigned_operator_id, name: chat.operator_name };
+        }
+      }
+
+      const openTabs = s.openTabs.filter((id) => !gone(String(id)));
+      const currentChatId =
+        s.currentChatId !== null && gone(String(s.currentChatId)) ? null : s.currentChatId;
+
+      return {
+        messages: withoutGone(s.messages),
+        chatTimers,
+        chatUnread: withoutGone(s.chatUnread),
+        chatPreviews: withoutGone(s.chatPreviews),
+        chatSources,
+        chatNames,
+        chatPublicCodes,
+        chatAssignees,
+        chatTags: withoutGone(s.chatTags),
+        openTabs,
+        currentChatId,
       };
     }),
 

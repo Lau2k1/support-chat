@@ -17,6 +17,7 @@ export function useWebSocket() {
     setChatName,
     setChatPublicCode,
     setChatAssignee,
+    applyChatsSnapshot,
     setTyping,
     setOnlineOperators,
     currentChatId,
@@ -42,15 +43,9 @@ export function useWebSocket() {
           break;
 
         case 'init_operator':
-          data.chats.forEach((chat) => {
-            setChatTimer(String(chat.id), chat.updated_at);
-            if (chat.source) setChatSource(String(chat.id), chat.source);
-            if (chat.client_name) setChatName(String(chat.id), chat.client_name);
-            if (chat.public_code) setChatPublicCode(String(chat.id), chat.public_code);
-            if (chat.assigned_operator_id && chat.operator_name) {
-              setChatAssignee(String(chat.id), { id: chat.assigned_operator_id, name: chat.operator_name });
-            }
-          });
+          // Снимок авторитетен для состава списка: чаты, закрытые или переданные
+          // пока оператор был оффлайн, убираются из панели (см. chatStore).
+          applyChatsSnapshot(data.chats, data.at);
           break;
 
         case 'new_chat':
@@ -123,7 +118,7 @@ export function useWebSocket() {
           break;
       }
     },
-    [addMessage, setChatTimer, incrementUnread, setPreview, setChatSource, setChatName, setChatPublicCode, setChatAssignee, setTyping, setOnlineOperators, currentChatId, setCurrentChat, logout, showToast]
+    [addMessage, setChatTimer, incrementUnread, setPreview, setChatSource, setChatName, setChatPublicCode, setChatAssignee, applyChatsSnapshot, setTyping, setOnlineOperators, currentChatId, setCurrentChat, logout, showToast]
   );
 
   useEffect(() => {

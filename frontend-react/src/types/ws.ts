@@ -1,7 +1,7 @@
 export type WsIncomingMessage =
   | { type: 'auth_ok' }
   | { type: 'auth_error' }
-  | { type: 'init_operator'; chats: { id: number; public_code?: string; client_name?: string | null; updated_at: number; source?: string; assigned_operator_id?: number | null; operator_name?: string | null }[] }
+  | { type: 'init_operator'; chats: { id: number; public_code?: string; client_name?: string | null; updated_at: number; source?: string; assigned_operator_id?: number | null; operator_name?: string | null }[]; at?: number }
   | { type: 'new_chat'; chatId: number; public_code?: string; client_name?: string | null; updated_at: number; source?: string; assigned_operator_id?: number | null; operator_name?: string | null }
   | { type: 'chat_created'; chatId: number; public_code?: string }
   | { type: 'message'; message: import('.').Message; updated_at: number }

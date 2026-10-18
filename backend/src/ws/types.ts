@@ -44,7 +44,7 @@ export type IncomingMessage =
 export type OutgoingMessage =
   | { type: 'auth_error' }
   | { type: 'auth_ok' }
-  | { type: 'init_operator'; chats: ChatRow[] }
+  | { type: 'init_operator'; chats: ChatRow[]; at?: number }
   | { type: 'new_chat'; chatId: number; public_code?: string; client_name?: string | null; updated_at: number; source?: string; assigned_operator_id?: number | null; operator_name?: string | null }
   | { type: 'chat_created'; chatId: number; token: string; public_code?: string }
   | { type: 'chat_error'; chatId?: number; error: string }

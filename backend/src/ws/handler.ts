@@ -212,6 +212,13 @@ export function handleConnection(ws: ClientWs, req?: HttpIncomingMessage) {
           await broadcastOperatorsStatus(scopeKey(ws));
           // Always hand the operator the current open chats on first join,
           // regardless of the order in which operator_status arrives.
+          //
+          // Метку времени снимка берём ДО выборки: чат, созданный позже, придёт
+          // отдельным `new_chat` раньше этого ответа, и клиент не должен его
+          // удалять (он сравнивает метку с временем последнего изменения чата).
+          const snapshot = await pool.query(
+            `SELECT (extract(epoch from now()) * 1000)::float8 AS at`
+          );
           const active = await pool.query(
             `SELECT c.id, c.client_name,
                     extract(epoch from c.updated_at) * 1000 as updated_at,
@@ -225,7 +232,7 @@ export function handleConnection(ws: ClientWs, req?: HttpIncomingMessage) {
              ORDER BY c.updated_at DESC`,
             [ws.operator!.tenantId]
           );
-          safeSend(ws, { type: 'init_operator', chats: active.rows });
+          safeSend(ws, { type: 'init_operator', chats: active.rows, at: Number(snapshot.rows[0]?.at) });
           break;
         }
 
