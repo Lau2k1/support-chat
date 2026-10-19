@@ -389,6 +389,10 @@ export interface PromoCode {
   is_active: boolean;
   created_at: string;
   created_by_name?: string | null;
+  /** Тариф, на который выдан код (null = любой тариф). */
+  plan_id: number | null;
+  plan_code?: string | null;
+  plan_name?: string | null;
 }
 
 export interface BillingInfo {
@@ -417,6 +421,8 @@ export interface PromoQuote {
   baseCents?: number;
   discountCents?: number;
   amountCents?: number;
+  /** Заполняется, когда промокод привязан к другому тарифу. */
+  boundPlan?: { code: string; name: string } | null;
 }
 
 export interface CheckoutResult {
@@ -438,5 +444,7 @@ export interface PromoInput {
   maxActivations?: number | null;
   validFrom?: string | null;
   validUntil?: string | null;
+  /** Тариф, на который выдан код (null/undefined = любой тариф). */
+  planId?: number | null;
   isActive?: boolean;
 }

@@ -29,6 +29,10 @@ export interface PromoRow {
   valid_from: string | null;
   valid_until: string | null;
   is_active: boolean;
+  /** Tariff the promo is bound to (owner CRM). null = any plan. */
+  plan_id: number | null;
+  plan_code?: string | null;
+  plan_name?: string | null;
 }
 
 export async function listPlans(): Promise<PlanRow[]> {
@@ -43,19 +47,33 @@ export async function getPlanByCode(code: string): Promise<PlanRow | null> {
   return r.rows[0] ?? null;
 }
 
-/** Returns a user-facing error string when the promo cannot be used, else null. */
-export function promoError(promo: PromoRow | null | undefined): string | null {
+/**
+ * Returns a user-facing error string when the promo cannot be used, else null.
+ * `plan` is the plan the code is being applied to: a promo bound to a specific
+ * tariff is rejected for any other one.
+ */
+export function promoError(promo: PromoRow | null | undefined, plan?: Pick<PlanRow, 'id'> | null): string | null {
   if (!promo) return 'Промокод не найден';
   if (!promo.is_active) return 'Промокод неактивен';
   const now = Date.now();
   if (promo.valid_from && new Date(promo.valid_from).getTime() > now) return 'Промокод ещё не действует';
   if (promo.valid_until && new Date(promo.valid_until).getTime() < now) return 'Срок действия промокода истёк';
   if (promo.max_activations !== null && promo.used_count >= promo.max_activations) return 'Промокод исчерпан';
+  if (promo.plan_id != null && plan && promo.plan_id !== plan.id) {
+    return promo.plan_name
+      ? `Промокод действует только на тариф «${promo.plan_name}»`
+      : 'Промокод действует только на другой тариф';
+  }
   return null;
 }
 
 export async function findPromoByCode(code: string): Promise<PromoRow | null> {
-  const r = await pool.query('SELECT * FROM promo_codes WHERE upper(code) = $1', [code.trim().toUpperCase()]);
+  const r = await pool.query(
+    `SELECT p.*, pl.code AS plan_code, pl.name AS plan_name
+       FROM promo_codes p LEFT JOIN plans pl ON pl.id = p.plan_id
+      WHERE upper(p.code) = $1`,
+    [code.trim().toUpperCase()]
+  );
   return r.rows[0] ?? null;
 }
 

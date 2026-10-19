@@ -1110,9 +1110,9 @@ superRouter.delete('/tenants/:id', async (req, res) => {
 // ---------------------------------------------------------------------------
 
 const PROMO_FIELDS =
-  'id, code, discount_type, discount_value, max_activations, used_count, valid_from, valid_until, is_active, created_at';
+  'id, code, discount_type, discount_value, max_activations, used_count, valid_from, valid_until, is_active, plan_id, created_at';
 
-function parsePromoInput(body: any): { value?: Record<string, unknown>; error?: string } {
+async function parsePromoInput(body: any): Promise<{ value?: Record<string, unknown>; error?: string }> {
   const discountType = body?.discountType;
   const discountValue = Number(body?.discountValue);
   if (!['percent', 'fixed'].includes(discountType)) return { error: 'Тип скидки: percent или fixed' };
@@ -1124,6 +1124,18 @@ function parsePromoInput(body: any): { value?: Record<string, unknown>; error?: 
   if (body?.maxActivations !== undefined && body?.maxActivations !== null && body?.maxActivations !== '') {
     maxActivations = Number(body.maxActivations);
     if (!Number.isInteger(maxActivations) || maxActivations < 1) return { error: 'Лимит активаций — целое число больше 0 или пусто' };
+  }
+
+  // Необязательная привязка к тарифу: такой код действует только на него.
+  let planId: number | null = null;
+  if (body?.planId !== undefined && body?.planId !== null && body?.planId !== '') {
+    planId = Number(body.planId);
+    if (!Number.isInteger(planId) || planId <= 0) return { error: 'Тариф: выберите значение из списка или «любой»' };
+    const plan = await pool.query('SELECT id, price_cents FROM plans WHERE id = $1', [planId]);
+    if (!plan.rows.length) return { error: 'Тариф не найден' };
+    if (plan.rows[0].price_cents === null) {
+      return { error: 'Тариф «Custom» продаётся вручную — промокод к нему не привязать' };
+    }
   }
 
   const parseDate = (v: unknown): string | null | undefined => {
@@ -1140,7 +1152,7 @@ function parsePromoInput(body: any): { value?: Record<string, unknown>; error?: 
   }
 
   return {
-    value: { discountType, discountValue, maxActivations, validFrom, validUntil, isActive: body?.isActive !== false },
+    value: { discountType, discountValue, maxActivations, validFrom, validUntil, isActive: body?.isActive !== false, planId },
   };
 }
 
@@ -1148,8 +1160,12 @@ superRouter.get('/promo-codes', async (_req, res) => {
   try {
     const result = await pool.query(
       `SELECT p.id, p.code, p.discount_type, p.discount_value, p.max_activations, p.used_count,
-              p.valid_from, p.valid_until, p.is_active, p.created_at, o.name AS created_by_name
-       FROM promo_codes p LEFT JOIN operators o ON o.id = p.created_by
+              p.valid_from, p.valid_until, p.is_active, p.created_at,
+              p.plan_id, pl.code AS plan_code, pl.name AS plan_name,
+              o.name AS created_by_name
+       FROM promo_codes p
+       LEFT JOIN operators o ON o.id = p.created_by
+       LEFT JOIN plans pl ON pl.id = p.plan_id
        ORDER BY p.created_at DESC`
     );
     res.json(result.rows);
@@ -1161,7 +1177,7 @@ superRouter.get('/promo-codes', async (_req, res) => {
 
 superRouter.post('/promo-codes', async (req, res) => {
   try {
-    const parsed = parsePromoInput(req.body);
+    const parsed = await parsePromoInput(req.body);
     if (parsed.error) return res.status(400).json({ error: parsed.error });
     const v = parsed.value!;
 
@@ -1174,9 +1190,9 @@ superRouter.post('/promo-codes', async (req, res) => {
     const adminId = (req as AuthenticatedRequest).user!.id;
     const insert = async (c: string) =>
       pool.query(
-        `INSERT INTO promo_codes (code, discount_type, discount_value, max_activations, valid_from, valid_until, is_active, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING ${PROMO_FIELDS}`,
-        [c, v.discountType, v.discountValue, v.maxActivations, v.validFrom, v.validUntil, v.isActive, adminId]
+        `INSERT INTO promo_codes (code, discount_type, discount_value, max_activations, valid_from, valid_until, is_active, created_by, plan_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING ${PROMO_FIELDS}`,
+        [c, v.discountType, v.discountValue, v.maxActivations, v.validFrom, v.validUntil, v.isActive, adminId, v.planId]
       );
 
     if (code) {
@@ -1202,15 +1218,15 @@ superRouter.post('/promo-codes', async (req, res) => {
 
 superRouter.put('/promo-codes/:id', async (req, res) => {
   try {
-    const parsed = parsePromoInput(req.body);
+    const parsed = await parsePromoInput(req.body);
     if (parsed.error) return res.status(400).json({ error: parsed.error });
     const v = parsed.value!;
     const result = await pool.query(
       `UPDATE promo_codes
        SET discount_type = $1, discount_value = $2, max_activations = $3,
-           valid_from = $4, valid_until = $5, is_active = $6
-       WHERE id = $7 RETURNING ${PROMO_FIELDS}`,
-      [v.discountType, v.discountValue, v.maxActivations, v.validFrom, v.validUntil, v.isActive, req.params.id]
+           valid_from = $4, valid_until = $5, is_active = $6, plan_id = $7
+       WHERE id = $8 RETURNING ${PROMO_FIELDS}`,
+      [v.discountType, v.discountValue, v.maxActivations, v.validFrom, v.validUntil, v.isActive, v.planId, req.params.id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Промокод не найден' });
     res.json(result.rows[0]);

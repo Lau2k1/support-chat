@@ -57,8 +57,18 @@ router.post('/promo/validate', async (req, res) => {
     if (!code.trim()) return res.status(400).json({ error: 'Введите промокод' });
 
     const promo = await findPromoByCode(code);
-    const err = promoError(promo);
-    if (err) return res.json({ valid: false, error: err });
+    const err = promoError(promo, plan);
+    if (err) {
+      // Промокод привязан к другому тарифу — подсказываем фронтенду, куда
+      // переключиться. Только если в остальном код действителен: иначе тариф
+      // менять незачем, показываем причину отказа как есть.
+      const usable = !!promo && promoError(promo, null) === null;
+      const boundPlan =
+        usable && promo!.plan_code && promo!.plan_id !== plan.id
+          ? { code: promo!.plan_code, name: promo!.plan_name ?? promo!.plan_code }
+          : null;
+      return res.json({ valid: false, error: err, boundPlan });
+    }
 
     const quote = computeQuote(plan.price_cents, promo);
     res.json({
@@ -93,7 +103,7 @@ router.post('/checkout', async (req, res) => {
     let promo = null;
     if (promoCode) {
       promo = await findPromoByCode(promoCode);
-      const err = promoError(promo);
+      const err = promoError(promo, plan);
       if (err) return res.status(400).json({ error: err });
     }
 

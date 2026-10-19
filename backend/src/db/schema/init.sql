@@ -273,6 +273,10 @@ CREATE TABLE IF NOT EXISTS promo_codes (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Optional plan binding (owner CRM): the promo is valid only for that plan and
+-- the tenant billing page auto-selects it. NULL = the code works on any plan.
+ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS plan_id INTEGER REFERENCES plans(id);
+
 -- Payment / invoice records for tenant subscriptions.
 CREATE TABLE IF NOT EXISTS payments (
     id SERIAL PRIMARY KEY,

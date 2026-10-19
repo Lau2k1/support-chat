@@ -116,6 +116,20 @@ export default function BillingPage() {
     }
     try {
       const res = await billingApi.validatePromo(code, selected);
+      // Промокод может быть выдан на конкретный тариф: тогда он действует
+      // только на него — переключаем выбор и проверяем ещё раз.
+      const bound = res.data.boundPlan;
+      if (!res.data.valid && bound && bound.code !== selected) {
+        setSelected(bound.code);
+        const retry = await billingApi.validatePromo(code, bound.code);
+        setPromo(retry.data);
+        if (retry.data.valid) {
+          showToast(`Промокод применён — выбран тариф «${bound.name}»`);
+          return;
+        }
+        showToast(retry.data.error || 'Не удалось применить промокод', 'error');
+        return;
+      }
       setPromo(res.data);
       if (res.data.valid) showToast('Промокод применён');
     } catch (e: any) {

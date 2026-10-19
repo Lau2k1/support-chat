@@ -25,7 +25,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { superadminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
 import { formatDateTime } from '@/utils/format';
-import type { PromoCode, PromoInput } from '@/types';
+import type { Plan, PromoCode, PromoInput } from '@/types';
 
 interface Form {
   code: string;
@@ -35,6 +35,8 @@ interface Form {
   maxActivations: string;
   validFrom: string;
   validUntil: string;
+  /** Тариф, на который выдан код: '' — любой тариф. */
+  planId: number | '';
   isActive: boolean;
 }
 
@@ -45,6 +47,7 @@ const EMPTY: Form = {
   maxActivations: '',
   validFrom: '',
   validUntil: '',
+  planId: '',
   isActive: true,
 };
 
@@ -59,6 +62,7 @@ function discountLabel(p: PromoCode): string {
 
 export default function CrmPromoCodesPage() {
   const [promos, setPromos] = useState<PromoCode[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PromoCode | null>(null);
   const [form, setForm] = useState<Form>(EMPTY);
@@ -68,8 +72,10 @@ export default function CrmPromoCodesPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await superadminApi.getPromoCodes();
-      setPromos(res.data);
+      const [promoRes, planRes] = await Promise.all([superadminApi.getPromoCodes(), superadminApi.getPlans()]);
+      setPromos(promoRes.data);
+      // «Custom» продаётся вручную — привязать к нему промокод нельзя.
+      setPlans(planRes.data.filter((p) => p.price_cents !== null));
     } catch (e: any) {
       showToast(e?.response?.data?.error || 'Не удалось загрузить промокоды', 'error');
     }
@@ -94,6 +100,7 @@ export default function CrmPromoCodesPage() {
       maxActivations: p.max_activations === null ? '' : String(p.max_activations),
       validFrom: toDateInput(p.valid_from),
       validUntil: toDateInput(p.valid_until),
+      planId: p.plan_id ?? '',
       isActive: p.is_active,
     });
     setOpen(true);
@@ -116,6 +123,7 @@ export default function CrmPromoCodesPage() {
       maxActivations: form.maxActivations.trim() ? Number(form.maxActivations) : null,
       validFrom: form.validFrom || null,
       validUntil: form.validUntil || null,
+      planId: form.planId === '' ? null : Number(form.planId),
       isActive: form.isActive,
     };
     if (!editing) payload.code = form.code.trim().toUpperCase() || undefined;
@@ -179,6 +187,7 @@ export default function CrmPromoCodesPage() {
             <TableRow>
               <TableCell>Код</TableCell>
               <TableCell>Скидка</TableCell>
+              <TableCell>Тариф</TableCell>
               <TableCell>Активации</TableCell>
               <TableCell>Действует</TableCell>
               <TableCell>Статус</TableCell>
@@ -189,7 +198,7 @@ export default function CrmPromoCodesPage() {
           <TableBody>
             {promos.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 3 }}>
                   Промокодов пока нет
                 </TableCell>
               </TableRow>
@@ -205,6 +214,7 @@ export default function CrmPromoCodesPage() {
                   </Box>
                 </TableCell>
                 <TableCell>{discountLabel(p)}</TableCell>
+                <TableCell>{p.plan_name ? `«${p.plan_name}»` : 'Любой'}</TableCell>
                 <TableCell>
                   {p.used_count}
                   {p.max_activations !== null ? ` / ${p.max_activations}` : ' / ∞'}
@@ -260,6 +270,22 @@ export default function CrmPromoCodesPage() {
               <MenuItem value="fixed">Фиксированная сумма, $</MenuItem>
             </TextField>
             <TextField
+              select
+              label="Тариф действия"
+              value={form.planId}
+              onChange={(e) =>
+                setForm({ ...form, planId: e.target.value === '' ? '' : Number(e.target.value) })
+              }
+              helperText="Промокод будет действовать только на этот тариф"
+            >
+              <MenuItem value="">Любой тариф</MenuItem>
+              {plans.map((p) => (
+                <MenuItem key={p.id} value={p.id}>
+                  {p.name}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
               label={form.discountType === 'percent' ? 'Скидка, %' : 'Скидка, $'}
               value={form.value}
               onChange={(e) => setForm({ ...form, value: e.target.value })}
@@ -294,7 +320,8 @@ export default function CrmPromoCodesPage() {
             label="Активен"
           />
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            100% скидка даёт бесплатный период на 30 дней.
+            100% скидка даёт бесплатный период на 30 дней. Промокод на конкретный тариф действует
+            только на него: на странице оплаты тариф выберется автоматически.
           </Typography>
         </DialogContent>
         <DialogActions>
