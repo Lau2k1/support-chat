@@ -27,9 +27,10 @@ async function resolveCaller(req: AuthenticatedRequest, chatId: number) {
   const token = tokenFromRequest(req as unknown as { headers: Record<string, unknown> });
   const operator = token ? await resolveOperator(token) : null;
 
+  // SEC-22: клиентский токен принимаем ТОЛЬКО заголовком (как в /messages,
+  // SEC-15): query-строка утекает в логи прокси и Referer.
   const clientToken =
-    (typeof req.query.token === 'string' ? req.query.token : undefined) ||
-    (typeof req.headers['x-client-token'] === 'string' ? req.headers['x-client-token'] : undefined);
+    typeof req.headers['x-client-token'] === 'string' ? req.headers['x-client-token'] : undefined;
   const owner = clientToken
     ? await pool.query('SELECT client_token FROM chats WHERE id = $1', [chatId])
     : null;

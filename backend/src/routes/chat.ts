@@ -60,7 +60,11 @@ router.get('/chats', authMiddleware, async (req, res) => {
     if (to) { sql += ` AND c.created_at <= $${idx++}`; params.push(endOfDay(to)); }
 
     sql += ` GROUP BY c.id, o.name ORDER BY c.created_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
-    params.push(Number(limit), Number(offset));
+    // SEC-24: мусорные limit/offset раньше валили запрос в 500 — приводим к
+    // целым в разумных границах (страница архива — максимум 200 чатов).
+    const limitN = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    const offsetN = Math.max(Number(offset) || 0, 0);
+    params.push(limitN, offsetN);
 
     const result = await pool.query(sql, params);
     res.json(result.rows.map(row => ({

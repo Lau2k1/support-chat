@@ -21,11 +21,19 @@
 	import common
 
 	# WebSocket upgrade (/ws) and the whole API/SPA go to the app container.
-	reverse_proxy app:3000
+	# SEC-23: X-Forwarded-For подменяем на реальный адрес клиента — иначе лимиты
+	# приложения (rate-limit, init_chat) обходятся подделкой заголовка.
+	reverse_proxy app:3000 {
+		header_up X-Forwarded-For {remote_host}
+	}
 }
 
 # Домен панелей: та же панель/API, отдельный сертификат.
 {$APP_DOMAIN} {
 	import common
-	reverse_proxy app:3000
+	# SEC-23: X-Forwarded-For подменяем на реальный адрес клиента — иначе лимиты
+	# приложения (rate-limit, init_chat) обходятся подделкой заголовка.
+	reverse_proxy app:3000 {
+		header_up X-Forwarded-For {remote_host}
+	}
 }

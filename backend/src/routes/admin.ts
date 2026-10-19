@@ -15,6 +15,7 @@ import {
   validSlug,
   validString,
   validTagName,
+  validWidgetOrigin,
   firstError,
 } from '../utils/validate';
 import { startOfDay, endOfDay } from '../utils/dateRange';
@@ -376,14 +377,25 @@ router.get('/chats', async (req, res) => {
 
     if (scope) { sql += ` AND c.tenant_id = $${idx++}`; params.push(scope); }
     if (status) { sql += ` AND c.status = $${idx++}`; params.push(status); }
-    if (operator_id) { sql += ` AND c.assigned_operator_id = $${idx++}`; params.push(Number(operator_id)); }
+    if (operator_id) {
+      // SEC-24: мусорный operator_id раньше падал в 500 — фильтр применяем
+      // только к валидному целому положительному id.
+      const opId = Number(operator_id);
+      if (Number.isInteger(opId) && opId > 0) {
+        sql += ` AND c.assigned_operator_id = $${idx++}`;
+        params.push(opId);
+      }
+    }
     const fromDate = startOfDay(from);
     const toDate = endOfDay(to);
     if (fromDate) { sql += ` AND c.created_at >= $${idx++}`; params.push(fromDate); }
     if (toDate) { sql += ` AND c.created_at <= $${idx++}`; params.push(toDate); }
 
     sql += ` ORDER BY c.created_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
-    params.push(Number(limit), Number(offset));
+    // SEC-24: мусорные limit/offset раньше падали в 500 — нормализуем.
+    const limitN = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    const offsetN = Math.max(Number(offset) || 0, 0);
+    params.push(limitN, offsetN);
 
     const result = await pool.query(sql, params);
     res.json(result.rows);
@@ -402,6 +414,8 @@ router.get('/settings', async (req, res) => {
     const global = isGlobal(req);
     if (global && !req.query.tenantId) return res.status(400).json({ error: 'tenantId required for superadmin' });
     const tenantId = global ? Number(req.query.tenantId) : (req as AuthenticatedRequest).user!.tenantId;
+    // SEC-24: мусорный tenantId раньше падал в 500 — отвечаем явной 400.
+    if (!Number.isInteger(tenantId)) return res.status(400).json({ error: 'tenantId: целое число' });
     const result = await pool.query('SELECT key, value FROM settings WHERE tenant_id = $1 ORDER BY key', [tenantId]);
     const settings: Record<string, string> = {};
     result.rows.forEach((r: { key: string; value: string }) => { settings[r.key] = r.value; });
@@ -417,6 +431,8 @@ router.put('/settings', async (req, res) => {
     const global = isGlobal(req);
     if (global && !req.body.tenantId) return res.status(400).json({ error: 'tenantId required for superadmin' });
     const tenantId = global ? Number(req.body.tenantId) : (req as AuthenticatedRequest).user!.tenantId;
+    // SEC-24: мусорный tenantId раньше падал в 500 — отвечаем явной 400.
+    if (!Number.isInteger(tenantId)) return res.status(400).json({ error: 'tenantId: целое число' });
     const allowedKeys = ['chat_timeout_minutes', 'welcome_message', 'widget_origins'];
     if (req.body.chat_timeout_minutes !== undefined) {
       const err = validInt(req.body.chat_timeout_minutes, 'Время авто-закрытия', {
@@ -432,10 +448,11 @@ router.put('/settings', async (req, res) => {
     }
     if (req.body.widget_origins !== undefined) {
       const list = req.body.widget_origins;
-      if (!Array.isArray(list) || !list.every((o: unknown) => typeof o === 'string' && /^https?:\/\//i.test(o))) {
-        return res.status(400).json({ error: 'widget_origins: массив URL (http/https)' });
-      }
-      req.body.widget_origins = JSON.stringify(list);
+      // SEC-25: строгий origin (scheme://host[:port]) — значения уходят в
+      // заголовок CSP виджета, поэтому пробелы/«;»/пути недопустимы.
+      const originErr = Array.isArray(list) ? firstError(...list.map(validWidgetOrigin)) : 'Origins: массив сайтов';
+      if (originErr) return res.status(400).json({ error: originErr });
+      req.body.widget_origins = JSON.stringify(list.map((o: string) => o.trim()));
     }
     for (const [key, value] of Object.entries(req.body)) {
       if (!allowedKeys.includes(key)) continue;
@@ -528,6 +545,8 @@ router.post('/tags', async (req, res) => {
     if (err) return res.status(400).json({ error: err });
     if (global && !req.body.tenantId) return res.status(400).json({ error: 'tenantId required for superadmin' });
     const tenantId = global ? Number(req.body.tenantId) : (req as AuthenticatedRequest).user!.tenantId;
+    // SEC-24: мусорный tenantId раньше падал в 500 — отвечаем явной 400.
+    if (!Number.isInteger(tenantId)) return res.status(400).json({ error: 'tenantId: целое число' });
     const result = await pool.query(
       'INSERT INTO tags (name, color, tenant_id) VALUES ($1, $2, $3) RETURNING id, name, color, created_at, tenant_id',
       [String(name).trim(), color || null, tenantId]

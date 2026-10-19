@@ -102,6 +102,22 @@ export function validInt(
   return null;
 }
 
+/**
+ * SEC-25: widget embed origin for the CSP frame-ancestors list. Values end up
+ * verbatim in a response header, so only a strict origin (scheme://host[:port])
+ * is allowed — no paths, spaces, quotes or `;`.
+ */
+const ORIGIN_RE = /^https?:\/\/[A-Za-z0-9.-]+(:\d{1,5})?$/;
+
+export function validWidgetOrigin(value: unknown): ValidationError {
+  if (typeof value !== 'string' || value.trim().length === 0) return 'Origins: укажите адрес сайта';
+  const v = value.trim();
+  if (v.length > 100 || !ORIGIN_RE.test(v)) {
+    return 'Origins: формат https://site.ru (без пути, пробелов и кавычек)';
+  }
+  return null;
+}
+
 /** Tag name: 1–30 chars. */
 export function validTagName(value: unknown): ValidationError {
   return validString(value, 'Название тега', { max: LIMITS.tagName });

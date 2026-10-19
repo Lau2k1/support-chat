@@ -29,6 +29,7 @@ import { resolveOperator, tokenFromRequest } from './middleware/auth';
 import { verifyFileSignature } from './utils/signedUrl';
 import { resolveUploadPath, tenantDirOf } from './utils/uploadPaths';
 import { safeDownloadName } from './utils/attachments';
+import { validWidgetOrigin } from './utils/validate';
 
 const app = express();
 
@@ -201,7 +202,9 @@ app.get('/widget.html', async (req, res, next) => {
           const list = JSON.parse(s.rows[0].value);
           if (Array.isArray(list)) {
             for (const o of list) {
-              if (typeof o === 'string' && /^https?:\/\//i.test(o)) origins.add(o);
+              // SEC-25: значения уходят в заголовок CSP — пропускаем только
+              // строгий origin (scheme://host[:port]), без пробелов и «;».
+              if (typeof o === 'string' && validWidgetOrigin(o) === null) origins.add(o.trim());
             }
           }
         }
@@ -402,6 +405,14 @@ app.get('{*path}', sendSpaIndex);
 // причина не попадала бы в лог. Регистрируется последним.
 app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (res.headersSent) return next(err);
+  // SEC-21: malformed request bodies (bad JSON, oversized payload) come from
+  // express.json with their own 4xx status — answer accordingly instead of a
+  // blanket 500 that looked like a server crash (и 500-й шум в мониторинге).
+  const rawStatus = (err as { status?: unknown; statusCode?: unknown })?.status ?? (err as { statusCode?: unknown })?.statusCode;
+  const status = typeof rawStatus === 'number' ? rawStatus : 0;
+  if (status >= 400 && status < 500) {
+    return void res.status(status).json({ error: status === 413 ? 'Слишком большой запрос' : 'Некорректный запрос' });
+  }
   const message = err instanceof Error ? err.message : String(err);
   console.error('[error]', message, err instanceof Error ? err.stack : '');
   res.status(500).json({ error: 'Внутренняя ошибка сервера' });

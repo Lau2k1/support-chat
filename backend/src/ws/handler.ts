@@ -68,6 +68,37 @@ function allowInitChat(ws: ClientWs): boolean {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// SEC-20: abuse protection for chat messages. Every accepted frame is a DB
+// INSERT + UPDATE + fan-out (and possibly a Telegram mirror), so a socket must
+// not be able to flood the database. Token bucket: short bursts pass, the
+// sustained rate is capped.
+// ---------------------------------------------------------------------------
+const MSG_RATE_CAPACITY = 10;      // burst per socket
+const MSG_RATE_REFILL_PER_SEC = 2; // sustained messages per second
+const msgBuckets = new WeakMap<ClientWs, { tokens: number; ts: number; noticeAt: number }>();
+
+/** Consumes a token for one `message` frame; sends a throttled notice when empty. */
+function allowChatMessage(ws: ClientWs, chatId: number | undefined): boolean {
+  const now = Date.now();
+  let b = msgBuckets.get(ws);
+  if (!b) {
+    b = { tokens: MSG_RATE_CAPACITY, ts: now, noticeAt: 0 };
+    msgBuckets.set(ws, b);
+  }
+  b.tokens = Math.min(MSG_RATE_CAPACITY, b.tokens + ((now - b.ts) / 1000) * MSG_RATE_REFILL_PER_SEC);
+  b.ts = now;
+  if (b.tokens >= 1) {
+    b.tokens -= 1;
+    return true;
+  }
+  // Notify at most once per 5 s, so the notice itself can't be used for spam.
+  if (now - b.noticeAt > 5_000) {
+    b.noticeAt = now;
+    safeSend(ws, { type: 'chat_error', chatId, error: 'Слишком много сообщений, подождите пару секунд' });
+  }
+  return false;
+}
 
 function isAuth(ws: ClientWs): boolean {
   return ws.role === 'operator' || ws.role === 'client';
@@ -364,6 +395,8 @@ export function handleConnection(ws: ClientWs, req?: HttpIncomingMessage) {
 
         case 'message': {
           if (!isAuth(ws)) break;
+          // SEC-20: per-socket token bucket before any DB work.
+          if (!allowChatMessage(ws, resolveTargetChatId(ws, msg.chatId) ?? undefined)) break;
           if (!(await socketMayUse(ws))) {
             safeSend(ws, { type: 'chat_error', chatId: resolveTargetChatId(ws, msg.chatId) ?? undefined, error: PAYMENT_REQUIRED_MSG });
             break;
@@ -404,9 +437,10 @@ export function handleConnection(ws: ClientWs, req?: HttpIncomingMessage) {
 
           const sName = ws.role === 'operator' ? ws.operator!.name : 'Клиент';
           const sId = ws.role === 'operator' ? ws.operator!.id : 0;
-          const allowedTypes = ['text', 'note'] as const;
+          // SEC-26: internal notes are a staff-only tool — a client frame with
+          // message_type=note must not reach the team as if a colleague wrote it.
           const rawType = (msg as any).message_type;
-          const mType = allowedTypes.includes(rawType) ? rawType : 'text';
+          const mType = ws.role === 'operator' && rawType === 'note' ? 'note' : 'text';
 
           const content = typeof msg.content === 'string' ? msg.content.trim() : '';
           if (!content) {
@@ -440,7 +474,8 @@ export function handleConnection(ws: ClientWs, req?: HttpIncomingMessage) {
           } else {
             broadcastToRoom(cId, out);
             // A reply in a Telegram-sourced chat is mirrored back to the contact.
-            if (ws.role === 'operator' && mType !== 'note') {
+            // (В этой ветке mType — всегда 'text', проверка на 'note' лишняя.)
+            if (ws.role === 'operator') {
               forwardMessageToTelegram(cId, res.rows[0]).catch((e) => console.error('TG forward failed', e));
             }
           }

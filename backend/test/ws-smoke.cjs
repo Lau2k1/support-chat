@@ -176,6 +176,15 @@ function check(name, ok, extra = '') {
   });
   check('upload with client token OK', upOk.status === 200, `status=${upOk.status}`);
 
+  // SEC-22: the client token in the query string must not be accepted for uploads.
+  const fd3 = new FormData();
+  fd3.append('file', new Blob(['hello'], { type: 'text/plain' }), 'c.txt');
+  const upQuery = await fetch(`${HTTP}/upload/${chatId}?token=${encodeURIComponent(created.token)}`, {
+    method: 'POST',
+    body: fd3,
+  });
+  check('upload via query token rejected (SEC-22)', upQuery.status === 401, `status=${upQuery.status}`);
+
   // 10b. the REST upload must broadcast the stored message into the room
   await sleep(300);
   const gotFile = opMessages.some(
