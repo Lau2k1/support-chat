@@ -35,3 +35,17 @@ export function classifyAttachment(filename: string): AttachmentKind | null {
 /** Понятное человеку перечисление разрешённых типов (для текста ошибки). */
 export const UPLOAD_HINT =
   'можно картинки, видео и документы (pdf, doc, xls, zip и др.)';
+
+/**
+ * Имя файла для заголовка Content-Disposition из query-параметра ?name=.
+ * Панель так передаёт исходное имя вложения тикета — иначе браузер сохранит
+ * файл под uuid. Оставляем только basename без управляющих символов, кавычек
+ * и разделителей путей; null — если передали мусор.
+ */
+export function safeDownloadName(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const base = raw.split(/[\\/]/).pop() ?? '';
+  const clean = base.replace(/[\u0000-\u001f\u007f"\\:*?<>|]/g, '_').trim();
+  if (!clean || clean === '.' || clean === '..') return null;
+  return clean.slice(0, 120);
+}

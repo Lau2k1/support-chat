@@ -244,6 +244,12 @@ export const ticketsApi = {
   /** Operator/admin fills an active template and creates a ticket. */
   create: (data: { templateId: number; data: Record<string, any> }) =>
     api.post<TicketResponse>('/tickets', data),
+  /** Вложение для поля «Файл»: файл кладётся в хранилище тенанта. */
+  upload: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<{ file: { url: string; name: string; size: number } }>('/tickets/upload', formData);
+  },
   /** Решено / не решено. */
   setStatus: (id: number, status: TicketStatus) =>
     api.put<TicketResponse>(`/tickets/${id}`, { status }),

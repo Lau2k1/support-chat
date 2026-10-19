@@ -39,7 +39,18 @@ export interface CreateTicketInput {
 const TEXT_MAX = 500;
 const TEXTAREA_MAX = 5000;
 const FILE_MAX = 1000;
+const FILE_NAME_MAX = 300;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Ссылка на вложение: свой /uploads/ (панель) или внешний http(s) — на случай
+ * интеграций. Всё остальное (javascript: и т.п.) отсекаем, чтобы значения не
+ * превращались в исполняемые ссылки при отображении.
+ */
+function isFileUrl(v: string): boolean {
+  if (v.includes('..') || v.includes('\\')) return false;
+  return v.startsWith('/uploads/') || /^https?:\/\//i.test(v);
+}
 
 function isBlank(v: unknown): boolean {
   if (v === undefined || v === null) return true;
@@ -136,9 +147,23 @@ export function validateTicketData(
         break;
       }
       case 'file': {
-        if (typeof raw !== 'string') return { data: out, error: `«${label}»: ожидается ссылка` };
+        // Новый формат — объект { url, name } от загрузчика вложений
+        // (POST /tickets/upload): оператор видит исходное имя файла.
+        // Строку-ссылку принимаем для совместимости со старыми тикетами.
+        if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
+          const r = raw as { url?: unknown; name?: unknown };
+          const url = typeof r.url === 'string' ? r.url.trim() : '';
+          if (!url || !isFileUrl(url)) return { data: out, error: `«${label}»: неверная ссылка на файл` };
+          if (url.length > FILE_MAX) return { data: out, error: `«${label}»: максимум ${FILE_MAX} символов` };
+          const name = typeof r.name === 'string' ? r.name.trim() : '';
+          if (name.length > FILE_NAME_MAX) return { data: out, error: `«${label}»: слишком длинное имя файла` };
+          out[f.id] = name ? { url, name } : { url };
+          break;
+        }
+        if (typeof raw !== 'string') return { data: out, error: `«${label}»: ожидается файл` };
         const v = raw.trim();
         if (v.length > FILE_MAX) return { data: out, error: `«${label}»: максимум ${FILE_MAX} символов` };
+        if (!isFileUrl(v)) return { data: out, error: `«${label}»: неверная ссылка на файл` };
         out[f.id] = v;
         break;
       }

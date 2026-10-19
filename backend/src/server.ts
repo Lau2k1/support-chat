@@ -28,6 +28,7 @@ import { pool } from './db';
 import { resolveOperator, tokenFromRequest } from './middleware/auth';
 import { verifyFileSignature } from './utils/signedUrl';
 import { resolveUploadPath, tenantDirOf } from './utils/uploadPaths';
+import { safeDownloadName } from './utils/attachments';
 
 const app = express();
 
@@ -286,6 +287,15 @@ async function fileTenantId(rel: string): Promise<number | null> {
 }
 
 /**
+ * Content-Disposition с безопасным ASCII-дублем имени (для старых клиентов)
+ * и filename* по RFC 5987 — кириллица сохраняется корректно.
+ */
+function contentDisposition(kind: 'inline' | 'attachment', name: string): string {
+  const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '_');
+  return `${kind}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+}
+
+/**
  * Изоляция тенантов: файл отдаём только владельцу.
  *  1) виджет/внешние страницы — по короткой подписи ?t=... (теги <img>/<a>
  *     не умеют слать заголовки, а cookie у встраиваемого виджета нет);
@@ -317,6 +327,9 @@ async function serveUpload(rel: string, req: express.Request, res: express.Respo
   if (!allowed) return void res.status(404).end();
 
   const filename = path.basename(clean);
+  // Исходное имя можно передать в ?name= (панель так отдаёт имя вложения
+  // тикета — иначе при скачивании сохранился бы uuid).
+  const display = safeDownloadName(req.query.name) ?? filename;
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader(
     'Content-Security-Policy',
@@ -326,10 +339,10 @@ async function serveUpload(rel: string, req: express.Request, res: express.Respo
   const inlineType = INLINE_IMAGE_TYPES[ext] ?? INLINE_VIDEO_TYPES[ext];
   if (inlineType) {
     res.setHeader('Content-Type', inlineType);
-    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.setHeader('Content-Disposition', contentDisposition('inline', display));
   } else {
     res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Disposition', contentDisposition('attachment', display));
   }
   res.sendFile(full, (err) => {
     if (err && !res.headersSent) res.status(404).end();

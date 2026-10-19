@@ -3,13 +3,13 @@ import path from 'path';
 import { pool } from '../db';
 import { UPLOADS_DIR, TENANT_DIR_RE } from '../utils/uploadPaths';
 
-/** Orphan files (not referenced by any message) older than this are removed. */
+/** Orphan files (not referenced by any message or ticket) older than this are removed. */
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /**
- * SEC-02: deletes upload files that are not referenced by any message and are
- * older than MAX_AGE_MS. Guards against disk exhaustion from failed/incomplete
- * uploads and from chats deleted before their files.
+ * SEC-02: deletes upload files that are not referenced by any message or ticket
+ * and are older than MAX_AGE_MS. Guards against disk exhaustion from
+ * failed/incomplete uploads and from chats deleted before their files.
  *
  * Files live either flat in `uploads/` (historical) or under `uploads/tenant-<id>/`
  * (new layout), so both the root and one level of tenant folders are scanned.
@@ -30,8 +30,13 @@ export async function cleanupOrphanUploads(): Promise<number> {
     try {
       const st = await fs.promises.stat(full);
       if (!st.isFile() || st.mtimeMs > cutoff) return;
-      const ref = await pool.query('SELECT 1 FROM messages WHERE file_url = $1 LIMIT 1', [`/uploads/${rel}`]);
+      const url = `/uploads/${rel}`;
+      const ref = await pool.query('SELECT 1 FROM messages WHERE file_url = $1 LIMIT 1', [url]);
       if (ref.rows.length) return;
+      // Вложения тикетов лежат в data поля «Файл» ({ url, name } или строкой),
+      // поэтому ищем url подстрокой в JSON — strpos не требует экранирования.
+      const inTickets = await pool.query('SELECT 1 FROM tickets WHERE strpos(data::text, $1) > 0 LIMIT 1', [url]);
+      if (inTickets.rows.length) return;
       await fs.promises.unlink(full);
       removed++;
     } catch {

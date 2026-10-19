@@ -1,41 +1,22 @@
 import { Router, type Response, type NextFunction } from 'express';
 import multer from 'multer';
-import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';
 import { pool } from '../db';
 import { authMiddleware, resolveOperator, tokenFromRequest, AuthenticatedRequest, type AuthUser } from '../middleware/auth';
 import { broadcastToRoom } from '../services/chat';
 import { forwardMessageToTelegram } from '../services/telegram';
 import { signFileUrl } from '../utils/signedUrl';
-import { UPLOADS_DIR, tenantRelPath } from '../utils/uploadPaths';
-import { MAX_UPLOAD_BYTES, UPLOAD_HINT, classifyAttachment } from '../utils/attachments';
+import { tenantRelPath } from '../utils/uploadPaths';
+import { attachmentUpload } from '../utils/attachmentUpload';
+import { UPLOAD_HINT, classifyAttachment } from '../utils/attachments';
 import { isActiveBilling } from '../services/billing';
 import type { OutgoingMessage } from '../ws/types';
 
 /**
- * Вложения: картинки, видео и документы. Что принимаем и как классифицируем —
- * в utils/attachments.ts (там же лимит 20 МБ, общий с Telegram Bot API).
+ * Вложения: картинки, видео и документы. Что принимаем, как классифицируем и
+ * куда кладём — в utils/attachmentUpload.ts (общий с загрузкой файлов тикетов).
  */
-const upload = multer({
-  storage: multer.diskStorage({
-    // Изоляция тенантов: новые файлы кладём в подпапку `tenant-<id>/`. Тенант
-    // известен заранее — authorizeUpload выполняется до multer и кладёт id в req.
-    destination: (req, _file, cb) => {
-      const tenantId = (req as UploadRequest).uploadTenantId;
-      const dir = tenantId != null ? path.join(UPLOADS_DIR, `tenant-${tenantId}`) : UPLOADS_DIR;
-      fs.mkdir(dir, { recursive: true }, (err) => cb(err, dir));
-    },
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname);
-      cb(null, crypto.randomUUID() + ext);
-    },
-  }),
-  limits: { fileSize: MAX_UPLOAD_BYTES },
-  fileFilter: (_req, file, cb) => {
-    cb(null, classifyAttachment(file.originalname) !== null);
-  },
-});
+const upload = attachmentUpload((req) => (req as UploadRequest).uploadTenantId ?? null);
 
 /**
  * Resolves the caller of a client-facing endpoint: either an authenticated

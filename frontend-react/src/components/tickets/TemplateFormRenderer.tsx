@@ -1,11 +1,16 @@
+import { useRef, useState } from 'react';
 import {
   Box,
+  Button,
   Checkbox,
+  CircularProgress,
   Divider,
   FormControl,
   FormControlLabel,
   FormGroup,
+  IconButton,
   InputLabel,
+  Link,
   MenuItem,
   Radio,
   RadioGroup,
@@ -13,7 +18,13 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
+import CloseIcon from '@mui/icons-material/Close';
 import type { TicketField } from '@/types';
+import { ticketsApi } from '@/services/endpoints';
+import { useUIStore } from '@/stores/uiStore';
+import { UPLOAD_ACCEPT, uploadSizeError } from '@/utils/upload';
+import { fileHref, fileValueOf } from './ticketFormat';
 
 interface Props {
   fields: TicketField[];
@@ -24,6 +35,103 @@ interface Props {
 
 function labelOf(f: TicketField): string {
   return f.label + (f.required ? ' *' : '');
+}
+
+/**
+ * Поле «Файл»: настоящая загрузка вложения (POST /tickets/upload), а не ссылка.
+ * На сервере файл кладётся в папку тенанта, в тикете хранится { url, name }.
+ */
+function FileFieldControl({
+  field,
+  value,
+  onChange,
+  disabled,
+}: {
+  field: TicketField;
+  value: unknown;
+  onChange: (value: any) => void;
+  disabled: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const showToast = useUIStore((s) => s.showToast);
+  const file = fileValueOf(value);
+
+  const pick = () => inputRef.current?.click();
+
+  const handlePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const chosen = e.target.files?.[0];
+    e.target.value = '';
+    if (!chosen) return;
+
+    const sizeError = uploadSizeError(chosen);
+    if (sizeError) {
+      showToast(sizeError, 'error');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const { data } = await ticketsApi.upload(chosen);
+      onChange(data.file);
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Не удалось загрузить файл', 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const busy = disabled || uploading;
+
+  return (
+    <Box>
+      <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+        {labelOf(field)}
+      </Typography>
+
+      {file ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <AttachFileIcon fontSize="small" color="action" />
+          <Link
+            href={fileHref(file)}
+            target="_blank"
+            rel="noopener"
+            variant="body2"
+            sx={{ wordBreak: 'break-all', pointerEvents: disabled ? 'none' : 'auto' }}
+          >
+            {file.name}
+          </Link>
+          <Button size="small" onClick={pick} disabled={busy}>
+            Заменить
+          </Button>
+          <IconButton
+            size="small"
+            onClick={() => onChange(null)}
+            disabled={busy}
+            title="Убрать файл"
+            aria-label="Убрать файл"
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      ) : (
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={uploading ? <CircularProgress size={16} /> : <AttachFileIcon />}
+          onClick={pick}
+          disabled={busy}
+        >
+          {uploading ? 'Загрузка…' : 'Загрузить файл'}
+        </Button>
+      )}
+
+      <input ref={inputRef} type="file" accept={UPLOAD_ACCEPT} hidden onChange={handlePick} />
+      <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
+        До 20 МБ: картинки, видео и документы (pdf, doc, xls, zip и др.)
+      </Typography>
+    </Box>
+  );
 }
 
 /**
@@ -58,6 +166,7 @@ export default function TemplateFormRenderer({ fields, values, onChange, disable
                 rows={4}
                 fullWidth
                 label={label}
+                placeholder={f.placeholder || undefined}
                 value={value ?? ''}
                 onChange={(e) => onChange(f.id, e.target.value)}
                 disabled={disabled}
@@ -71,6 +180,7 @@ export default function TemplateFormRenderer({ fields, values, onChange, disable
                 type="number"
                 fullWidth
                 label={label}
+                placeholder={f.placeholder || undefined}
                 value={value ?? ''}
                 onChange={(e) => onChange(f.id, e.target.value)}
                 disabled={disabled}
@@ -213,12 +323,10 @@ export default function TemplateFormRenderer({ fields, values, onChange, disable
 
           case 'file':
             control = (
-              <TextField
-                fullWidth
-                label={label}
-                placeholder="https://..."
-                value={value ?? ''}
-                onChange={(e) => onChange(f.id, e.target.value)}
+              <FileFieldControl
+                field={f}
+                value={value}
+                onChange={(v) => onChange(f.id, v)}
                 disabled={disabled}
               />
             );
@@ -229,6 +337,7 @@ export default function TemplateFormRenderer({ fields, values, onChange, disable
               <TextField
                 fullWidth
                 label={label}
+                placeholder={f.placeholder || undefined}
                 value={value ?? ''}
                 onChange={(e) => onChange(f.id, e.target.value)}
                 disabled={disabled}

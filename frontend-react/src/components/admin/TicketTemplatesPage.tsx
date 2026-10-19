@@ -4,7 +4,6 @@ import {
   Button,
   Card,
   Chip,
-  Divider,
   IconButton,
   Table,
   TableBody,
@@ -27,6 +26,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import { ticketTemplatesApi } from '@/services/endpoints';
 import type { TicketTemplate } from '@/types';
 import TicketTemplateBuilder from './TicketTemplateBuilder';
+import TemplateFormRenderer from '@/components/tickets/TemplateFormRenderer';
 import { useUIStore } from '@/stores/uiStore';
 
 export default function TicketTemplatesPage() {
@@ -38,6 +38,7 @@ export default function TicketTemplatesPage() {
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewTpl, setPreviewTpl] = useState<TicketTemplate | null>(null);
+  const [previewValues, setPreviewValues] = useState<Record<string, any>>({});
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -127,6 +128,7 @@ export default function TicketTemplatesPage() {
 
   const handlePreview = (tpl: TicketTemplate) => {
     setPreviewTpl(tpl);
+    setPreviewValues({});
     setPreviewOpen(true);
   };
 
@@ -251,40 +253,18 @@ export default function TicketTemplatesPage() {
               {previewTpl.description}
             </Typography>
           )}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {(previewTpl?.schema?.fields || []).map((f) => (
-              <Box key={f.id}>
-                {f.type === 'divider' ? (
-                  <Divider />
-                ) : f.type === 'title' ? (
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                    {f.label}
-                  </Typography>
-                ) : (
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
-                      {f.label}
-                      {f.required && <span style={{ color: 'red' }}> *</span>}
-                    </Typography>
-                    {f.helpText && (
-                      <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 0.5 }}>
-                        {f.helpText}
-                      </Typography>
-                    )}
-                    <Typography variant="caption" color="text.secondary">
-                      [Тип: {f.type}]
-                      {f.options?.length ? `, вариантов: ${f.options.length}` : ''}
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
-            ))}
-            {(previewTpl?.schema?.fields?.length || 0) === 0 && (
-              <Typography variant="body2" color="text.secondary">
-                Поля отсутствуют
-              </Typography>
-            )}
-          </Box>
+          {(previewTpl?.schema?.fields?.length || 0) === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              Поля отсутствуют
+            </Typography>
+          ) : (
+            <TemplateFormRenderer
+              fields={previewTpl?.schema?.fields || []}
+              values={previewValues}
+              onChange={(id, value) => setPreviewValues((prev) => ({ ...prev, [id]: value }))}
+              disabled
+            />
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPreviewOpen(false)}>Закрыть</Button>

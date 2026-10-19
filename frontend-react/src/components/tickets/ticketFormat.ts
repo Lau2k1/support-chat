@@ -5,6 +5,37 @@ export const STATUS_LABELS: Record<TicketStatus, string> = {
   resolved: 'Решено',
 };
 
+/** Значение поля «Файл»: ссылка и исходное имя для отображения. */
+export interface TicketFileValue {
+  url: string;
+  name: string;
+}
+
+/**
+ * Разбирает значение поля «Файл»: объект { url, name } от загрузчика,
+ * строка-ссылка из старых тикетов или ничего. null — если это не файл.
+ */
+export function fileValueOf(value: unknown): TicketFileValue | null {
+  const basename = (url: string) => url.split('/').pop() || url;
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const v = value as { url?: unknown; name?: unknown };
+    if (typeof v.url === 'string' && v.url) {
+      return { url: v.url, name: typeof v.name === 'string' && v.name ? v.name : basename(v.url) };
+    }
+    return null;
+  }
+  if (typeof value === 'string' && value) {
+    return { url: value, name: basename(value) };
+  }
+  return null;
+}
+
+/** Ссылка на вложение: свой /uploads/ отдаём с исходным именем (?name=). */
+export function fileHref(file: TicketFileValue): string {
+  if (!file.url.startsWith('/uploads/')) return file.url;
+  return `${file.url}?name=${encodeURIComponent(file.name)}`;
+}
+
 /** Human-readable value of a single template field. */
 export function formatFieldValue(field: TicketField, value: unknown): string {
   if (value === undefined || value === null || value === '') return '';
@@ -28,21 +59,26 @@ export function formatFieldValue(field: TicketField, value: unknown): string {
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
       return m ? `${m[3]}.${m[2]}.${m[1]}` : s;
     }
+    case 'file':
+      return fileValueOf(value)?.name ?? '';
     default:
       return String(value);
   }
 }
 
-/** Ordered [field, formattedValue] pairs for a ticket, empty values skipped. */
-export function ticketFieldRows(ticket: Ticket): { field: TicketField; value: string }[] {
+/** Ordered rows for a ticket, empty values skipped; `raw` — исходное значение. */
+export function ticketFieldRows(
+  ticket: Ticket
+): { field: TicketField; value: string; raw: unknown }[] {
   const fields: TicketField[] = Array.isArray(ticket.template_schema?.fields)
     ? ticket.template_schema.fields
     : [];
-  const rows: { field: TicketField; value: string }[] = [];
+  const rows: { field: TicketField; value: string; raw: unknown }[] = [];
   for (const f of fields) {
     if (f.type === 'divider' || f.type === 'title') continue;
-    const value = formatFieldValue(f, ticket.data?.[f.id]);
-    if (value !== '') rows.push({ field: f, value });
+    const raw = ticket.data?.[f.id];
+    const value = formatFieldValue(f, raw);
+    if (value !== '') rows.push({ field: f, value, raw });
   }
   return rows;
 }

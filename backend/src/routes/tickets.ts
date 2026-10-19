@@ -1,5 +1,7 @@
-import { Router, Request, Response } from 'express';
-import { authMiddleware } from '../middleware/auth';
+import { Router, Request, Response, NextFunction } from 'express';
+import fs from 'fs';
+import multer from 'multer';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 import { getTemplateById } from '../services/ticketTemplates';
 import {
   listTickets,
@@ -10,6 +12,9 @@ import {
   validateTicketData,
   isTicketStatus,
 } from '../services/tickets';
+import { attachmentUpload } from '../utils/attachmentUpload';
+import { UPLOAD_HINT } from '../utils/attachments';
+import { tenantRelPath } from '../utils/uploadPaths';
 
 const router = Router();
 
@@ -20,6 +25,17 @@ function getUser(req: Request) {
     tenantId: number | null;
     email: string;
   };
+}
+
+/**
+ * Файловое поле шаблона: вложение оператора или админа. Тенант уже известен
+ * (authMiddleware выше), поэтому файл сразу кладём в папку тенанта.
+ */
+const upload = attachmentUpload((req) => (req as AuthenticatedRequest).user?.tenantId ?? null);
+
+/** Тикет-форма с загруженным файлом (multer дописывает поле `file`). */
+interface TicketUploadRequest extends Request {
+  file?: Express.Multer.File;
 }
 
 router.use(authMiddleware);
@@ -91,6 +107,43 @@ router.post('/', async (req: Request, res: Response) => {
 
   res.status(201).json({ ticket });
 });
+
+// POST /tickets/upload — вложение для поля «Файл». Возвращаем URL и исходное имя:
+// оператор видит в форме имя, а при сохранении тикета они попадают в data поля.
+// Файл пишется в папку тенанта, поэтому чужой оператор его не получит.
+router.post(
+  '/upload',
+  (req: Request, res: Response, next: NextFunction) => {
+    if (!getUser(req).tenantId) return res.status(400).json({ error: 'Тенант не определён' });
+    next();
+  },
+  (req: TicketUploadRequest, res: Response, next: NextFunction) => {
+    upload.single('file')(req as never, res as never, (err: unknown) => {
+      if (err) {
+        // Частично записанный файл (например, при превышении лимита) убираем.
+        if (req.file?.path) fs.promises.unlink(req.file.path).catch(() => {});
+        if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+          res.status(413).json({ error: 'Файл слишком большой (макс. 20 МБ)' });
+          return;
+        }
+        res.status(400).json({ error: 'Не удалось загрузить файл' });
+        return;
+      }
+      if (!req.file) {
+        res.status(400).json({ error: `Неподдерживаемый тип файла: ${UPLOAD_HINT}` });
+        return;
+      }
+      next();
+    });
+  },
+  (req: TicketUploadRequest, res: Response) => {
+    const file = req.file as Express.Multer.File;
+    const rel = tenantRelPath(getUser(req).tenantId as number, file.filename);
+    res.status(201).json({
+      file: { url: `/uploads/${rel}`, name: file.originalname, size: file.size },
+    });
+  }
+);
 
 // PUT /tickets/:id — change status (решено / не решено).
 router.put('/:id', async (req: Request, res: Response) => {

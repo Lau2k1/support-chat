@@ -14,6 +14,7 @@ import {
   FormControl,
   IconButton,
   InputLabel,
+  Link,
   MenuItem,
   Select,
   Table,
@@ -26,6 +27,7 @@ import {
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -34,7 +36,14 @@ import { ticketsApi, ticketTemplatesApi } from '@/services/endpoints';
 import type { Ticket, TicketStatus, TicketTemplate } from '@/types';
 import { useUIStore } from '@/stores/uiStore';
 import TemplateFormRenderer from './TemplateFormRenderer';
-import { STATUS_LABELS, formatDateTime, ticketFieldRows, ticketSummary } from './ticketFormat';
+import {
+  STATUS_LABELS,
+  fileHref,
+  fileValueOf,
+  formatDateTime,
+  ticketFieldRows,
+  ticketSummary,
+} from './ticketFormat';
 
 interface Props {
   /** Admins may delete tickets; operators may only create and resolve them. */
@@ -379,16 +388,34 @@ export default function TicketsPage({ isAdmin = false }: Props) {
                 </Typography>
               </Box>
 
-              {ticketFieldRows(detail).map(({ field, value }) => (
-                <Box key={field.id}>
-                  <Typography variant="caption" color="text.secondary" component="div">
-                    {field.label}
-                  </Typography>
-                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    {value}
-                  </Typography>
-                </Box>
-              ))}
+              {ticketFieldRows(detail).map(({ field, value, raw }) => {
+                const file = field.type === 'file' ? fileValueOf(raw) : null;
+                return (
+                  <Box key={field.id}>
+                    <Typography variant="caption" color="text.secondary" component="div">
+                      {field.label}
+                    </Typography>
+                    {file ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <AttachFileIcon fontSize="small" color="action" />
+                        <Link
+                          href={fileHref(file)}
+                          target="_blank"
+                          rel="noopener"
+                          variant="body2"
+                          sx={{ wordBreak: 'break-all' }}
+                        >
+                          {file.name}
+                        </Link>
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                        {value}
+                      </Typography>
+                    )}
+                  </Box>
+                );
+              })}
 
               <Divider />
               <Typography variant="caption" color="text.secondary">

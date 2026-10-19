@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   MAX_UPLOAD_BYTES,
   classifyAttachment,
+  safeDownloadName,
   IMAGE_EXT,
   VIDEO_EXT,
   DOC_EXT,
@@ -41,5 +42,37 @@ describe('classifyAttachment', () => {
   it('never lists the same extension twice', () => {
     const all = [...IMAGE_EXT, ...VIDEO_EXT, ...DOC_EXT];
     expect(new Set(all).size).toBe(all.length);
+  });
+});
+
+describe('safeDownloadName', () => {
+  it('keeps a plain file name', () => {
+    expect(safeDownloadName('чек.pdf')).toBe('чек.pdf');
+    expect(safeDownloadName('report Q3.xlsx')).toBe('report Q3.xlsx');
+  });
+
+  it('strips any path, only the base name survives', () => {
+    expect(safeDownloadName('../../etc/passwd')).toBe('passwd');
+    expect(safeDownloadName('C:\\temp\\scan.png')).toBe('scan.png');
+    expect(safeDownloadName('/uploads/tenant-1/x.pdf')).toBe('x.pdf');
+  });
+
+  it('replaces quotes and control characters', () => {
+    expect(safeDownloadName('a"b.pdf')).toBe('a_b.pdf');
+    expect(safeDownloadName('bad\u0000name.txt')).toBe('bad_name.txt');
+  });
+
+  it('rejects empty or non-string values', () => {
+    expect(safeDownloadName('')).toBeNull();
+    expect(safeDownloadName('   ')).toBeNull();
+    expect(safeDownloadName('.')).toBeNull();
+    expect(safeDownloadName('..')).toBeNull();
+    expect(safeDownloadName(undefined)).toBeNull();
+    expect(safeDownloadName(42)).toBeNull();
+  });
+
+  it('caps the length so headers stay sane', () => {
+    const long = `${'x'.repeat(300)}.pdf`;
+    expect(safeDownloadName(long)!.length).toBe(120);
   });
 });
