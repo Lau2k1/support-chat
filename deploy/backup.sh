@@ -16,15 +16,19 @@ COMPOSE_FILE="${COMPOSE_FILE:-$COMPOSE_DIR/docker-compose.prod.yml}"
 ENV_FILE="${ENV_FILE:-$COMPOSE_DIR/deploy/.env}"
 BACKUP_DIR="${BACKUP_DIR:-/root/support-chat-backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-7}"
-PASSPHRASE_FILE="${BACKUP_PASSPHRASE_FILE:-/root/.backup-passphrase}"
-REMOTE_HOST="${BACKUP_REMOTE_HOST:-}"
-REMOTE_PATH="${BACKUP_REMOTE_PATH:-}"
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 
+# .env подгружаем ДО чтения BACKUP_REMOTE_* и BACKUP_PASSPHRASE_FILE: из cron
+# окружение пустое, и переменные из deploy/.env иначе не видны — из-за этого
+# офсайт-выгрузка молча пропускалась (WARN в логе, бэкап оставался на сервере).
 # shellcheck disable=SC1090
 set -a; . "$ENV_FILE"; set +a
+
+PASSPHRASE_FILE="${BACKUP_PASSPHRASE_FILE:-/root/.backup-passphrase}"
+REMOTE_HOST="${BACKUP_REMOTE_HOST:-}"
+REMOTE_PATH="${BACKUP_REMOTE_PATH:-}"
 
 cd "$COMPOSE_DIR"
 
