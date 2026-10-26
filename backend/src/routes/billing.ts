@@ -4,14 +4,17 @@ import { authMiddleware, tenantAdminMiddleware, type AuthenticatedRequest } from
 import {
   listPlans,
   getPlanByCode,
+  planPeriodPrice,
   findPromoByCode,
   promoError,
   computeQuote,
   tenantBillingInfo,
   markPaymentPaid,
+  type PlanRow,
 } from '../services/billing';
 import { createInvoice, getInvoice, isConfigured as cryptoConfigured } from '../services/cryptobot';
 import { notifyPaymentRequest } from '../services/notify';
+import { periodDays, periodLabel } from '../utils/periods';
 
 /**
  * Tenant billing: view the current subscription, pick a plan, apply a promo code
@@ -21,9 +24,31 @@ import { notifyPaymentRequest } from '../services/notify';
 const router = Router();
 router.use(authMiddleware, tenantAdminMiddleware);
 
-const PERIOD_DAYS = 30;
 const PAYMENT_FIELDS =
   'id, plan_id, base_cents, amount_cents, promo_code_id, discount_type, discount_value, method, status, pay_url, provider_invoice_id, period_days, paid_at, created_at';
+
+/**
+ * Период оплаты из тела запроса. Старые клиенты его не присылают — для них
+ * это по-прежнему месяц. Отдельная функция, чтобы промокод и оформление
+ * проверяли период одинаково.
+ */
+function parseMonths(value: unknown): number | null {
+  if (value === undefined || value === null || value === '') return 1;
+  const months = Number(value);
+  return Number.isInteger(months) && months > 0 && months <= 36 ? months : null;
+}
+
+/** Цена периода или текст отказа, если тариф/период не продаётся онлайн. */
+function periodPrice(plan: PlanRow, months: number): { baseCents: number } | { error: string } {
+  if (plan.price_cents === null) {
+    return {
+      error: 'Тариф Custom обсуждается индивидуально — напишите нам в Telegram @sctManager',
+    };
+  }
+  const baseCents = planPeriodPrice(plan, months);
+  if (baseCents === null) return { error: 'Для этого периода цена не задана' };
+  return { baseCents };
+}
 
 /** Current tenant id, or null for the superadmin (who owns no tenant). */
 function tenantOf(req: AuthenticatedRequest): number | null {
@@ -51,9 +76,12 @@ router.post('/promo/validate', async (req, res) => {
   try {
     const planCode = typeof req.body?.planCode === 'string' ? req.body.planCode : '';
     const code = typeof req.body?.code === 'string' ? req.body.code : '';
+    const months = parseMonths(req.body?.months);
+    if (months === null) return res.status(400).json({ error: 'Неверный период оплаты' });
     const plan = planCode ? await getPlanByCode(planCode) : null;
     if (!plan || !plan.is_active) return res.status(400).json({ error: 'Тариф не найден' });
-    if (plan.price_cents === null) return res.status(400).json({ error: 'Для этого тарифа цена обсуждается отдельно' });
+    const price = periodPrice(plan, months);
+    if ('error' in price) return res.status(400).json({ error: price.error });
     if (!code.trim()) return res.status(400).json({ error: 'Введите промокод' });
 
     const promo = await findPromoByCode(code);
@@ -70,12 +98,14 @@ router.post('/promo/validate', async (req, res) => {
       return res.json({ valid: false, error: err, boundPlan });
     }
 
-    const quote = computeQuote(plan.price_cents, promo);
+    const quote = computeQuote(price.baseCents, promo);
     res.json({
       valid: true,
       code: promo!.code,
       discountType: promo!.discount_type,
       discountValue: promo!.discount_value,
+      months,
+      days: periodDays(months),
       ...quote,
     });
   } catch (e) {
@@ -91,14 +121,13 @@ router.post('/checkout', async (req, res) => {
   try {
     const planCode = typeof req.body?.planCode === 'string' ? req.body.planCode : '';
     const promoCode = typeof req.body?.promoCode === 'string' ? req.body.promoCode.trim() : '';
+    const months = parseMonths(req.body?.months);
+    if (months === null) return res.status(400).json({ error: 'Неверный период оплаты' });
 
     const plan = await getPlanByCode(planCode);
     if (!plan || !plan.is_active) return res.status(400).json({ error: 'Тариф не найден' });
-    if (plan.price_cents === null) {
-      return res.status(400).json({
-        error: 'Тариф Custom обсуждается индивидуально — напишите нам в Telegram @sctManager',
-      });
-    }
+    const price = periodPrice(plan, months);
+    if ('error' in price) return res.status(400).json({ error: price.error });
 
     let promo = null;
     if (promoCode) {
@@ -107,24 +136,25 @@ router.post('/checkout', async (req, res) => {
       if (err) return res.status(400).json({ error: err });
     }
 
-    const quote = computeQuote(plan.price_cents, promo);
+    const quote = computeQuote(price.baseCents, promo);
+    const days = periodDays(months);
 
     // 100% promo → the subscription is free; activate immediately.
     if (quote.amountCents <= 0) {
       const ins = await pool.query(
         `INSERT INTO payments (tenant_id, plan_id, base_cents, amount_cents, promo_code_id, discount_type, discount_value, method, status, period_days)
          VALUES ($1, $2, $3, 0, $4, $5, $6, 'promo', 'pending', $7) RETURNING ${PAYMENT_FIELDS}`,
-        [tenantId, plan.id, quote.baseCents, promo?.id ?? null, promo?.discount_type ?? null, promo?.discount_value ?? null, PERIOD_DAYS]
+        [tenantId, plan.id, quote.baseCents, promo?.id ?? null, promo?.discount_type ?? null, promo?.discount_value ?? null, days]
       );
       await markPaymentPaid(ins.rows[0].id, { method: 'promo' });
       const fresh = await pool.query(`SELECT ${PAYMENT_FIELDS} FROM payments WHERE id = $1`, [ins.rows[0].id]);
-      return res.status(201).json({ free: true, payment: fresh.rows[0], ...quote, payUrl: null });
+      return res.status(201).json({ free: true, payment: fresh.rows[0], ...quote, months, days, payUrl: null });
     }
 
     const ins = await pool.query(
       `INSERT INTO payments (tenant_id, plan_id, base_cents, amount_cents, promo_code_id, discount_type, discount_value, method, status, period_days)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'cryptobot', 'pending', $8) RETURNING ${PAYMENT_FIELDS}`,
-      [tenantId, plan.id, quote.baseCents, quote.amountCents, promo?.id ?? null, promo?.discount_type ?? null, promo?.discount_value ?? null, PERIOD_DAYS]
+      [tenantId, plan.id, quote.baseCents, quote.amountCents, promo?.id ?? null, promo?.discount_type ?? null, promo?.discount_value ?? null, days]
     );
     const paymentId = ins.rows[0].id;
 
@@ -132,7 +162,7 @@ router.post('/checkout', async (req, res) => {
       try {
         const invoice = await createInvoice({
           amountCents: quote.amountCents,
-          description: `SupportChat — тариф «${plan.name}» на ${PERIOD_DAYS} дней`,
+          description: `SupportChat — тариф «${plan.name}» на ${periodLabel(months)}`,
           payload: JSON.stringify({ tenantId, planCode: plan.code, paymentId }),
           expiresInSeconds: 3600,
         });
@@ -141,7 +171,7 @@ router.post('/checkout', async (req, res) => {
           `UPDATE payments SET provider_invoice_id = $2, pay_url = $3 WHERE id = $1 RETURNING ${PAYMENT_FIELDS}`,
           [paymentId, String(invoice.invoice_id), payUrl]
         );
-        return res.status(201).json({ free: false, payment: upd.rows[0], ...quote, payUrl, providerConfigured: true });
+        return res.status(201).json({ free: false, payment: upd.rows[0], ...quote, months, days, payUrl, providerConfigured: true });
       } catch (e) {
         console.error('crypto invoice error:', e);
         await pool.query("UPDATE payments SET status = 'failed' WHERE id = $1", [paymentId]);
@@ -159,6 +189,7 @@ router.post('/checkout', async (req, res) => {
       slug: owner?.slug ?? '—',
       planName: plan.name,
       amountCents: quote.amountCents,
+      months,
       promoCode: promo?.code ?? null,
       paymentId,
     });
@@ -167,6 +198,8 @@ router.post('/checkout', async (req, res) => {
       free: false,
       payment: ins.rows[0],
       ...quote,
+      months,
+      days,
       payUrl: null,
       providerConfigured: false,
       message: 'Онлайн-оплата временно недоступна. Мы свяжемся с вами для выставления счёта.',

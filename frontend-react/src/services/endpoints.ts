@@ -84,10 +84,10 @@ export const authApi = {
 
 export const billingApi = {
   get: () => api.get<BillingOverview>('/billing'),
-  validatePromo: (code: string, planCode: string) =>
-    api.post<PromoQuote>('/billing/promo/validate', { code, planCode }),
-  checkout: (planCode: string, promoCode?: string) =>
-    api.post<CheckoutResult>('/billing/checkout', { planCode, promoCode: promoCode || undefined }),
+  validatePromo: (code: string, planCode: string, months: number) =>
+    api.post<PromoQuote>('/billing/promo/validate', { code, planCode, months }),
+  checkout: (planCode: string, months: number, promoCode?: string) =>
+    api.post<CheckoutResult>('/billing/checkout', { planCode, months, promoCode: promoCode || undefined }),
   syncPayment: (id: number) =>
     api.post<{ status: Payment['status'] }>(`/billing/payments/${id}/sync`),
   cancelPayment: (id: number) =>

@@ -1257,7 +1257,8 @@ superRouter.get('/payments', async (_req, res) => {
       `SELECT pm.id, pm.tenant_id, t.name AS tenant_name, t.slug AS tenant_slug,
               pm.plan_id, pl.name AS plan_name, pl.code AS plan_code,
               pm.base_cents, pm.amount_cents, pm.discount_type, pm.discount_value,
-              pc.code AS promo_code, pm.method, pm.status, pm.pay_url, pm.paid_at, pm.created_at
+              pc.code AS promo_code, pm.method, pm.status, pm.pay_url, pm.period_days,
+              pm.paid_at, pm.created_at
        FROM payments pm
        JOIN tenants t ON t.id = pm.tenant_id
        LEFT JOIN plans pl ON pl.id = pm.plan_id

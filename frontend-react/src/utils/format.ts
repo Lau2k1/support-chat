@@ -80,6 +80,30 @@ export function pluralDays(days: number): string {
   return `${days} ${daysWord(days)}`;
 }
 
+/**
+ * Период подписки в месяцах: «1 месяц», «3 месяца», «1 год». Совпадает с
+ * подписями бэкенда, чтобы счёт и интерфейс не расходились.
+ */
+export function periodLabel(months: number): string {
+  if (months === 12) return '1 год';
+  const mod10 = months % 10;
+  const mod100 = months % 100;
+  const word =
+    mod10 === 1 && mod100 !== 11
+      ? 'месяц'
+      : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+        ? 'месяца'
+        : 'месяцев';
+  return `${months} ${word}`;
+}
+
+/** Период уже оплаченного платежа приходит в днях — переводим в месяцы. */
+export function periodFromDays(days: number): string {
+  if (days >= 365) return '1 год';
+  if (days > 0 && days % 30 === 0) return periodLabel(days / 30);
+  return pluralDays(days);
+}
+
 /** Состояние подписки — одно и то же в панели, боковом меню и CRM. */
 export type SubscriptionLevel = 'ok' | 'soon' | 'expired' | 'unpaid' | 'forever';
 

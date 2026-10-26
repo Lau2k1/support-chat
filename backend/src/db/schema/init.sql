@@ -246,6 +246,28 @@ ON CONFLICT (code) DO UPDATE SET
   sort_order = EXCLUDED.sort_order,
   tickets_enabled = EXCLUDED.tickets_enabled;
 
+-- Периоды оплаты: месяц, квартал и год. `plans.price_cents` остаётся ценой за
+-- месяц (на неё опирается витрина CRM и проверка «Custom»), длинные периоды
+-- живут здесь. Периода нет в таблице → он не продаётся онлайн, поэтому у
+-- «Custom» записей нет вовсе.
+CREATE TABLE IF NOT EXISTS plan_prices (
+    plan_id INTEGER NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+    months INTEGER NOT NULL CHECK (months > 0),
+    price_cents INTEGER NOT NULL CHECK (price_cents > 0),
+    PRIMARY KEY (plan_id, months)
+);
+
+INSERT INTO plan_prices (plan_id, months, price_cents)
+SELECT p.id, v.months, v.price_cents
+  FROM (VALUES
+    ('start',     1,   899), ('start',     3,  2500), ('start',    12,  9000),
+    ('pro',       1,  1399), ('pro',       3,  4000), ('pro',      12, 14000),
+    ('business',  1,  1999), ('business',  3,  5000), ('business', 12, 20000)
+  ) AS v(code, months, price_cents)
+  JOIN plans p ON p.code = v.code
+WHERE true
+ON CONFLICT (plan_id, months) DO UPDATE SET price_cents = EXCLUDED.price_cents;
+
 -- Tenant billing state. Existing tenants (created before this feature) are
 -- grandfathered as 'active' by the ADD COLUMN default; the default is then
 -- switched to 'unpaid' so newly registered tenants start locked.

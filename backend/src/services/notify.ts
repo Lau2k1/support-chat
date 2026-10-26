@@ -1,5 +1,6 @@
 import { pool } from '../db';
 import { normalizeTgApiBase } from '../utils/tgApiBase';
+import { periodLabel } from '../utils/periods';
 
 /**
  * Уведомления владельцу платформы — в отдельный бот алертов, тот же, что
@@ -133,6 +134,8 @@ export function notifyPaymentRequest(info: {
   slug: string;
   planName: string;
   amountCents: number;
+  /** Период оплаты в месяцах — «на 3 месяца» вместо зашитых 30 дней. */
+  months: number;
   promoCode?: string | null;
   paymentId: number;
 }): void {
@@ -140,7 +143,7 @@ export function notifyPaymentRequest(info: {
     [
       '💰 <b>Заявка на оплату</b>',
       `Клиент: <b>${esc(info.tenantName)}</b> · <code>${esc(info.slug)}</code>`,
-      `Тариф: ${esc(info.planName)} на 30 дней — <b>${money(info.amountCents)}</b>`,
+      `Тариф: ${esc(info.planName)} на ${periodLabel(info.months)} — <b>${money(info.amountCents)}</b>`,
       info.promoCode ? `Промокод: <code>${esc(info.promoCode)}</code>` : null,
       `Платёж #${info.paymentId} · подтвердить: CRM → Платежи`,
     ]

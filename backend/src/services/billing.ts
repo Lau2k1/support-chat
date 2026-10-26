@@ -7,6 +7,12 @@ import { notifyPaymentPaid } from './notify';
  * plan catalog, promo-code validation, price quotes and subscription activation.
  */
 
+export interface PlanPrice {
+  months: number;
+  /** Цена за весь период в центах USD. */
+  price_cents: number;
+}
+
 export interface PlanRow {
   id: number;
   code: string;
@@ -17,6 +23,8 @@ export interface PlanRow {
   features: string[];
   sort_order: number;
   is_active: boolean;
+  /** Онлайн-цены по периодам (1 / 3 / 12 месяцев); пусто = продаётся вручную. */
+  prices: PlanPrice[];
 }
 
 export interface PromoRow {
@@ -35,16 +43,43 @@ export interface PromoRow {
   plan_name?: string | null;
 }
 
-export async function listPlans(): Promise<PlanRow[]> {
+const PLAN_FIELDS = `
+  p.id, p.code, p.name, p.price_cents, p.operator_limit, p.description,
+  p.features, p.sort_order, p.is_active,
+  COALESCE(
+    json_agg(json_build_object('months', pp.months, 'price_cents', pp.price_cents)
+             ORDER BY pp.months) FILTER (WHERE pp.months IS NOT NULL),
+    '[]'::json
+  ) AS prices`;
+
+async function selectPlans(where: string, params: unknown[] = []): Promise<PlanRow[]> {
   const r = await pool.query(
-    "SELECT id, code, name, price_cents, operator_limit, description, features, sort_order, is_active FROM plans WHERE is_active = true ORDER BY sort_order, id"
+    `SELECT ${PLAN_FIELDS}
+       FROM plans p
+       LEFT JOIN plan_prices pp ON pp.plan_id = p.id
+      ${where}
+      GROUP BY p.id
+      ORDER BY p.sort_order, p.id`,
+    params
   );
   return r.rows;
 }
 
+export async function listPlans(): Promise<PlanRow[]> {
+  return selectPlans('WHERE p.is_active = true');
+}
+
 export async function getPlanByCode(code: string): Promise<PlanRow | null> {
-  const r = await pool.query('SELECT * FROM plans WHERE code = $1', [code]);
-  return r.rows[0] ?? null;
+  const rows = await selectPlans('WHERE p.code = $1', [code]);
+  return rows[0] ?? null;
+}
+
+/**
+ * Цена тарифа за период в месяцах. null означает, что период не продаётся
+ * онлайн (например, «Custom» или период, который владелец ещё не завёл).
+ */
+export function planPeriodPrice(plan: Pick<PlanRow, 'prices'>, months: number): number | null {
+  return plan.prices.find((p) => p.months === months)?.price_cents ?? null;
 }
 
 /**

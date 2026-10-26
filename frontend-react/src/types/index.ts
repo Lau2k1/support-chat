@@ -368,17 +368,25 @@ export interface ArchiveFilters {
 
 // --------------------------- Billing ---------------------------
 
+export interface PlanPrice {
+  months: number;
+  /** Цена за весь период в центах USD. */
+  price_cents: number;
+}
+
 export interface Plan {
   id: number;
   code: string;
   name: string;
-  /** Price in USD cents; null = "цена по запросу" (Custom). */
+  /** Price in USD cents per month; null = "цена по запросу" (Custom). */
   price_cents: number | null;
   operator_limit: number | null;
   description: string;
   features: string[];
   sort_order: number;
   is_active: boolean;
+  /** Онлайн-цены по периодам (1 / 3 / 12 месяцев); пусто = продаётся вручную. */
+  prices: PlanPrice[];
 }
 
 export interface Payment {
@@ -452,6 +460,9 @@ export interface PromoQuote {
   baseCents?: number;
   discountCents?: number;
   amountCents?: number;
+  /** Период, к которому применили промокод. */
+  months?: number;
+  days?: number;
   /** Заполняется, когда промокод привязан к другому тарифу. */
   boundPlan?: { code: string; name: string } | null;
 }
@@ -462,6 +473,8 @@ export interface CheckoutResult {
   baseCents: number;
   discountCents: number;
   amountCents: number;
+  months: number;
+  days: number;
   payUrl: string | null;
   providerConfigured?: boolean;
   message?: string;

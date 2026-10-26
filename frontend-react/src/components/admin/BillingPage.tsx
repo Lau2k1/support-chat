@@ -16,6 +16,8 @@ import {
   Paper,
   CircularProgress,
   Divider,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -26,7 +28,7 @@ import { billingApi } from '@/services/endpoints';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { MANAGER_TELEGRAM_URL } from '@/utils/contacts';
-import { formatDateTime, daysWord, subscriptionState } from '@/utils/format';
+import { formatDateTime, daysWord, subscriptionState, periodLabel, periodFromDays } from '@/utils/format';
 import type { BillingOverview, Payment, Plan, PromoQuote } from '@/types';
 
 function money(cents: number): string {
@@ -51,6 +53,7 @@ export default function BillingPage() {
   const [data, setData] = useState<BillingOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
+  const [months, setMonths] = useState(1);
   const [promoInput, setPromoInput] = useState('');
   const [promo, setPromo] = useState<PromoQuote | null>(null);
   const [busy, setBusy] = useState(false);
@@ -96,15 +99,24 @@ export default function BillingPage() {
     return () => clearInterval(t);
   }, [pending, showToast, refresh, load]);
 
+  // Промокод зависит и от тарифа, и от периода: при смене любого из них цену
+  // нужно проверить заново, иначе на экране останется скидка от старой суммы.
+  const revalidatePromo = (planCode: string, period: number) => {
+    if (!promo?.valid || !promoInput.trim()) return;
+    billingApi
+      .validatePromo(promoInput.trim(), planCode, period)
+      .then((r) => setPromo(r.data))
+      .catch(() => setPromo(null));
+  };
+
   const selectPlan = (code: string) => {
     setSelected(code);
-    // Re-check a promo against the newly selected plan.
-    if (promo?.valid && promoInput.trim()) {
-      billingApi
-        .validatePromo(promoInput.trim(), code)
-        .then((r) => setPromo(r.data))
-        .catch(() => setPromo(null));
-    }
+    revalidatePromo(code, months);
+  };
+
+  const selectMonths = (next: number) => {
+    setMonths(next);
+    if (selected) revalidatePromo(selected, next);
   };
 
   const applyPromo = async () => {
@@ -115,13 +127,13 @@ export default function BillingPage() {
       return;
     }
     try {
-      const res = await billingApi.validatePromo(code, selected);
+      const res = await billingApi.validatePromo(code, selected, months);
       // Промокод может быть выдан на конкретный тариф: тогда он действует
       // только на него — переключаем выбор и проверяем ещё раз.
       const bound = res.data.boundPlan;
       if (!res.data.valid && bound && bound.code !== selected) {
         setSelected(bound.code);
-        const retry = await billingApi.validatePromo(code, bound.code);
+        const retry = await billingApi.validatePromo(code, bound.code, months);
         setPromo(retry.data);
         if (retry.data.valid) {
           showToast(`Промокод применён — выбран тариф «${bound.name}»`);
@@ -147,7 +159,7 @@ export default function BillingPage() {
     if (!selected) return;
     setBusy(true);
     try {
-      const res = await billingApi.checkout(selected, promo?.valid ? promoInput.trim() : undefined);
+      const res = await billingApi.checkout(selected, months, promo?.valid ? promoInput.trim() : undefined);
       if (res.data.free) {
         showToast('Промокод активирован — тариф подключён');
         setPromo(null);
@@ -218,8 +230,20 @@ export default function BillingPage() {
           ? 'error.main'
           : 'text.secondary';
   const selectedPlan = data.plans.find((p) => p.code === selected) ?? null;
+  // Периоды, которые вообще продаются онлайн (у «Custom» их нет).
+  const periodOptions = Array.from(new Set(data.plans.flatMap((p) => p.prices.map((x) => x.months)))).sort(
+    (a, b) => a - b
+  );
+  const monthlyPriceCents =
+    selectedPlan?.prices.find((p) => p.months === 1)?.price_cents ?? selectedPlan?.price_cents ?? null;
+  const basePriceCents = selectedPlan?.prices.find((p) => p.months === months)?.price_cents ?? null;
   const promoApplied = promo?.valid && promo.amountCents !== undefined;
-  const priceCents = promoApplied ? promo!.amountCents! : selectedPlan?.price_cents ?? null;
+  const priceCents = promoApplied ? promo!.amountCents! : basePriceCents;
+  // Сколько экономит длинный период против месячной оплаты того же тарифа.
+  const savePercent =
+    months > 1 && basePriceCents !== null && monthlyPriceCents
+      ? Math.max(0, Math.round(100 - (basePriceCents * 100) / (monthlyPriceCents * months)))
+      : 0;
 
   return (
     <Box sx={{ maxWidth: 1040 }}>
@@ -291,6 +315,32 @@ export default function BillingPage() {
         </Box>
       </Card>
 
+      {/* Billing period: the same plans are sold for 1 / 3 / 12 months */}
+      {periodOptions.length > 1 && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            Период оплаты
+          </Typography>
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={months}
+            onChange={(_e, value) => {
+              if (value !== null) selectMonths(Number(value));
+            }}
+          >
+            {periodOptions.map((m) => (
+              <ToggleButton key={m} value={m} sx={{ px: 2.5, textTransform: 'none', fontWeight: 600 }}>
+                {periodLabel(m)}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+          <Typography variant="body2" color="text.secondary">
+            Чем дольше период, тем ниже цена месяца.
+          </Typography>
+        </Box>
+      )}
+
       {/* Plans */}
       <Box
         sx={{
@@ -304,6 +354,7 @@ export default function BillingPage() {
           <PlanCard
             key={plan.code}
             plan={plan}
+            months={months}
             selected={selected === plan.code}
             current={billing?.planCode === plan.code && active}
             onSelect={() => selectPlan(plan.code)}
@@ -312,7 +363,7 @@ export default function BillingPage() {
       </Box>
 
       {/* Promo + pay */}
-      {selectedPlan && selectedPlan.price_cents !== null && (
+      {selectedPlan && basePriceCents !== null && (
         <Card sx={{ p: 2.5, mb: 3 }}>
           <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, alignItems: { sm: 'center' } }}>
             <TextField
@@ -336,16 +387,22 @@ export default function BillingPage() {
             <Box sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
               {promoApplied && (
                 <Typography variant="body2" color="text.secondary" sx={{ textDecoration: 'line-through' }}>
-                  {money(promo!.baseCents ?? selectedPlan.price_cents!)}
+                  {money(promo!.baseCents ?? basePriceCents!)}
                 </Typography>
               )}
               <Typography variant="h5" sx={{ fontWeight: 700 }}>
                 {money(priceCents ?? 0)}
                 <Typography component="span" variant="caption" color="text.secondary">
                   {' '}
-                  / 30 дней
+                  за {periodLabel(months)}
                 </Typography>
               </Typography>
+              {months > 1 && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                  ≈ {money(Math.round(basePriceCents! / months))} / мес
+                  {savePercent > 0 ? ` · экономия ${savePercent}%` : ''}
+                </Typography>
+              )}
               <Button
                 variant="contained"
                 size="large"
@@ -398,6 +455,7 @@ export default function BillingPage() {
             <TableRow>
               <TableCell>Дата</TableCell>
               <TableCell>Тариф</TableCell>
+              <TableCell>Период</TableCell>
               <TableCell align="right">Сумма</TableCell>
               <TableCell>Промокод</TableCell>
               <TableCell>Способ</TableCell>
@@ -408,7 +466,7 @@ export default function BillingPage() {
           <TableBody>
             {data.payments.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 3 }}>
                   Платежей пока нет
                 </TableCell>
               </TableRow>
@@ -417,6 +475,7 @@ export default function BillingPage() {
               <TableRow key={p.id} hover>
                 <TableCell>{formatDateTime(p.created_at)}</TableCell>
                 <TableCell>{data.plans.find((pl) => pl.id === p.plan_id)?.name ?? '—'}</TableCell>
+                <TableCell>{periodFromDays(p.period_days)}</TableCell>
                 <TableCell align="right">{money(p.amount_cents)}</TableCell>
                 <TableCell>
                   {p.discount_type === 'percent'
@@ -460,16 +519,25 @@ export default function BillingPage() {
 
 function PlanCard({
   plan,
+  months,
   selected,
   current,
   onSelect,
 }: {
   plan: Plan;
+  months: number;
   selected: boolean;
   current: boolean;
   onSelect: () => void;
 }) {
-  const isCustom = plan.price_cents === null;
+  const isCustom = plan.price_cents === null || plan.prices.length === 0;
+  const priceCents = plan.prices.find((p) => p.months === months)?.price_cents ?? null;
+  const monthlyCents = plan.prices.find((p) => p.months === 1)?.price_cents ?? plan.price_cents;
+  // Экономия длинного периода против месячной оплаты этого же тарифа.
+  const savePercent =
+    months > 1 && priceCents !== null && monthlyCents
+      ? Math.max(0, Math.round(100 - (priceCents * 100) / (monthlyCents * months)))
+      : 0;
   // «Custom» не покупается онлайн: цена обсуждается в Telegram, туда и ведём.
   const openTelegram = () => window.open(MANAGER_TELEGRAM_URL, '_blank', 'noopener');
   return (
@@ -493,14 +561,20 @@ function PlanCard({
         {current && <Chip size="small" label="Текущий" color="success" />}
       </Box>
       <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
-        {isCustom ? 'По запросу' : money(plan.price_cents!)}
-        {!isCustom && (
+        {priceCents !== null ? money(priceCents) : 'По запросу'}
+        {priceCents !== null && (
           <Typography component="span" variant="caption" color="text.secondary">
             {' '}
-            / мес
+            за {periodLabel(months)}
           </Typography>
         )}
       </Typography>
+      {priceCents !== null && months > 1 && (
+        <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5 }}>
+          ≈ {money(Math.round(priceCents / months))} / мес
+          {savePercent > 0 ? ` · экономия ${savePercent}%` : ''}
+        </Typography>
+      )}
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
         {plan.operator_limit
           ? `До ${plan.operator_limit} операторов`

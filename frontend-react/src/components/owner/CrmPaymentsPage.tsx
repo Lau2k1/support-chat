@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import { superadminApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
-import { formatDateTime } from '@/utils/format';
+import { formatDateTime, periodFromDays } from '@/utils/format';
 import type { CrmPayment } from '@/types';
 
 function money(cents: number): string {
@@ -99,6 +99,7 @@ export default function CrmPaymentsPage() {
               <TableCell>Дата</TableCell>
               <TableCell>Клиент</TableCell>
               <TableCell>Тариф</TableCell>
+              <TableCell>Период</TableCell>
               <TableCell align="right">Сумма</TableCell>
               <TableCell>Промокод</TableCell>
               <TableCell>Способ</TableCell>
@@ -109,7 +110,7 @@ export default function CrmPaymentsPage() {
           <TableBody>
             {payments.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                <TableCell colSpan={9} align="center" sx={{ color: 'text.secondary', py: 3 }}>
                   Платежей пока нет
                 </TableCell>
               </TableRow>
@@ -124,6 +125,7 @@ export default function CrmPaymentsPage() {
                   </Typography>
                 </TableCell>
                 <TableCell>{p.plan_name ?? '—'}</TableCell>
+                <TableCell>{periodFromDays(p.period_days)}</TableCell>
                 <TableCell align="right">
                   {money(p.amount_cents)}
                   {p.amount_cents !== p.base_cents && (
