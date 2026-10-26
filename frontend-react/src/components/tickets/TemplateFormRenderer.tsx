@@ -25,6 +25,7 @@ import { ticketsApi } from '@/services/endpoints';
 import { useUIStore } from '@/stores/uiStore';
 import { UPLOAD_ACCEPT, uploadSizeError } from '@/utils/upload';
 import { fileHref, fileValueOf } from './ticketFormat';
+import { visibleFields } from './templateLogic';
 
 interface Props {
   fields: TicketField[];
@@ -141,7 +142,7 @@ function FileFieldControl({
 export default function TemplateFormRenderer({ fields, values, onChange, disabled = false }: Props) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {fields.map((f) => {
+      {visibleFields(fields, values).map((f) => {
         if (f.type === 'divider') return <Divider key={f.id} sx={{ my: 1 }} />;
 
         if (f.type === 'title') {

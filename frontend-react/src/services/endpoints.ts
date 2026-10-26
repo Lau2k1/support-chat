@@ -25,7 +25,8 @@ import type {
   PromoInput,
   TicketTemplateListResponse,
   TicketTemplateResponse,
-  TicketTemplateSchema,
+  TicketTemplateInput,
+  TicketPriority,
   TicketListResponse,
   TicketResponse,
   TicketStatus,
@@ -228,22 +229,27 @@ export const superadminApi = {
 export const ticketTemplatesApi = {
   list: () => api.get<TicketTemplateListResponse>('/ticket-templates'),
   get: (id: number) => api.get<TicketTemplateResponse>(`/ticket-templates/${id}`),
-  create: (data: { name: string; description?: string | null; schema: TicketTemplateSchema; isActive?: boolean }) =>
-    api.post<TicketTemplateResponse>('/ticket-templates', data),
-  update: (
-    id: number,
-    data: { name?: string; description?: string | null; schema?: TicketTemplateSchema; isActive?: boolean }
-  ) => api.put<TicketTemplateResponse>(`/ticket-templates/${id}`, data),
+  create: (data: TicketTemplateInput) => api.post<TicketTemplateResponse>('/ticket-templates', data),
+  update: (id: number, data: TicketTemplateInput) =>
+    api.put<TicketTemplateResponse>(`/ticket-templates/${id}`, data),
   delete: (id: number) => api.delete<{ success: boolean }>(`/ticket-templates/${id}`),
 };
+
+export type CreateTicketPayload =
+  | { mode: 'template'; templateId: number; data: Record<string, any>; priority?: TicketPriority }
+  | {
+      mode: 'free';
+      subject: string;
+      description?: string;
+      priority?: TicketPriority;
+    };
 
 export const ticketsApi = {
   list: (params?: { status?: TicketStatus; templateId?: number }) =>
     api.get<TicketListResponse>('/tickets', { params }),
   get: (id: number) => api.get<TicketResponse>(`/tickets/${id}`),
-  /** Operator/admin fills an active template and creates a ticket. */
-  create: (data: { templateId: number; data: Record<string, any> }) =>
-    api.post<TicketResponse>('/tickets', data),
+  /** Оператор или админ создаёт тикет по шаблону либо свободное обращение. */
+  create: (data: CreateTicketPayload) => api.post<TicketResponse>('/tickets', data),
   /** Вложение для поля «Файл»: файл кладётся в хранилище тенанта. */
   upload: (file: File) => {
     const formData = new FormData();

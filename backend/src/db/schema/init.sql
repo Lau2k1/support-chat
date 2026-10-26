@@ -329,6 +329,10 @@ CREATE TABLE IF NOT EXISTS ticket_templates (
 CREATE INDEX IF NOT EXISTS idx_ticket_templates_tenant ON ticket_templates(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_ticket_templates_active ON ticket_templates(tenant_id, is_active);
 
+-- Категория шаблона («Финансы», «Доступ»…) — необязательная, для группировки
+-- в списке шаблонов. Существующие шаблоны остаются без категории.
+ALTER TABLE ticket_templates ADD COLUMN IF NOT EXISTS category VARCHAR(100);
+
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -366,6 +370,12 @@ CREATE TABLE IF NOT EXISTS tickets (
 CREATE INDEX IF NOT EXISTS idx_tickets_tenant ON tickets(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_tickets_template ON tickets(template_id);
+
+-- Приоритет и исполнитель: заполняются автоматизацией шаблона (или вручную
+-- при создании свободного тикета). Значения: low | normal | high.
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS priority VARCHAR(10) NOT NULL DEFAULT 'normal';
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS assigned_to INTEGER REFERENCES operators(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_tickets_assigned ON tickets(tenant_id, assigned_to);
 
 DO $$
 BEGIN

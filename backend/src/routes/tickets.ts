@@ -1,8 +1,9 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import fs from 'fs';
 import multer from 'multer';
+import { pool } from '../db';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
-import { getTemplateById } from '../services/ticketTemplates';
+import { getTemplateById, isTicketPriority } from '../services/ticketTemplates';
 import {
   listTickets,
   getTicket,
@@ -17,6 +18,21 @@ import { UPLOAD_HINT } from '../utils/attachments';
 import { tenantRelPath } from '../utils/uploadPaths';
 
 const router = Router();
+
+const MAX_SUBJECT = 150;
+const MAX_DESCRIPTION = 5000;
+
+/** An automation assignee must still be an enabled operator of the tenant. */
+async function validAssignee(tenantId: number, id: unknown): Promise<number | null> {
+  const n = Number(id);
+  if (!Number.isInteger(n) || n <= 0) return null;
+  const res = await pool.query(
+    `SELECT 1 FROM operators
+     WHERE id = $1 AND tenant_id = $2 AND is_enabled = true AND role IN ('admin', 'operator')`,
+    [n, tenantId]
+  );
+  return res.rowCount ? n : null;
+}
 
 function getUser(req: Request) {
   return (req as any).user as {
@@ -76,15 +92,45 @@ router.get('/:id', async (req: Request, res: Response) => {
   res.json({ ticket });
 });
 
-// POST /tickets — operator or admin fills an active template and creates a ticket.
+// POST /tickets — an operator or admin creates a ticket either from an active
+// template (body.templateId) or as a free-form request (body.subject).
 router.post('/', async (req: Request, res: Response) => {
   const user = getUser(req);
   if (!user.tenantId) return res.status(400).json({ error: 'Тенант не определён' });
 
   const body = req.body || {};
   const templateId = Number(body.templateId);
-  if (!Number.isInteger(templateId) || templateId <= 0) {
-    return res.status(400).json({ error: 'Выберите шаблон тикета' });
+  const wantsFree = body.mode === 'free' || !Number.isInteger(templateId) || templateId <= 0;
+
+  if (wantsFree) {
+    const subject = typeof body.subject === 'string' ? body.subject.trim() : '';
+    if (subject.length < 3) {
+      return res.status(400).json({ error: 'Укажите тему обращения (минимум 3 символа)' });
+    }
+    if (subject.length > MAX_SUBJECT) {
+      return res.status(400).json({ error: `Тема: максимум ${MAX_SUBJECT} символов` });
+    }
+    const description = typeof body.description === 'string' ? body.description.trim() : '';
+    if (description.length > MAX_DESCRIPTION) {
+      return res.status(400).json({ error: `Описание: максимум ${MAX_DESCRIPTION} символов` });
+    }
+
+    const ticket = await createTicket({
+      tenantId: user.tenantId,
+      templateId: null,
+      templateName: subject,
+      // Snapshot a one-field schema so the existing detail view can render the
+      // description without special-casing free tickets.
+      templateSchema: {
+        fields: [{ id: 'description', type: 'textarea', label: 'Описание', required: false }],
+      },
+      data: description ? { description } : {},
+      priority: isTicketPriority(body.priority) ? body.priority : 'normal',
+      assignedTo: null,
+      createdBy: user.id,
+    });
+
+    return res.status(201).json({ ticket });
   }
 
   // The template must exist in the caller's tenant and be active.
@@ -96,12 +142,24 @@ router.post('/', async (req: Request, res: Response) => {
   const { data, error } = validateTicketData(template.schema, body.data);
   if (error) return res.status(400).json({ error });
 
+  const automation = template.schema?.automation;
+  const priority = isTicketPriority(automation?.priority)
+    ? automation.priority
+    : isTicketPriority(body.priority)
+      ? body.priority
+      : 'normal';
+  const assignedTo = automation?.assignTo
+    ? await validAssignee(user.tenantId, automation.assignTo)
+    : null;
+
   const ticket = await createTicket({
     tenantId: user.tenantId,
     templateId: template.id,
     templateName: template.name,
     templateSchema: template.schema,
     data,
+    priority,
+    assignedTo,
     createdBy: user.id,
   });
 

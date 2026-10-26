@@ -83,8 +83,27 @@ export function ticketFieldRows(
   return rows;
 }
 
+/**
+ * Free-form ticket (no template): the server snapshots a synthetic one-field
+ * schema. Checking the schema instead of only `template_id === null` keeps
+ * tickets distinguishable after their template has been deleted (FK sets
+ * template_id to NULL, but the snapshot keeps the real fields).
+ */
+export function isFreeTicket(ticket: Ticket): boolean {
+  if (ticket.template_id !== null) return false;
+  const fields: TicketField[] = Array.isArray(ticket.template_schema?.fields)
+    ? ticket.template_schema.fields
+    : [];
+  return fields.length === 1 && fields[0].id === 'description';
+}
+
 /** Short one-line summary shown in the ticket list. */
 export function ticketSummary(ticket: Ticket): string {
+  // A free ticket stores its subject in template_name; the description would be
+  // a poor one-line summary and is usually much longer.
+  if (isFreeTicket(ticket)) {
+    return ticket.template_name || `Тикет #${ticket.id}`;
+  }
   const rows = ticketFieldRows(ticket);
   if (rows.length === 0) return `Тикет #${ticket.id}`;
   const preferred = rows.find((r) => ['subject', 'title', 'theme'].includes(r.field.id));

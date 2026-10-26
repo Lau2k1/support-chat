@@ -187,6 +187,17 @@ export type TicketFieldType =
   | 'divider'
   | 'title';
 
+export type TicketPriority = 'low' | 'normal' | 'high';
+
+export type ConditionOperator = 'eq' | 'neq' | 'in' | 'notEmpty' | 'empty';
+
+/** Правило показа поля: зависит от значения более раннего поля. */
+export interface FieldCondition {
+  fieldId: string;
+  operator: ConditionOperator;
+  value?: string | string[];
+}
+
 export interface TicketFieldOption {
   value: string;
   label: string;
@@ -202,11 +213,27 @@ export interface TicketField {
   helpText?: string;
   order?: number;
   defaultValue?: any;
+  visibleWhen?: FieldCondition;
+}
+
+/** Автозаполнение тикета при создании из шаблона. */
+export interface TemplateAutomation {
+  priority?: TicketPriority | null;
+  assignTo?: number | null;
 }
 
 export interface TicketTemplateSchema {
   fields: TicketField[];
+  automation?: TemplateAutomation;
   [key: string]: any;
+}
+
+export interface TicketTemplateInput {
+  name?: string;
+  description?: string | null;
+  category?: string | null;
+  schema?: TicketTemplateSchema;
+  isActive?: boolean;
 }
 
 export interface TicketTemplate {
@@ -214,6 +241,7 @@ export interface TicketTemplate {
   tenant_id: number;
   name: string;
   description: string | null;
+  category: string | null;
   schema: TicketTemplateSchema;
   is_active: boolean;
   created_by: number | null;
@@ -240,6 +268,9 @@ export interface Ticket {
   template_schema: TicketTemplateSchema;
   data: Record<string, any>;
   status: TicketStatus;
+  priority: TicketPriority;
+  assigned_to: number | null;
+  assigned_to_name: string | null;
   created_by: number | null;
   created_by_name: string | null;
   resolved_by: number | null;

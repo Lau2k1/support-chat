@@ -1,6 +1,6 @@
 import { pool } from '../db';
 import type { PoolClient } from 'pg';
-import type { TicketTemplateSchema, TicketField } from './ticketTemplates';
+import type { TicketTemplateSchema, TicketField, FieldCondition, TicketPriority } from './ticketTemplates';
 
 export type TicketStatus = 'open' | 'resolved';
 
@@ -18,6 +18,9 @@ export interface Ticket {
   template_schema: TicketTemplateSchema;
   data: Record<string, unknown>;
   status: TicketStatus;
+  priority: TicketPriority;
+  assigned_to: number | null;
+  assigned_to_name: string | null;
   created_by: number | null;
   created_by_name: string | null;
   resolved_by: number | null;
@@ -29,10 +32,12 @@ export interface Ticket {
 
 export interface CreateTicketInput {
   tenantId: number;
-  templateId: number;
+  templateId: number | null;
   templateName: string;
   templateSchema: TicketTemplateSchema;
   data: Record<string, unknown>;
+  priority?: TicketPriority;
+  assignedTo?: number | null;
   createdBy?: number | null;
 }
 
@@ -59,9 +64,50 @@ function isBlank(v: unknown): boolean {
   return false;
 }
 
+/** Values of a condition operand as plain strings (booleans → 'true'/'false'). */
+function conditionValues(raw: unknown): string[] {
+  if (raw === undefined || raw === null) return [];
+  if (Array.isArray(raw)) return raw.map((v) => String(v));
+  return [String(raw)];
+}
+
+/**
+ * Evaluates a visibility rule against submitted data. Mirrors the frontend
+ * resolver, so the server never accepts a hidden required field or stores a
+ * value that the admin's condition made invisible.
+ */
+function conditionMatches(condition: FieldCondition, values: Record<string, unknown>): boolean {
+  const actual = conditionValues(values[condition.fieldId]);
+  switch (condition.operator) {
+    case 'empty':
+      return actual.every((v) => v.trim() === '');
+    case 'notEmpty':
+      return actual.some((v) => v.trim() !== '');
+    case 'eq': {
+      const expected = Array.isArray(condition.value) ? condition.value[0] : condition.value;
+      return expected !== undefined && actual.includes(String(expected));
+    }
+    case 'neq': {
+      const expected = Array.isArray(condition.value) ? condition.value[0] : condition.value;
+      return expected !== undefined && !actual.includes(String(expected));
+    }
+    case 'in': {
+      const list = Array.isArray(condition.value)
+        ? condition.value
+        : condition.value !== undefined
+          ? [condition.value]
+          : [];
+      return actual.some((v) => list.includes(v));
+    }
+    default:
+      return true;
+  }
+}
+
 /**
  * Validates and normalises submitted ticket data against the template schema.
  * Only known field ids are stored; `title`/`divider` are layout-only and skipped.
+ * Fields hidden by a `visibleWhen` rule are not validated and not stored.
  * Returns the cleaned payload, or the first user-facing error.
  */
 export function validateTicketData(
@@ -72,9 +118,21 @@ export function validateTicketData(
   const src: Record<string, unknown> =
     input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
   const out: Record<string, unknown> = {};
+  const visible = new Map<string, boolean>();
 
   for (const f of fields) {
-    if (!f || !f.id || f.type === 'title' || f.type === 'divider') continue;
+    if (!f || !f.id) continue;
+
+    // A condition may only reference an earlier field (enforced on save), so
+    // visibility of every referenced field is already known here.
+    const condition = f.visibleWhen;
+    const isVisible = !condition
+      ? true
+      : visible.get(condition.fieldId) === true && conditionMatches(condition, src);
+    visible.set(f.id, isVisible);
+
+    if (!isVisible) continue;
+    if (f.type === 'title' || f.type === 'divider') continue;
     const raw = src[f.id];
     const label = f.label || f.id;
 
@@ -177,11 +235,13 @@ export function validateTicketData(
 
 const TICKET_SELECT = `
   SELECT t.id, t.tenant_id, t.template_id, t.template_name, t.template_schema, t.data,
-         t.status, t.created_by, t.resolved_by, t.resolved_at, t.created_at, t.updated_at,
-         c.name AS created_by_name, r.name AS resolved_by_name
+         t.status, t.priority, t.assigned_to, t.created_by, t.resolved_by, t.resolved_at,
+         t.created_at, t.updated_at,
+         c.name AS created_by_name, r.name AS resolved_by_name, a.name AS assigned_to_name
   FROM tickets t
   LEFT JOIN operators c ON c.id = t.created_by
-  LEFT JOIN operators r ON r.id = t.resolved_by`;
+  LEFT JOIN operators r ON r.id = t.resolved_by
+  LEFT JOIN operators a ON a.id = t.assigned_to`;
 
 export async function listTickets(
   tenantId: number,
@@ -218,8 +278,8 @@ export async function countOpenTickets(tenantId: number): Promise<number> {
 export async function createTicket(input: CreateTicketInput, client?: PoolClient): Promise<Ticket> {
   const db = client || pool;
   const res = await db.query(
-    `INSERT INTO tickets (tenant_id, template_id, template_name, template_schema, data, status, created_by)
-     VALUES ($1, $2, $3, $4, $5, 'open', $6)
+    `INSERT INTO tickets (tenant_id, template_id, template_name, template_schema, data, status, priority, assigned_to, created_by)
+     VALUES ($1, $2, $3, $4, $5, 'open', $6, $7, $8)
      RETURNING id`,
     [
       input.tenantId,
@@ -227,6 +287,8 @@ export async function createTicket(input: CreateTicketInput, client?: PoolClient
       input.templateName,
       JSON.stringify(input.templateSchema || { fields: [] }),
       JSON.stringify(input.data || {}),
+      input.priority || 'normal',
+      input.assignedTo ?? null,
       input.createdBy ?? null,
     ]
   );

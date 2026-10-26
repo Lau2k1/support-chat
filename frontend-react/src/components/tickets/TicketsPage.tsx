@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
   Box,
   Button,
   Card,
@@ -15,6 +14,7 @@ import {
   IconButton,
   InputLabel,
   Link,
+  Menu,
   MenuItem,
   Select,
   Table,
@@ -32,10 +32,11 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ReplayIcon from '@mui/icons-material/Replay';
-import { ticketsApi, ticketTemplatesApi } from '@/services/endpoints';
-import type { Ticket, TicketStatus, TicketTemplate } from '@/types';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { ticketsApi } from '@/services/endpoints';
+import type { Ticket, TicketStatus } from '@/types';
 import { useUIStore } from '@/stores/uiStore';
-import TemplateFormRenderer from './TemplateFormRenderer';
+import CreateTicketDialog, { type CreateMode } from './CreateTicketDialog';
 import {
   STATUS_LABELS,
   fileHref,
@@ -43,7 +44,9 @@ import {
   formatDateTime,
   ticketFieldRows,
   ticketSummary,
+  isFreeTicket,
 } from './ticketFormat';
+import { PRIORITY_COLORS, PRIORITY_LABELS } from './templateLogic';
 
 interface Props {
   /** Admins may delete tickets; operators may only create and resolve them. */
@@ -60,11 +63,8 @@ export default function TicketsPage({ isAdmin = false }: Props) {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
-  const [templates, setTemplates] = useState<TicketTemplate[]>([]);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number | ''>('');
-  const [formValues, setFormValues] = useState<Record<string, any>>({});
-  const [saving, setSaving] = useState(false);
+  const [createMode, setCreateMode] = useState<CreateMode | null>(null);
+  const [createMenuAnchor, setCreateMenuAnchor] = useState<null | HTMLElement>(null);
 
   const [detail, setDetail] = useState<Ticket | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -86,42 +86,13 @@ export default function TicketsPage({ isAdmin = false }: Props) {
     load();
   }, [load]);
 
-  const selectedTemplate = useMemo(
-    () => templates.find((t) => t.id === selectedTemplateId) || null,
-    [templates, selectedTemplateId]
-  );
-
-  const openCreate = async () => {
-    setFormValues({});
-    setSelectedTemplateId('');
-    try {
-      const { data } = await ticketTemplatesApi.list();
-      setTemplates((data.items || []).filter((t) => t.is_active));
-    } catch (e: any) {
-      showToast(e.response?.data?.error || 'Не удалось загрузить шаблоны', 'error');
-      return;
-    }
-    setCreateOpen(true);
+  const openCreateMenu = (event: React.MouseEvent<HTMLElement>) => {
+    setCreateMenuAnchor(event.currentTarget);
   };
 
-  const handleCreate = async () => {
-    if (!selectedTemplate) {
-      showToast('Выберите шаблон', 'error');
-      return;
-    }
-    setSaving(true);
-    try {
-      const { data } = await ticketsApi.create({ templateId: selectedTemplate.id, data: formValues });
-      showToast(`Тикет #${data.ticket.id} создан`);
-      setCreateOpen(false);
-      setFormValues({});
-      setSelectedTemplateId('');
-      await load();
-    } catch (e: any) {
-      showToast(e.response?.data?.error || 'Не удалось создать тикет', 'error');
-    } finally {
-      setSaving(false);
-    }
+  const pickCreateMode = (mode: CreateMode) => {
+    setCreateMenuAnchor(null);
+    setCreateMode(mode);
   };
 
   const applyStatus = async (ticket: Ticket, status: TicketStatus) => {
@@ -184,9 +155,24 @@ export default function TicketsPage({ isAdmin = false }: Props) {
             Оформите тикет по шаблону администратора и отметьте его решённым, когда вопрос закрыт.
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-          Создать тикет
-        </Button>
+        <Box>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            endIcon={<ExpandMoreIcon />}
+            onClick={openCreateMenu}
+          >
+            Создать тикет
+          </Button>
+          <Menu
+            anchorEl={createMenuAnchor}
+            open={!!createMenuAnchor}
+            onClose={() => setCreateMenuAnchor(null)}
+          >
+            <MenuItem onClick={() => pickCreateMode('template')}>Из шаблона</MenuItem>
+            <MenuItem onClick={() => pickCreateMode('free')}>Свободный тикет</MenuItem>
+          </Menu>
+        </Box>
       </Box>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
@@ -217,11 +203,12 @@ export default function TicketsPage({ isAdmin = false }: Props) {
               <TableRow>
                 <TableCell sx={{ width: 70 }}>№</TableCell>
                 <TableCell>Тикет</TableCell>
-                <TableCell sx={{ width: 200 }}>Шаблон</TableCell>
-                <TableCell sx={{ width: 130 }}>Статус</TableCell>
-                <TableCell sx={{ width: 160 }}>Автор</TableCell>
+                <TableCell sx={{ width: 120 }}>Приоритет</TableCell>
+                <TableCell sx={{ width: 180 }}>Шаблон</TableCell>
+                <TableCell sx={{ width: 120 }}>Статус</TableCell>
+                <TableCell sx={{ width: 150 }}>Исполнитель</TableCell>
                 <TableCell sx={{ width: 170 }}>Создан</TableCell>
-                <TableCell align="right" sx={{ width: 100 }}>
+                <TableCell align="right" sx={{ width: 90 }}>
                   Действия
                 </TableCell>
               </TableRow>
@@ -229,13 +216,13 @@ export default function TicketsPage({ isAdmin = false }: Props) {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                     <CircularProgress size={24} />
                   </TableCell>
                 </TableRow>
               ) : tickets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={8} align="center">
                     <Typography variant="body2" color="text.secondary" sx={{ py: 3 }}>
                       {statusFilter === 'all'
                         ? 'Тикетов пока нет. Нажмите «Создать тикет».'
@@ -253,8 +240,16 @@ export default function TicketsPage({ isAdmin = false }: Props) {
                       </Typography>
                     </TableCell>
                     <TableCell>
+                      <Chip
+                        size="small"
+                        label={PRIORITY_LABELS[t.priority] || PRIORITY_LABELS.normal}
+                        color={PRIORITY_COLORS[t.priority] || 'default'}
+                        variant={t.priority === 'high' ? 'filled' : 'outlined'}
+                      />
+                    </TableCell>
+                    <TableCell>
                       <Typography variant="caption" color="text.secondary">
-                        {t.template_name}
+                        {isFreeTicket(t) ? 'Свободный' : t.template_name}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -266,7 +261,7 @@ export default function TicketsPage({ isAdmin = false }: Props) {
                     </TableCell>
                     <TableCell>
                       <Typography variant="caption" color="text.secondary">
-                        {t.created_by_name || '—'}
+                        {t.assigned_to_name || t.created_by_name || '—'}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -298,70 +293,13 @@ export default function TicketsPage({ isAdmin = false }: Props) {
         </TableContainer>
       </Card>
 
-      {/* ---------- Create ticket ---------- */}
-      <Dialog open={createOpen} onClose={() => (saving ? null : setCreateOpen(false))} fullWidth maxWidth="md">
-        <DialogTitle>Создать тикет</DialogTitle>
-        <DialogContent dividers>
-          {templates.length === 0 ? (
-            <Alert severity="info">
-              Администратор ещё не создал ни одного активного шаблона тикета. Попросите его добавить шаблон в разделе
-              «Шаблоны тикетов».
-            </Alert>
-          ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-              <FormControl fullWidth>
-                <InputLabel>Шаблон тикета</InputLabel>
-                <Select
-                  label="Шаблон тикета"
-                  value={selectedTemplateId}
-                  onChange={(e) => {
-                    setSelectedTemplateId(e.target.value as number);
-                    setFormValues({});
-                  }}
-                >
-                  <MenuItem value="">
-                    <em>Выберите шаблон</em>
-                  </MenuItem>
-                  {templates.map((t) => (
-                    <MenuItem key={t.id} value={t.id}>
-                      {t.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              {selectedTemplate && (
-                <>
-                  {selectedTemplate.description && (
-                    <Alert severity="info" icon={false}>
-                      {selectedTemplate.description}
-                    </Alert>
-                  )}
-                  <Divider />
-                  <TemplateFormRenderer
-                    fields={Array.isArray(selectedTemplate.schema?.fields) ? selectedTemplate.schema.fields : []}
-                    values={formValues}
-                    onChange={(id, value) => setFormValues((prev) => ({ ...prev, [id]: value }))}
-                    disabled={saving}
-                  />
-                </>
-              )}
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateOpen(false)} disabled={saving}>
-            Отмена
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleCreate}
-            disabled={saving || !selectedTemplate}
-          >
-            {saving ? 'Создание…' : 'Создать тикет'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* ---------- Create ticket (wizard) ---------- */}
+      <CreateTicketDialog
+        open={createMode !== null}
+        mode={createMode || 'template'}
+        onClose={() => setCreateMode(null)}
+        onCreated={() => load()}
+      />
 
       {/* ---------- Ticket detail ---------- */}
       <Dialog
@@ -383,9 +321,20 @@ export default function TicketsPage({ isAdmin = false }: Props) {
                 ) : (
                   <Chip label={STATUS_LABELS.open} color="warning" size="small" variant="outlined" />
                 )}
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`Приоритет: ${PRIORITY_LABELS[detail.priority] || PRIORITY_LABELS.normal}`}
+                  color={PRIORITY_COLORS[detail.priority] || 'default'}
+                />
                 <Typography variant="caption" color="text.secondary">
-                  Шаблон: {detail.template_name}
+                  {isFreeTicket(detail) ? `Тема: ${detail.template_name}` : `Шаблон: ${detail.template_name}`}
                 </Typography>
+                {detail.assigned_to_name && (
+                  <Typography variant="caption" color="text.secondary">
+                    Исполнитель: {detail.assigned_to_name}
+                  </Typography>
+                )}
               </Box>
 
               {ticketFieldRows(detail).map(({ field, value, raw }) => {
