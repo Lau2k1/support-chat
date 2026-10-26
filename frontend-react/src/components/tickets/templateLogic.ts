@@ -2,7 +2,7 @@ import type { FieldCondition, TicketField, TicketPriority } from '@/types';
 
 export const PRIORITY_LABELS: Record<TicketPriority, string> = {
   low: 'Низкий',
-  normal: 'Обычный',
+  normal: 'Средний',
   high: 'Высокий',
 };
 
